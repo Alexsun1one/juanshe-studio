@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import { fetchCast, fetchRelationshipGraph, fetchWorld } from "@/lib/api/client"
 import type { Cast, Relation } from "@/lib/studio-data"
 import { useWorkspace } from "@/lib/workspace-context"
-import { CjPlaceholder } from "@/components/design/cj-placeholder"
+import { CjPlaceholder, EmptyArt } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { KpiChip, StatLine, Meter, FoldCard } from "@/components/design/kit"
 import "./characters.css"
@@ -175,6 +175,7 @@ export default function CharactersPage() {
               colorOf={colorOf}
               selectedId={selected?.id ?? null}
               onSelect={(id) => setSelectedId(id)}
+              loading={!cast}
             />
 
             {/* 紧凑名册 — 当作过滤器/快速跳转 */}
@@ -354,12 +355,14 @@ function CharacterNetwork({
   colorOf,
   selectedId,
   onSelect,
+  loading = false,
 }: {
   cast: Cast[]
   edges: Relation[]
   colorOf: (c: Cast) => string
   selectedId: string | null
   onSelect: (id: string) => void
+  loading?: boolean
 }) {
   const [hoverId, setHoverId] = React.useState<string | null>(null)
 
@@ -422,7 +425,11 @@ function CharacterNetwork({
   if (cast.length === 0) {
     return (
       <div className="char-network empty-net">
-        <div className="empty">尚未抽取角色 · 建立人物档案后这里会渲染关系网络</div>
+        <div className="char-empty-art" aria-hidden>
+          <EmptyArt variant="characters" />
+        </div>
+        <h2>{loading ? "正在整理角色档案" : "角色席位还在等人入场"}</h2>
+        <p>{loading ? "本地角色库还在读取,先把选角台和关系线铺好。" : "建立人物档案后,这里会渲染角色关系网络、阵营与弧光推进。"}</p>
       </div>
     )
   }

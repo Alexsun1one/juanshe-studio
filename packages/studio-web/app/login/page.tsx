@@ -3,7 +3,6 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { ArrowRight, KeyRound, PenLine, Sparkles, AlertCircle, Mail } from "lucide-react"
-import { AgentPixel } from "@/components/design/agent-pixel"
 import { CjLogo } from "@/components/design/cj-logo"
 import { setAuthorName } from "@/lib/use-author-name"
 import "./login.css"
@@ -25,27 +24,6 @@ function getDeviceId(): string {
     return "unknown-device"
   }
 }
-
-// 登录页展示的"编辑部团队" — 17 位全员(按 roster 顺序,与 public/agent-avatars-imagined 一一对应)
-const TEAM: ReadonlyArray<{ fid: string; name: string }> = [
-  { fid: "market-radar", name: "市场雷达" },
-  { fid: "architect", name: "架构师" },
-  { fid: "setup-auditor", name: "建书复审官" },
-  { fid: "planner", name: "规划师" },
-  { fid: "writer", name: "写手" },
-  { fid: "editor", name: "审稿官" },
-  { fid: "reviser", name: "修稿师" },
-  { fid: "word-steward", name: "字数治理官" },
-  { fid: "polisher", name: "润色师" },
-  { fid: "chapter-analyst", name: "章节分析官" },
-  { fid: "state-verifier", name: "状态校验员" },
-  { fid: "style-fingerprint", name: "风格指纹官" },
-  { fid: "reader-critic", name: "读者评审官" },
-  { fid: "quality-report", name: "质量报告官" },
-  { fid: "prompt-steward", name: "提示词治理官" },
-  { fid: "managing-editor", name: "执行主编" },
-  { fid: "editor-in-chief", name: "总编" },
-]
 
 // 公众号领码引导(部署时可用 NEXT_PUBLIC_* 覆盖;横条素材默认读 public/wechat-qr.png)
 const WECHAT_NAME = process.env.NEXT_PUBLIC_WECHAT_NAME || "正在逐渐AI化"
@@ -125,7 +103,7 @@ export default function LoginPage() {
 
   return (
     <div className="cj-login">
-      {/* 左:背景故事 + 团队 */}
+      {/* 左:背景故事 + 编辑部主视觉 */}
       <aside className="aside">
         <div className="aside-brand">
           <span className="mk">
@@ -183,14 +161,6 @@ export default function LoginPage() {
               了解硅基小镇
             </a>
           </p>
-        </div>
-
-        <div className="team" aria-label="编辑部成员">
-          {TEAM.map((m, i) => (
-            <span className="team-m" key={m.fid} style={{ ["--d" as string]: `${i * 0.1}s` }} title={m.name}>
-              <AgentPixel id={m.fid} size={40} ariaLabel={m.name} />
-            </span>
-          ))}
         </div>
       </aside>
 

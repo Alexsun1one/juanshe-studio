@@ -59,13 +59,17 @@
 .cj-login .login-office-scene {
   position: relative;
   z-index: 1;
-  margin: clamp(14px, 2vh, 20px) 0 clamp(12px, 1.8vh, 18px);
+  margin: clamp(14px, 2vh, 20px) 0 clamp(14px, 2vh, 22px);
+  width: min(100%, 720px);
+  aspect-ratio: 16 / 9;
   border: 1px solid color-mix(in oklab, var(--brand-500) 18%, var(--line-1));
   border-radius: 16px;
   overflow: hidden;
-  background: var(--bg-card);
+  background:
+    radial-gradient(460px 210px at 38% 42%, color-mix(in oklab, var(--accent-gold, #FFD66A) 11%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in oklab, var(--pixel-paper, #FFFAF0) 82%, var(--bg-card)), var(--bg-card));
   box-shadow: 0 18px 42px -28px rgba(74, 58, 36, 0.42);
-  height: clamp(190px, 30vh, 270px);
+  height: auto;
   min-height: 0;
 }
 .cj-login .login-office-scene::before {
@@ -87,8 +91,8 @@
   height: 100%;
 }
 .cj-login .login-office-scene picture > img {
-  object-fit: cover;
-  object-position: left center;
+  object-fit: contain;
+  object-position: center center;
 }
 .cj-login .scene-lamp-glow {
   position: absolute;
@@ -189,7 +193,7 @@
 .cj-login .login-foot { margin-top: 26px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-500); }
 .cj-login .login-foot .env-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok-500); box-shadow: 0 0 0 3px rgba(29,185,122,0.18); }
 
-/* ════ v2:背景故事 + 团队 + 进入卡(作者名 + 激活码)════ */
+/* ════ v2:背景故事 + 编辑部主视觉 + 进入卡(作者名 + 激活码)════ */
 .cj-login .aside { padding: clamp(24px, 3vw, 40px) clamp(28px, 3.4vw, 48px); }
 .cj-login .story { margin-top: 0; position: relative; z-index: 1; max-width: 650px; }
 .cj-login .story h1 { font-size: clamp(22px, 2.1vw, 27px); line-height: 1.3; font-weight: 800; margin: 0 0 10px; letter-spacing: 0; color: var(--ink-900); }
@@ -261,11 +265,6 @@
   .cj-login .slogan .juan { animation: none; }
 }
 .cj-login .story .promise { color: var(--ink-700); }
-.cj-login .team { margin-top: 13px; display: flex; flex-wrap: wrap; gap: 7px; position: relative; z-index: 1; }
-.cj-login .team-m { width: 48px; height: 48px; border-radius: 11px; background: var(--bg-card); border: 1px solid var(--line-1); display: grid; place-items: center; padding: 2px; box-shadow: var(--sh-1); transition: transform .18s var(--ease-spring-cj, ease), box-shadow .18s, border-color .18s; animation: cj-team-in .5s var(--ease-spring-cj, ease) both; animation-delay: var(--d, 0s); }
-.cj-login .team-m:hover { transform: translateY(-3px) rotate(-3deg); box-shadow: var(--sh-2); border-color: var(--brand-200); }
-@keyframes cj-team-in { from { opacity: 0; transform: translateY(8px) scale(0.82); } to { opacity: 1; transform: none; } }
-
 .cj-login .panel { display: flex; align-items: center; justify-content: center; padding: clamp(24px, 3vw, 40px); min-height: 0; }
 .cj-login .card { width: 100%; max-width: 372px; max-height: calc(100dvh - 44px); overflow-y: auto; background: var(--bg-card); border: 1px solid var(--line-1); border-radius: 15px; padding: 20px 22px; box-shadow: var(--sh-3); animation: cj-fade-in var(--motion-slow, .36s) var(--ease-out-cj, ease); scrollbar-width: thin; }
 .cj-login .card-emblem { width: 44px; height: 44px; border-radius: 12px; background: var(--brand-50); color: var(--brand-600); display: grid; place-items: center; margin-bottom: 14px; }
@@ -319,16 +318,14 @@
 @media (max-width: 880px) {
   .cj-login { grid-template-columns: 1fr; height: auto; min-height: 100dvh; overflow: visible; }
   .cj-login .aside { padding: 30px 26px; }
-  .cj-login .login-office-scene { height: auto; aspect-ratio: 16 / 9; margin-top: 18px; }
+  .cj-login .login-office-scene { width: 100%; height: auto; aspect-ratio: 16 / 9; margin-top: 18px; }
   .cj-login .story h1 { font-size: 23px; }
   .cj-login .story .promise,
   .cj-login .story .lore { display: none; }
-  .cj-login .team { max-height: 103px; overflow: hidden; }
   .cj-login .panel { padding: 28px; }
   .cj-login .card { max-height: none; overflow: visible; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cj-login .team-m,
   .cj-login .aside::after,
   .cj-login .scene-lamp-glow,
   .cj-login .scene-prop-plant,

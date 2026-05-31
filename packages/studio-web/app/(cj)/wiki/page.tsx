@@ -32,7 +32,7 @@ import {
 import { fetchWiki } from "@/lib/api/client"
 import type { WikiNode } from "@/lib/api/types"
 import { useWorkspace } from "@/lib/workspace-context"
-import { CjPlaceholder } from "@/components/design/cj-placeholder"
+import { CjPlaceholder, EmptyArt } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
@@ -83,10 +83,6 @@ export default function WikiPage() {
   const { data } = useSWR(bookId ? ["wiki", bookId] : null, () => fetchWiki(bookId), { ...soft, refreshInterval: 15000 })
   const [selId, setSelId] = React.useState<string | null>(null)
   const [q, setQ] = React.useState("")
-
-  if (!booksLoading && !bookId) {
-    return <CjPlaceholder title="LLM Wiki" sub="本地工作区还没有作品,创建后这里会出现作品知识库 Wiki。" />
-  }
 
   const nodes: WikiNode[] = data?.nodes ?? []
   const filtered = q ? nodes.filter((n) => `${n.title.zh}${n.body ?? ""}`.toLowerCase().includes(q.toLowerCase())) : nodes
@@ -157,6 +153,10 @@ export default function WikiPage() {
   const linkPct = nodes.length > 0 ? Math.round((linkedNodeCount / nodes.length) * 100) : 0
   const tagPct = nodes.length > 0 ? Math.round((taggedCount / nodes.length) * 100) : 0
   const maxGroup = allGroups.length ? allGroups[0][1] : 0
+
+  if (!booksLoading && !bookId) {
+    return <CjPlaceholder title="LLM Wiki" sub="本地工作区还没有作品,创建后这里会出现作品知识库 Wiki。" />
+  }
 
   return (
     <div className="cj-screen cj-wiki">
@@ -256,7 +256,19 @@ export default function WikiPage() {
 
         {/* 中:词条正文(只在此 pane 内滚) */}
         <article className="wiki-content cj-pane-scroll">
-          {sel ? (
+          {(!data || nodes.length === 0) ? (
+            <div className="wiki-empty-stage">
+              <div className="wiki-empty-art">
+                <EmptyArt variant="wiki" />
+              </div>
+              <h2>{data ? "Wiki 书页还没翻开" : "正在翻找作品词条"}</h2>
+              <p>
+                {data
+                  ? "写作推进时,角色、设定、伏笔和章节摘要会沉淀成词条,这里会变成作品的本地知识书架。"
+                  : "本地知识库还在整理索引,先把书页、台灯和档案册铺好。"}
+              </p>
+            </div>
+          ) : sel ? (
             <div className="wc-article">
               <header className="wc-head">
                 {(() => {

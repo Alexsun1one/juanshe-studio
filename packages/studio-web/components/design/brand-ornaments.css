@@ -35,13 +35,20 @@
   --page-prop: url("/brand/props/settings-gear.webp");
 }
 
-.app[data-route-key="books"],
 .app[data-route-key="library"],
 .app[data-route-key="wiki"] {
   --page-prop: url("/brand/props/asset-library-desk.webp");
   --page-prop-size: clamp(126px, 14vw, 216px);
   --page-prop-opacity: 0.19;
   --workhead-prop-size: clamp(116px, 13vw, 198px);
+  --workhead-prop-opacity: 0.16;
+}
+
+.app[data-route-key="books"] {
+  --page-prop: url("/brand/props/book-registry-desk.webp");
+  --page-prop-size: clamp(128px, 15vw, 224px);
+  --page-prop-opacity: 0.2;
+  --workhead-prop-size: clamp(118px, 14vw, 206px);
   --workhead-prop-opacity: 0.16;
 }
 
@@ -93,13 +100,27 @@
   --workhead-prop-opacity: 0.18;
 }
 
-.app[data-route-key="outline"],
-.app[data-route-key="characters"],
 .app[data-route-key="knowledge"] {
   --page-prop: url("/brand/props/story-map-desk.webp");
   --page-prop-size: clamp(128px, 15vw, 226px);
   --page-prop-opacity: 0.2;
   --workhead-prop-size: clamp(120px, 14vw, 210px);
+  --workhead-prop-opacity: 0.16;
+}
+
+.app[data-route-key="outline"] {
+  --page-prop: url("/brand/props/outline-planning-desk.webp");
+  --page-prop-size: clamp(132px, 15vw, 232px);
+  --page-prop-opacity: 0.2;
+  --workhead-prop-size: clamp(122px, 14vw, 214px);
+  --workhead-prop-opacity: 0.16;
+}
+
+.app[data-route-key="characters"] {
+  --page-prop: url("/brand/props/character-casting-desk.webp");
+  --page-prop-size: clamp(132px, 15vw, 232px);
+  --page-prop-opacity: 0.2;
+  --workhead-prop-size: clamp(122px, 14vw, 214px);
   --workhead-prop-opacity: 0.16;
 }
 

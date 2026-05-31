@@ -1746,7 +1746,10 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
 }
 .editorial-empty[data-empty-variant="editor"] .empty-art,
 .editorial-empty[data-empty-variant="publish"] .empty-art,
+.editorial-empty[data-empty-variant="books"] .empty-art,
 .editorial-empty[data-empty-variant="library"] .empty-art,
+.editorial-empty[data-empty-variant="outline"] .empty-art,
+.editorial-empty[data-empty-variant="characters"] .empty-art,
 .editorial-empty[data-empty-variant="knowledge"] .empty-art,
 .editorial-empty[data-empty-variant="graph"] .empty-art,
 .editorial-empty[data-empty-variant="memory"] .empty-art,
@@ -1797,7 +1800,10 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   max-width: 178px;
   transform: rotate(-2deg);
 }
+.empty-pixel-scene[data-empty-variant="books"] .eps-main,
 .empty-pixel-scene[data-empty-variant="library"] .eps-main,
+.empty-pixel-scene[data-empty-variant="outline"] .eps-main,
+.empty-pixel-scene[data-empty-variant="characters"] .eps-main,
 .empty-pixel-scene[data-empty-variant="knowledge"] .eps-main,
 .empty-pixel-scene[data-empty-variant="graph"] .eps-main,
 .empty-pixel-scene[data-empty-variant="memory"] .eps-main,
@@ -1815,7 +1821,10 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   left: 218px;
   bottom: 52px;
 }
+.empty-pixel-scene[data-empty-variant="books"] .eps-tall,
 .empty-pixel-scene[data-empty-variant="library"] .eps-tall,
+.empty-pixel-scene[data-empty-variant="outline"] .eps-tall,
+.empty-pixel-scene[data-empty-variant="characters"] .eps-tall,
 .empty-pixel-scene[data-empty-variant="knowledge"] .eps-tall,
 .empty-pixel-scene[data-empty-variant="graph"] .eps-tall,
 .empty-pixel-scene[data-empty-variant="memory"] .eps-tall,
@@ -1830,7 +1839,10 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   left: 28px;
   bottom: 18px;
 }
+.empty-pixel-scene[data-empty-variant="books"] .eps-left,
 .empty-pixel-scene[data-empty-variant="library"] .eps-left,
+.empty-pixel-scene[data-empty-variant="outline"] .eps-left,
+.empty-pixel-scene[data-empty-variant="characters"] .eps-left,
 .empty-pixel-scene[data-empty-variant="knowledge"] .eps-left,
 .empty-pixel-scene[data-empty-variant="graph"] .eps-left,
 .empty-pixel-scene[data-empty-variant="memory"] .eps-left,
@@ -1844,7 +1856,10 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   left: 244px;
   bottom: 15px;
 }
+.empty-pixel-scene[data-empty-variant="books"] .eps-cat,
 .empty-pixel-scene[data-empty-variant="library"] .eps-cat,
+.empty-pixel-scene[data-empty-variant="outline"] .eps-cat,
+.empty-pixel-scene[data-empty-variant="characters"] .eps-cat,
 .empty-pixel-scene[data-empty-variant="knowledge"] .eps-cat,
 .empty-pixel-scene[data-empty-variant="graph"] .eps-cat,
 .empty-pixel-scene[data-empty-variant="memory"] .eps-cat,
@@ -1965,7 +1980,10 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   }
   .editorial-empty[data-empty-variant="editor"] .empty-art,
   .editorial-empty[data-empty-variant="publish"] .empty-art,
+  .editorial-empty[data-empty-variant="books"] .empty-art,
   .editorial-empty[data-empty-variant="library"] .empty-art,
+  .editorial-empty[data-empty-variant="outline"] .empty-art,
+  .editorial-empty[data-empty-variant="characters"] .empty-art,
   .editorial-empty[data-empty-variant="knowledge"] .empty-art,
   .editorial-empty[data-empty-variant="graph"] .empty-art,
   .editorial-empty[data-empty-variant="memory"] .empty-art,
@@ -1979,7 +1997,10 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
     width: 132px;
     max-width: 132px;
   }
+  .empty-pixel-scene[data-empty-variant="books"] .eps-main,
   .empty-pixel-scene[data-empty-variant="library"] .eps-main,
+  .empty-pixel-scene[data-empty-variant="outline"] .eps-main,
+  .empty-pixel-scene[data-empty-variant="characters"] .eps-main,
   .empty-pixel-scene[data-empty-variant="knowledge"] .eps-main,
   .empty-pixel-scene[data-empty-variant="graph"] .eps-main,
   .empty-pixel-scene[data-empty-variant="memory"] .eps-main,
@@ -1997,7 +2018,10 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   .empty-pixel-scene[data-empty-variant="publish"] .eps-cat {
     left: 166px;
   }
+  .empty-pixel-scene[data-empty-variant="books"] .eps-tall,
   .empty-pixel-scene[data-empty-variant="library"] .eps-tall,
+  .empty-pixel-scene[data-empty-variant="outline"] .eps-tall,
+  .empty-pixel-scene[data-empty-variant="characters"] .eps-tall,
   .empty-pixel-scene[data-empty-variant="knowledge"] .eps-tall,
   .empty-pixel-scene[data-empty-variant="graph"] .eps-tall,
   .empty-pixel-scene[data-empty-variant="memory"] .eps-tall,
@@ -2006,7 +2030,10 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
     bottom: 60px;
     width: 54px;
   }
+  .empty-pixel-scene[data-empty-variant="books"] .eps-left,
   .empty-pixel-scene[data-empty-variant="library"] .eps-left,
+  .empty-pixel-scene[data-empty-variant="outline"] .eps-left,
+  .empty-pixel-scene[data-empty-variant="characters"] .eps-left,
   .empty-pixel-scene[data-empty-variant="knowledge"] .eps-left,
   .empty-pixel-scene[data-empty-variant="graph"] .eps-left,
   .empty-pixel-scene[data-empty-variant="memory"] .eps-left,
@@ -2015,7 +2042,10 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
     bottom: 20px;
     width: 52px;
   }
+  .empty-pixel-scene[data-empty-variant="books"] .eps-cat,
   .empty-pixel-scene[data-empty-variant="library"] .eps-cat,
+  .empty-pixel-scene[data-empty-variant="outline"] .eps-cat,
+  .empty-pixel-scene[data-empty-variant="characters"] .eps-cat,
   .empty-pixel-scene[data-empty-variant="knowledge"] .eps-cat,
   .empty-pixel-scene[data-empty-variant="graph"] .eps-cat,
   .empty-pixel-scene[data-empty-variant="memory"] .eps-cat,

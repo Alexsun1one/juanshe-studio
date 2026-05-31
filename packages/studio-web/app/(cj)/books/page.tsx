@@ -530,11 +530,22 @@ export default function BooksPage() {
           </div>
           <div className="cj-pane-scroll bk-pane-scroll">
             {booksLoading ? (
-              <div className="bk-list">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="skel" style={{ height: 60, borderRadius: "var(--r-lg)" }} />
-                ))}
-              </div>
+              <>
+                <div className="bk-loading-stage">
+                  <div className="bk-loading-art" aria-hidden>
+                    <EmptyArt variant="books" />
+                  </div>
+                  <div>
+                    <strong>正在清点作品书架</strong>
+                    <span>本地书库读取中,先把登记台、台灯和稿纸铺好。</span>
+                  </div>
+                </div>
+                <div className="bk-list bk-list-loading">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="skel" style={{ height: 54, borderRadius: "var(--r-lg)" }} />
+                  ))}
+                </div>
+              </>
             ) : books.length === 0 ? (
               <div className="empty empty-lg editorial-empty bk-empty" data-empty-variant="books">
                 <div className="empty-art">

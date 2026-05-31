@@ -84,6 +84,42 @@
   gap: 0;
 }
 
+.cj-books .bk-loading-stage {
+  display: grid;
+  grid-template-columns: minmax(180px, 320px) minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+  margin: 6px 2px 12px;
+  padding: 20px 22px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(320px 170px at 30% 12%, color-mix(in oklab, var(--brand-500) 8%, transparent), transparent 72%),
+    linear-gradient(180deg, color-mix(in oklab, var(--pixel-paper, #FFFAF0) 86%, transparent), var(--bg-card));
+  overflow: hidden;
+}
+.cj-books .bk-loading-art {
+  width: min(320px, 100%);
+  height: 190px;
+}
+.cj-books .bk-loading-stage strong {
+  display: block;
+  font-size: 17px;
+  line-height: 1.25;
+  color: var(--ink-900);
+}
+.cj-books .bk-loading-stage span {
+  display: block;
+  max-width: 36ch;
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-500);
+}
+.cj-books .bk-list-loading {
+  opacity: 0.7;
+}
+
 .cj-books .bk-row {
   position: relative;
   display: flex;
@@ -626,6 +662,16 @@
 
 @media (max-width: 720px) {
   .cj-books .bk-head { padding: 12px 14px; }
+  .cj-books .bk-loading-stage {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 18px;
+    text-align: center;
+  }
+  .cj-books .bk-loading-art {
+    width: min(270px, 82vw);
+    height: 170px;
+  }
   .cj-books .bk-hero-pixel {
     width: 40px;
     height: 40px;

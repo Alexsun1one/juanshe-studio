@@ -133,7 +133,34 @@
   padding: 14px 16px;
   margin-bottom: 16px;
 }
-.cj-characters .char-network.empty-net { padding: 36px 18px; text-align: center; color: var(--ink-500); }
+.cj-characters .char-network.empty-net {
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 18px 28px;
+  text-align: center;
+  color: var(--ink-500);
+}
+.cj-characters .char-empty-art {
+  width: min(350px, 88%);
+  height: 210px;
+  margin-bottom: 2px;
+}
+.cj-characters .char-network.empty-net h2 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.25;
+  color: var(--ink-900);
+}
+.cj-characters .char-network.empty-net p {
+  max-width: 42ch;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
 .cj-characters .char-network .cn-head {
   display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: 12px;
