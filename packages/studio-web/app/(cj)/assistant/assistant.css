@@ -25,13 +25,24 @@
 .cj-assistant .as-head:hover .as-hero-pixel {
   transform: translateY(-2px) rotate(-3deg);
 }
-/* 编辑部的猫:hero 头像盒(品牌暖紫圆角 + 居中猫图标) */
-.cj-assistant .as-hero-cat {
-  width: 46px; height: 46px; border-radius: 13px;
-  display: grid; place-items: center;
-  background: linear-gradient(160deg, color-mix(in oklab, var(--brand-400) 28%, var(--bg-card)), var(--bg-card));
-  border: 1px solid var(--line-1);
-  color: var(--brand-600);
+/* 助手会话台:用真实像素道具替代孤立紫色图标,和对话空态同源。 */
+.cj-assistant .as-hero-desk {
+  width: 64px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-lg, 8px);
+  background:
+    radial-gradient(80% 100% at 50% 90%, color-mix(in oklab, var(--accent-warm, #d98b45) 12%, transparent), transparent 68%),
+    color-mix(in oklab, var(--bg-card) 88%, transparent);
+  border: 1px solid color-mix(in oklab, var(--line-1) 82%, transparent);
+}
+.cj-assistant .as-hero-desk img {
+  width: 76px;
+  max-width: none;
+  height: auto;
+  transform: translateY(1px);
+  filter: drop-shadow(0 5px 10px color-mix(in oklab, var(--ink-900) 10%, transparent));
 }
 .cj-assistant .as-headline-text {
   min-width: 0;
@@ -213,6 +224,9 @@
   .cj-assistant .as-head:hover .as-hero-pixel {
     transform: none;
   }
+  .cj-assistant .assistant-empty-prop {
+    animation: none;
+  }
 }
 
 /* ── 主体:单栏铺满,把 AssistantConsole 框进标准工作区 ──
@@ -225,9 +239,74 @@
   flex: 1 1 auto;
   min-height: 0;
 }
+.cj-assistant .assistant-console-shell {
+  position: relative;
+}
 /* 主体网格内的对话栏:吃掉剩余高度而非撑到 680px 固定下限,避免整页溢出 */
 .cj-assistant .as-mainpane > section > div {
   min-height: 0;
+}
+.cj-assistant .assistant-chat-shell {
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--bg-card) 92%, transparent), color-mix(in oklab, var(--bg-app) 95%, transparent)),
+    var(--bg-card);
+}
+.cj-assistant .assistant-empty-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-lg, 8px);
+  border-color: color-mix(in oklab, var(--line-2) 80%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--bg-card) 94%, transparent), color-mix(in oklab, var(--bg-sunken) 58%, transparent)),
+    radial-gradient(95% 70% at 50% 0%, color-mix(in oklab, var(--accent-warm, #d98b45) 11%, transparent), transparent 68%),
+    var(--bg-card);
+}
+.cj-assistant .assistant-empty-card::before,
+.cj-assistant .assistant-empty-card::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+.cj-assistant .assistant-empty-card::before {
+  inset: 18px;
+  border-radius: var(--r-md, 6px);
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--line-1) 52%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--line-1) 38%, transparent) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.32;
+}
+.cj-assistant .assistant-empty-card::after {
+  right: 10%;
+  bottom: 10%;
+  width: 70px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--ink-900) 10%, transparent);
+  filter: blur(7px);
+}
+.cj-assistant .assistant-empty-prop {
+  position: relative;
+  z-index: 1;
+  width: min(360px, 60vw);
+  height: auto;
+  margin-bottom: 8px;
+  filter:
+    var(--brand-asset-filter, none)
+    drop-shadow(0 14px 22px color-mix(in oklab, var(--ink-900) 12%, transparent));
+  transform-origin: 50% 90%;
+  animation: assistant-desk-breathe 4.8s ease-in-out infinite;
+}
+.cj-assistant .assistant-empty-card h3,
+.cj-assistant .assistant-empty-card p {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes assistant-desk-breathe {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 1; }
+  50% { transform: translateY(-3px) scale(1.01); opacity: 0.94; }
 }
 
 /* ── 响应式 ── */
@@ -246,8 +325,11 @@
     padding: 12px 14px;
   }
   .cj-assistant .as-hero-pixel {
-    width: 40px;
-    height: 40px;
+    width: 56px;
+    height: 46px;
+  }
+  .cj-assistant .as-hero-desk img {
+    width: 68px;
   }
   .cj-assistant .as-headline-text .page-sub {
     white-space: normal;
@@ -267,5 +349,8 @@
   }
   .cj-assistant .as-cues-tail {
     display: none;
+  }
+  .cj-assistant .assistant-empty-prop {
+    width: min(280px, 78vw);
   }
 }

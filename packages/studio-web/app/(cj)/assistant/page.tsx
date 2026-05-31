@@ -3,7 +3,6 @@
 import type { LucideIcon } from "lucide-react"
 import {
   BookOpenText,
-  Cat,
   Cpu,
   Gauge,
   GitCompareArrows,
@@ -34,8 +33,8 @@ export default function AssistantPage() {
       {/* ── 顶部工作条:像素「AI 助手」+ 标题 + 一行能力数据(密集而克制,非大卡堆)── */}
       <header className="cj-workhead as-head">
         <div className="as-headline">
-          <div className="as-hero-pixel as-hero-cat" role="img" aria-label="编辑部的猫">
-            <Cat size={26} aria-hidden />
+          <div className="as-hero-pixel as-hero-desk" role="img" aria-label="助手会话台">
+            <img src="/brand/props/assistant-desk.webp" alt="" width={124} height={97} draggable={false} />
           </div>
           <div className="as-headline-text">
             <span className="as-kicker">

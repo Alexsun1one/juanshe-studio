@@ -44,7 +44,11 @@
 
 .app[data-route-key="assistant"],
 .app[data-route-key="agents"] {
-  --page-prop: url("/brand/props/editor-bot.webp");
+  --page-prop: url("/brand/props/assistant-desk.webp");
+  --page-prop-size: clamp(116px, 14vw, 210px);
+  --page-prop-opacity: 0.18;
+  --workhead-prop-size: clamp(112px, 13vw, 198px);
+  --workhead-prop-opacity: 0.16;
 }
 
 .app[data-route-key="system"] {
@@ -57,11 +61,17 @@
 
 .app[data-route-key="compose"],
 .app[data-route-key="platform-export"] {
-  --page-prop: url("/brand/props/publishing-envelope.webp");
+  --page-prop: url("/brand/props/publish-dock.webp");
+  --page-prop-size: clamp(114px, 13vw, 196px);
+  --page-prop-opacity: 0.18;
+  --workhead-prop-size: clamp(106px, 12vw, 184px);
+  --workhead-prop-opacity: 0.15;
 }
 
 .app[data-route-key="editor"] {
-  --page-prop: url("/brand/props/typewriter.webp");
+  --page-prop: url("/brand/props/editor-desk.webp");
+  --page-prop-size: clamp(116px, 14vw, 212px);
+  --page-prop-opacity: 0.16;
 }
 
 .app[data-route-key="runs"] {
@@ -84,7 +94,11 @@
 }
 
 .app[data-route-key="publish"] {
-  --page-prop: url("/brand/props/seal-desk.webp");
+  --page-prop: url("/brand/props/publish-dock.webp");
+  --page-prop-size: clamp(118px, 14vw, 206px);
+  --page-prop-opacity: 0.18;
+  --workhead-prop-size: clamp(110px, 13vw, 190px);
+  --workhead-prop-opacity: 0.15;
 }
 
 .app[data-route-key="insights"],

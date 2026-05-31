@@ -491,10 +491,18 @@
 .cj-editor .ed-welcome {
   margin: auto;
   display: flex; flex-direction: column; align-items: center; text-align: center;
-  gap: 6px; padding: 40px 24px; max-width: 360px;
+  gap: 6px; padding: 34px 24px; max-width: 460px;
   animation: ed-soft-in 0.5s var(--ease-soft, ease-out) both;
 }
-.cj-editor .ed-welcome-pix { filter: drop-shadow(0 3px 8px color-mix(in oklab, var(--brand-500) 22%, transparent)); }
+.cj-editor .ed-welcome-prop {
+  width: min(360px, 58vw);
+  height: auto;
+  filter:
+    var(--brand-asset-filter, none)
+    drop-shadow(0 14px 22px color-mix(in oklab, var(--ink-900) 12%, transparent));
+  transform-origin: 50% 85%;
+  animation: ed-prop-breathe 5.2s ease-in-out infinite;
+}
 .cj-editor .ed-welcome-t { margin: 10px 0 0; font-size: var(--text-head, 16px); font-weight: 650; color: var(--ink-800); }
 .cj-editor .ed-welcome-s { margin: 0; font-size: var(--text-cap, 12px); line-height: 1.7; color: var(--ink-500); }
 
@@ -510,13 +518,31 @@
 .cj-editor .ed-write-wrap { position: relative; width: 100%; max-width: 720px; min-height: 100%; display: flex; }
 .cj-editor .ed-write-wrap textarea { flex: 1; }
 .cj-editor .ed-blank-hint {
-  position: absolute; left: 0; right: 0; top: 6px;
-  display: flex; align-items: center; gap: 10px;
+  position: absolute; left: 0; right: 0; top: 4px;
+  display: flex; align-items: center; gap: 12px;
   pointer-events: none;       /* 邀请只是装饰,点击 / 打字直接落到 textarea */
   opacity: 0.9;
   animation: ed-soft-in 0.5s var(--ease-soft, ease-out) both;
 }
+.cj-editor .ed-blank-hint::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -8px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--line-2) 70%, transparent), transparent);
+}
 .cj-editor .ed-blank-pix { flex: 0 0 auto; filter: drop-shadow(0 2px 5px color-mix(in oklab, var(--brand-500) 20%, transparent)); }
+.cj-editor .ed-blank-prop {
+  flex: 0 0 auto;
+  width: 118px;
+  height: auto;
+  opacity: 0.72;
+  filter:
+    var(--brand-asset-filter, none)
+    drop-shadow(0 8px 13px color-mix(in oklab, var(--ink-900) 10%, transparent));
+}
 .cj-editor .ed-blank-t { margin: 0; font-size: var(--text-cap, 12px); line-height: 1.6; color: var(--ink-400); }
 
 /* 进展庆祝条:达标 / 总编签发时,一行像素温度,贴在正文与页脚之间 */
@@ -544,6 +570,7 @@
 .cj-editor .ed-foot-dim { color: var(--ink-400); font-family: var(--font-num); }
 
 @keyframes ed-soft-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ed-prop-breathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-3px) scale(1.01); } }
 @keyframes ed-cheer-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes ed-cheer-bob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-2px) rotate(2deg); } }
 
@@ -556,5 +583,23 @@
   .cj-editor .ed-paper-skel,
   .cj-editor .ed-blank-hint,
   .cj-editor .ed-cheer { animation: none; }
+  .cj-editor .ed-welcome-prop { animation: none; }
   .cj-editor .ed-cheer-pix { animation: none; }
+}
+
+@media (max-width: 760px) {
+  .cj-editor .ed-welcome {
+    max-width: 252px;
+    padding: 28px 8px;
+    overflow: hidden;
+  }
+  .cj-editor .ed-welcome-prop {
+    width: 230px;
+  }
+  .cj-editor .ed-blank-hint {
+    gap: 8px;
+  }
+  .cj-editor .ed-blank-prop {
+    width: 84px;
+  }
 }

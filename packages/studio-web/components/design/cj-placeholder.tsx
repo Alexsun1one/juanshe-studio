@@ -53,8 +53,8 @@ const SCENES: Record<EmptyArtVariant, EmptyScene> = {
     prop("flower-branch", "eps-cat", 76, 76),
   ]),
   publish: scene("发布台还在等第一枚邮戳", "publish", [
-    prop("publishing-envelope", "eps-main", 92, 92),
-    prop("stamp-seal", "eps-left", 76, 76),
+    prop("publish-dock", "eps-main", 128, 96),
+    prop("stamp-seal", "eps-left", 66, 66),
     prop("desk-lamp", "eps-tall", 82, 82),
     prop("sleeping-cat", "eps-cat", 76, 76),
   ]),
@@ -77,9 +77,9 @@ const SCENES: Record<EmptyArtVariant, EmptyScene> = {
     prop("editor-bot", "eps-cat", 74, 74),
   ]),
   editor: scene("稿纸已经铺好", "editor", [
-    prop("typewriter", "eps-main", 96, 96),
-    prop("desk-lamp", "eps-tall", 82, 82),
-    prop("ink-quill", "eps-left", 72, 72),
+    prop("editor-desk", "eps-main", 132, 92),
+    prop("desk-lamp", "eps-tall", 76, 76),
+    prop("ink-quill", "eps-left", 64, 64),
     prop("sleeping-cat", "eps-cat", 76, 76),
   ]),
   outline: scene("题板还在等第一条主线", "outline", [

@@ -515,7 +515,14 @@ export default function EditorPage() {
           <div className="paper scroll-thin" ref={streamRef}>
             {!cur ? (
               <div className="ed-welcome">
-                <PixelBadge kind="editor" size={56} className="ed-welcome-pix" ariaLabel="写作画布" />
+                <img
+                  className="ed-welcome-prop"
+                  src="/brand/props/editor-desk.webp"
+                  alt=""
+                  width={360}
+                  height={251}
+                  draggable={false}
+                />
                 <p className="ed-welcome-t">挑一个章节，开始今天的写作</p>
                 <p className="ed-welcome-s">左侧目录里选一章，正文会在这里铺开;不急,一句一句来。</p>
               </div>
@@ -612,7 +619,14 @@ export default function EditorPage() {
               <div className="ed-write-wrap">
                 {!chapterHasBody && (
                   <div className="ed-blank-hint" aria-hidden>
-                    <AgentPixel id="writer" size={40} className="ed-blank-pix" ariaLabel="写手" />
+                    <img
+                      className="ed-blank-prop"
+                      src="/brand/props/editor-desk.webp"
+                      alt=""
+                      width={180}
+                      height={126}
+                      draggable={false}
+                    />
                     <p className="ed-blank-t">这一章还是空白页 — 落下第一句,或让右侧 AI 起个头。</p>
                   </div>
                 )}

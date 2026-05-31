@@ -346,8 +346,8 @@ export function AssistantConsole({
     <section
       className={
         compact
-          ? "flex min-h-0 flex-1 flex-col"
-          : "grid min-h-0 min-w-0 flex-1 gap-5 px-3 py-4 sm:px-6 sm:py-6 md:px-10 xl:grid-cols-[320px_minmax(0,1fr)]"
+          ? "assistant-console-shell flex min-h-0 flex-1 flex-col"
+          : "assistant-console-shell grid min-h-0 min-w-0 flex-1 gap-5 px-3 py-4 sm:px-6 sm:py-6 md:px-10 xl:grid-cols-[320px_minmax(0,1fr)]"
       }
     >
       {!compact && (
@@ -483,7 +483,7 @@ export function AssistantConsole({
         className={
           compact
             ? "flex min-h-0 flex-1 flex-col"
-            : "border-border/50 bg-card/35 flex min-h-[680px] min-w-0 flex-col rounded-lg border"
+            : "assistant-chat-shell border-border/50 bg-card/35 flex min-h-[680px] min-w-0 flex-col rounded-lg border"
         }
       >
         {!compact && !hideHeader && (
@@ -513,13 +513,15 @@ export function AssistantConsole({
                 例如：“帮我检查第 25 章有没有 AI 痕迹风险，并给出可直接改写的三处建议。”
               </p>
             ) : (
-              <div className="border-border/40 flex h-full min-h-[180px] flex-col items-center justify-center rounded-2xl border p-6 text-center" style={{ background: "radial-gradient(120% 90% at 50% 0%, color-mix(in oklab, var(--brand-500) 7%, transparent), transparent 70%), var(--bg-card)" }}>
-                <div
-                  className="flex size-14 items-center justify-center rounded-2xl"
-                  style={{ background: "linear-gradient(155deg, var(--brand-400), var(--brand-600))", color: "#fff", boxShadow: "0 10px 22px -8px color-mix(in oklab, var(--brand-500) 55%, transparent)" }}
-                >
-                  <Cat className="size-6" />
-                </div>
+              <div className="assistant-empty-card border-border/40 flex h-full min-h-[180px] flex-col items-center justify-center rounded-2xl border p-6 text-center">
+                <img
+                  className="assistant-empty-prop"
+                  src="/brand/props/assistant-desk.webp"
+                  alt=""
+                  width={360}
+                  height={283}
+                  draggable={false}
+                />
                 <h3 className="text-foreground mt-4 text-base font-semibold">
                   跟猫说一句，它就开干
                 </h3>
