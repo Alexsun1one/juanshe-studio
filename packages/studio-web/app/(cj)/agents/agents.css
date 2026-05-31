@@ -51,6 +51,33 @@
   gap: 9px;
 }
 
+.cj-agents .ag-unavailable-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(42vw 24vw at 76% 0%, color-mix(in oklab, var(--brand-500) 5%, transparent), transparent 62%),
+    repeating-linear-gradient(90deg, transparent 0 23px, color-mix(in oklab, var(--brand-500) 2.5%, transparent) 24px 25px);
+}
+.cj-agents .ag-unavailable {
+  min-height: min(520px, calc(100vh - 190px));
+  margin: 0;
+}
+.cj-agents .ag-unavailable-error {
+  max-width: min(560px, 100%);
+  margin-top: 6px;
+  padding: 7px 11px;
+  border-radius: var(--r-md);
+  border: 1px dashed color-mix(in oklab, var(--err-500) 32%, var(--line-1));
+  background: color-mix(in oklab, var(--err-50) 70%, transparent);
+  color: var(--err-600, var(--err-500));
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 /* ── 主体:左 流水线 rail(固定宽)+ 右 编辑器(覆写默认 2 栏栅格) ── */
 .cj-agents .ag-body {
   grid-template-columns: 276px minmax(0, 1fr);

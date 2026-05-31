@@ -39,6 +39,7 @@ import { ENDPOINTS } from "@/lib/api/types"
 import { useWorkspace } from "@/lib/workspace-context"
 import { getBookReadiness } from "@/lib/studio/book-readiness"
 import { AgentPixel } from "@/components/design/agent-pixel"
+import { EmptyArt } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
 import "./books.css"
@@ -535,8 +536,11 @@ export default function BooksPage() {
                 ))}
               </div>
             ) : books.length === 0 ? (
-              <div className="empty empty-lg">
-                <div className="empty-title">本地工作区还没有作品</div>
+              <div className="empty empty-lg editorial-empty bk-empty" data-empty-variant="books">
+                <div className="empty-art">
+                  <EmptyArt variant="books" />
+                </div>
+                <div className="empty-title">书架还在等第一本长卷</div>
                 <div className="empty-desc">在工作台用「新建书」向导创建第一部作品,这里会汇总每本书的状态。</div>
                 <div className="empty-actions">
                   <Link href="/" className="btn primary">

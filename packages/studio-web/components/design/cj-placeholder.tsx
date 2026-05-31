@@ -1,5 +1,146 @@
 import Link from "next/link"
 
+type EmptyArtVariant =
+  | "default"
+  | "books"
+  | "library"
+  | "materials"
+  | "publish"
+  | "insights"
+  | "knowledge"
+  | "graph"
+  | "editor"
+  | "outline"
+  | "characters"
+  | "wiki"
+  | "memory"
+  | "agents"
+
+type EmptyScene = {
+  title: string
+  variant: EmptyArtVariant
+  props: readonly [
+    { src: string; className: string; width: number; height: number },
+    { src: string; className: string; width: number; height: number },
+    { src: string; className: string; width: number; height: number },
+    { src: string; className: string; width: number; height: number },
+  ]
+}
+
+const SCENES: Record<EmptyArtVariant, EmptyScene> = {
+  default: scene("从这里开始第一部作品", "default", [
+    prop("manuscript-stack", "eps-main", 96, 96),
+    prop("desk-lamp", "eps-tall", 82, 82),
+    prop("potted-plant", "eps-left", 78, 78),
+    prop("sleeping-cat", "eps-cat", 76, 76),
+  ]),
+  books: scene("书架还在等第一本长卷", "books", [
+    prop("logo-book-quill", "eps-main", 88, 88),
+    prop("bookshelf", "eps-tall", 92, 92),
+    prop("typewriter", "eps-left", 82, 82),
+    prop("sleeping-cat", "eps-cat", 76, 76),
+  ]),
+  library: scene("成品架还在等第一份稿件", "library", [
+    prop("bookshelf", "eps-tall", 96, 96),
+    prop("publishing-envelope", "eps-main", 84, 84),
+    prop("coffee-mug", "eps-left", 66, 66),
+    prop("sleeping-cat", "eps-cat", 76, 76),
+  ]),
+  materials: scene("素材箱还没拆封", "materials", [
+    prop("import-crate", "eps-main", 96, 96),
+    prop("manuscript-stack", "eps-left", 86, 86),
+    prop("potted-plant", "eps-tall", 76, 76),
+    prop("flower-branch", "eps-cat", 76, 76),
+  ]),
+  publish: scene("发布台还在等第一枚邮戳", "publish", [
+    prop("publishing-envelope", "eps-main", 92, 92),
+    prop("stamp-seal", "eps-left", 76, 76),
+    prop("desk-lamp", "eps-tall", 82, 82),
+    prop("sleeping-cat", "eps-cat", 76, 76),
+  ]),
+  insights: scene("观察窗还在等第一条信号", "insights", [
+    prop("radar-desk", "eps-main", 96, 96),
+    prop("story-board", "eps-tall", 86, 86),
+    prop("coffee-mug", "eps-left", 66, 66),
+    prop("flower-branch", "eps-cat", 74, 74),
+  ]),
+  knowledge: scene("知识柜还在等第一批设定", "knowledge", [
+    prop("library-shelf", "eps-tall", 98, 98),
+    prop("manuscript-stack", "eps-main", 92, 92),
+    prop("potted-plant", "eps-left", 76, 76),
+    prop("editor-bot", "eps-cat", 74, 74),
+  ]),
+  graph: scene("关系图还在等人物登场", "graph", [
+    prop("story-board", "eps-main", 96, 96),
+    prop("library-shelf", "eps-tall", 88, 88),
+    prop("coffee-mug", "eps-left", 66, 66),
+    prop("editor-bot", "eps-cat", 74, 74),
+  ]),
+  editor: scene("稿纸已经铺好", "editor", [
+    prop("typewriter", "eps-main", 96, 96),
+    prop("desk-lamp", "eps-tall", 82, 82),
+    prop("ink-quill", "eps-left", 72, 72),
+    prop("sleeping-cat", "eps-cat", 76, 76),
+  ]),
+  outline: scene("题板还在等第一条主线", "outline", [
+    prop("story-board", "eps-main", 98, 98),
+    prop("manuscript-stack", "eps-left", 86, 86),
+    prop("desk-lamp", "eps-tall", 82, 82),
+    prop("coffee-mug", "eps-cat", 66, 66),
+  ]),
+  characters: scene("角色席位还在等人入场", "characters", [
+    prop("chief-editor", "eps-main", 88, 88),
+    prop("editor-bot", "eps-cat", 76, 76),
+    prop("story-board", "eps-tall", 86, 86),
+    prop("flower-bouquet", "eps-left", 78, 78),
+  ]),
+  wiki: scene("Wiki 书页还没翻开", "wiki", [
+    prop("library-shelf", "eps-tall", 98, 98),
+    prop("logo-book-quill", "eps-main", 88, 88),
+    prop("ink-quill", "eps-left", 72, 72),
+    prop("coffee-mug", "eps-cat", 66, 66),
+  ]),
+  memory: scene("记忆长卷还没铺开", "memory", [
+    prop("manuscript-stack", "eps-main", 96, 96),
+    prop("seal-desk", "eps-left", 76, 76),
+    prop("library-shelf", "eps-tall", 92, 92),
+    prop("flower-branch", "eps-cat", 74, 74),
+  ]),
+  agents: scene("编辑部成员档案暂时没拿到", "agents", [
+    prop("chief-editor", "eps-main", 88, 88),
+    prop("editor-bot", "eps-cat", 76, 76),
+    prop("settings-gear", "eps-left", 76, 76),
+    prop("story-board", "eps-tall", 86, 86),
+  ]),
+}
+
+const TITLE_VARIANT: Record<string, EmptyArtVariant> = {
+  "作品管理": "books",
+  "内容库": "library",
+  "素材库": "materials",
+  "发布管理": "publish",
+  "洞察中心": "insights",
+  "知识与资产": "knowledge",
+  "故事图谱": "graph",
+  "章节编辑": "editor",
+  "大纲与规划": "outline",
+  "角色与设定": "characters",
+  "LLM Wiki": "wiki",
+  "记忆长卷": "memory",
+}
+
+function prop(name: string, className: string, width: number, height: number) {
+  return { src: `/brand/props/${name}.webp`, className, width, height }
+}
+
+function scene(
+  title: string,
+  variant: EmptyArtVariant,
+  props: EmptyScene["props"],
+): EmptyScene {
+  return { title, variant, props }
+}
+
 /**
  * 空工作区占位 — 路由/外壳已就位,但本地工作区还没有作品(或该域暂无数据)。
  * 用一张温和的像素编辑部静物 + 引导动作,而不是报错式提示。
@@ -7,12 +148,16 @@ import Link from "next/link"
 export function CjPlaceholder({
   title,
   sub,
+  variant,
 }: {
   title: string
   sub?: string
+  variant?: EmptyArtVariant
   /** 兼容旧调用,不再渲染「对接中」字样 */
   source?: string
 }) {
+  const scene = SCENES[variant ?? TITLE_VARIANT[title] ?? "default"]
+
   return (
     <div className="page">
       <div className="page-head">
@@ -20,11 +165,11 @@ export function CjPlaceholder({
           <h1 className="page-title">{title}</h1>
         </div>
       </div>
-      <div className="empty empty-lg">
+      <div className="empty empty-lg editorial-empty" data-empty-variant={scene.variant}>
         <div className="empty-art">
-          <EmptyArt />
+          <EmptyArt variant={scene.variant} />
         </div>
-        <div className="empty-title">从这里开始第一部作品</div>
+        <div className="empty-title">{scene.title}</div>
         <div className="empty-desc">
           {sub ?? "本地工作区还没有作品,创建后这里就会有内容。"}
         </div>
@@ -42,13 +187,22 @@ export function CjPlaceholder({
 }
 
 /** 像素静物占位:稿纸 + 台灯 + 绿植。随主题自适应。 */
-export function EmptyArt() {
+export function EmptyArt({ variant = "default" }: { variant?: EmptyArtVariant }) {
+  const scene = SCENES[variant]
+
   return (
-    <div className="empty-pixel-scene" aria-hidden="true">
-      <img className="eps-manuscript" src="/brand/props/manuscript-stack.webp" alt="" width={96} height={96} draggable={false} />
-      <img className="eps-lamp" src="/brand/props/desk-lamp.webp" alt="" width={82} height={82} draggable={false} />
-      <img className="eps-plant" src="/brand/props/potted-plant.webp" alt="" width={78} height={78} draggable={false} />
-      <img className="eps-cat" src="/brand/props/sleeping-cat.webp" alt="" width={76} height={76} draggable={false} />
+    <div className="empty-pixel-scene" data-empty-variant={scene.variant} aria-hidden="true">
+      {scene.props.map((item) => (
+        <img
+          key={`${scene.variant}-${item.src}-${item.className}`}
+          className={`eps-prop ${item.className}`}
+          src={item.src}
+          alt=""
+          width={item.width}
+          height={item.height}
+          draggable={false}
+        />
+      ))}
       <span className="eps-glow" />
     </div>
   )

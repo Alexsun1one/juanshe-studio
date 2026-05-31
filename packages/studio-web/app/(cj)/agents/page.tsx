@@ -55,6 +55,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
+import { EmptyArt } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { KpiChip, StatLine } from "@/components/design/kit"
@@ -78,7 +79,7 @@ export default function AgentLabPage() {
   const t = useT()
   const { locale } = useLocale()
   const lang = locale === "en" ? "en" : "zh"
-  const { data, mutate } = useAgentProfiles()
+  const { data, error, isLoading, mutate } = useAgentProfiles()
   const profiles = data ?? []
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const active = profiles.find((p) => p.id === activeId) ?? profiles[0]
@@ -104,7 +105,7 @@ export default function AgentLabPage() {
   }
 
   // 加载骨架:结构占位,避免空白闪烁
-  if (profiles.length === 0) {
+  if (profiles.length === 0 && isLoading && !error) {
     return (
       <div className="cj-screen cj-agents">
         <header className="cj-workhead ag-head">
@@ -120,6 +121,10 @@ export default function AgentLabPage() {
         </div>
       </div>
     )
+  }
+
+  if (profiles.length === 0) {
+    return <AgentLabUnavailable lang={lang} error={error} />
   }
 
   const lockedCount = profiles.filter((p) => p.locked).length
@@ -284,6 +289,65 @@ export default function AgentLabPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+function AgentLabUnavailable({
+  lang,
+  error,
+}: {
+  lang: "zh" | "en"
+  error: unknown
+}) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : ""
+
+  return (
+    <div className="cj-screen cj-agents">
+      <header className="cj-workhead ag-head">
+        <div className="ag-headline">
+          <PixelBadge kind="agents" size={44} className="ag-hero-pixel" ariaLabel={lang === "en" ? "Agent Lab" : "Agent 实验室"} />
+          <div className="ag-headline-text">
+            <div className="page-title-row">
+              <h1 className="page-title">{lang === "en" ? "Agent Lab" : "Agent 实验室"}</h1>
+            </div>
+            <p className="page-sub">
+              {lang === "en"
+                ? "The editorial roster is waiting for the backend profile desk to come back online."
+                : "编辑部成员档案暂时没有拿到，先保留一个不空白的降级工作面。"}
+            </p>
+          </div>
+        </div>
+      </header>
+      <div className="ag-unavailable-wrap">
+        <section className="empty empty-lg editorial-empty ag-unavailable" data-empty-variant="agents">
+          <div className="empty-art">
+            <EmptyArt variant="agents" />
+          </div>
+          <div className="empty-title">
+            {lang === "en" ? "Agent profiles are temporarily unavailable" : "编辑部档案柜暂时打不开"}
+          </div>
+          <div className="empty-desc">
+            {lang === "en"
+              ? "The real agent-profile API returned an error, so this page is showing a guarded fallback instead of pretending data exists."
+              : "真实 agent-profile 接口正在返回错误；这里不伪造档案，只把页面稳稳接住，避免首屏空白。"}
+          </div>
+          {message ? <div className="ag-unavailable-error">{message}</div> : null}
+          <div className="empty-actions">
+            <Link href="/system" className="btn primary">
+              {lang === "en" ? "Open system desk" : "查看系统台"}
+            </Link>
+            <Link href="/capabilities" className="btn">
+              {lang === "en" ? "Open capability desk" : "查看能力台"}
+            </Link>
+          </div>
+        </section>
+      </div>
     </div>
   )
 }
