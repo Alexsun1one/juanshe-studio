@@ -56,10 +56,19 @@ export function PixelCat({ className }: { className?: string } = {}) {
         </div>
         <span className="cj-cat-shadow" />
         <img
-          className="cj-cat-img"
-          src="/agent-avatars-imagined/18-juanshe-cat.png"
+          className="cj-cat-img cj-cat-img-awake"
+          src="/brand/props/studio-cat.webp"
           width={68}
           height={68}
+          alt=""
+          draggable={false}
+          style={{ transform: `scaleX(${dir})` }}
+        />
+        <img
+          className="cj-cat-img cj-cat-img-sleep"
+          src="/brand/props/sleeping-cat.webp"
+          width={76}
+          height={76}
           alt=""
           draggable={false}
           style={{ transform: `scaleX(${dir})` }}

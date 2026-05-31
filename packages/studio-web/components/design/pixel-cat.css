@@ -34,10 +34,23 @@
   image-rendering: pixelated;
   transform-origin: 50% 90%;
   filter:
+    var(--brand-asset-filter, saturate(1))
     drop-shadow(1px 0 0 rgba(43, 38, 32, 0.25))
     drop-shadow(-1px 0 0 rgba(43, 38, 32, 0.25))
     drop-shadow(0 1px 0 rgba(43, 38, 32, 0.25));
   transition: transform 0.35s var(--ease-soft, ease);
+}
+
+.cj-cat-img-sleep {
+  left: -4px;
+  bottom: -2px;
+  width: 76px;
+  height: 76px;
+  opacity: 0;
+}
+
+.cj-cat-img-awake {
+  opacity: 1;
 }
 
 .cj-cat-shadow {
@@ -55,15 +68,27 @@
   background: rgba(0, 0, 0, 0.3);
 }
 
-.cj-cat[data-state="sleep"] .cj-cat-img {
+.cj-cat[data-state="sleep"] .cj-cat-img-awake {
+  opacity: 0;
+}
+
+.cj-cat[data-state="sleep"] .cj-cat-img-sleep {
+  opacity: 1;
   animation: cj-cat-breathe 3s ease-in-out infinite;
 }
 
-.cj-cat[data-state="wake"] .cj-cat-img {
+.cj-cat[data-state="wake"] .cj-cat-img-awake {
+  opacity: 1;
   animation: cj-cat-perk 0.5s var(--ease-spring-cj, ease) 1;
 }
 
-.cj-cat[data-state="walk"] .cj-cat-img {
+.cj-cat[data-state="wake"] .cj-cat-img-sleep,
+.cj-cat[data-state="walk"] .cj-cat-img-sleep {
+  opacity: 0;
+}
+
+.cj-cat[data-state="walk"] .cj-cat-img-awake {
+  opacity: 1;
   animation: cj-cat-bob 0.42s steps(2, end) infinite;
 }
 

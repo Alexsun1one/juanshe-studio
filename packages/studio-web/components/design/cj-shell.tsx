@@ -49,9 +49,10 @@ import { CommandPalette } from "@/components/shell/command-palette"
 import { BuildStatusIndicator } from "@/components/shell/build-status-indicator"
 import { WorkflowTheater } from "@/components/workbench/workflow-theater"
 import { ThemeColorPicker } from "@/components/shell/theme-color-picker"
+import { BrandOrnaments } from "@/components/design/brand-ornaments"
 
 /* ───────────────────────────────────────────────────────────
-   长卷写作台 · 设计外壳(Claude Design 移植版)
+   长卷写作台 · 设计外壳
    - .app 网格:200px 侧栏 + 1fr 主区;可收起(localStorage cj.sidebar)
    - 暗夜模式走 next-themes(.dark),design.css 已桥接
    - 侧栏导航高亮跟随当前路由
@@ -136,6 +137,21 @@ const SETTINGS_ITEMS: NavItem[] = [
   { href: "/shortcuts", label: "快捷键", icon: Keyboard, pixelKind: "shortcuts" },
 ]
 
+function routeSectionOf(pathname: string | null): string {
+  if (!pathname || pathname === "/") return "workbench"
+  if (/^\/(books|assistant|compose|editor|outline|characters|materials)/.test(pathname)) return "creation"
+  if (/^\/(genres|import|wiki|knowledge|graph|memory)/.test(pathname)) return "knowledge"
+  if (/^\/(library|platform-export|publish|insights|detect)/.test(pathname)) return "publish"
+  if (/^\/(runs|system|agents|capabilities)/.test(pathname)) return "system"
+  if (/^\/(llm|preferences|shortcuts|settings)/.test(pathname)) return "settings"
+  return "workbench"
+}
+
+function routeKeyOf(pathname: string | null): string {
+  const first = pathname?.split("/").filter(Boolean)[0]
+  return first ? first.replace(/[^a-z0-9-]/gi, "") : "workbench"
+}
+
 const CollapseCtx = React.createContext<{ collapsed: boolean; toggle: () => void }>({
   collapsed: false,
   toggle: () => {},
@@ -144,6 +160,8 @@ const CollapseCtx = React.createContext<{ collapsed: boolean; toggle: () => void
 export function CjShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = React.useState(false)
   const pathname = usePathname()
+  const routeSection = routeSectionOf(pathname)
+  const routeKey = routeKeyOf(pathname)
   const scrollRef = React.useRef<HTMLDivElement>(null)
   // 全站 AI 写作剧场:任意页(编辑器/内容库/创作…)触发续写/修复/批量,运行态一起 → 剧场自动弹出,随处可看可停
   const { books, bookId } = useWorkspace()
@@ -183,7 +201,8 @@ export function CjShell({ children }: { children: React.ReactNode }) {
 
   return (
     <CollapseCtx.Provider value={{ collapsed, toggle }}>
-      <div className={`app${collapsed ? " sidebar-collapsed" : ""}`}>
+      <div className={`app${collapsed ? " sidebar-collapsed" : ""}`} data-route-section={routeSection} data-route-key={routeKey}>
+        <BrandOrnaments />
         <CjSidebar />
         <main>
           <CjTopbar />

@@ -2,8 +2,10 @@
 
 .cj-login {
   min-height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   display: grid;
-  grid-template-columns: 1.5fr 1fr;  /* 故事栏更宽,右侧登录卡收窄,腾出位置 */
+  grid-template-columns: minmax(0, 1.55fr) minmax(380px, 0.95fr);
   font-family: var(--font-pixel-ui);  /* 登录页 UI 默认像素 */
   background: var(--bg-app);
   color: var(--ink-800);
@@ -16,26 +18,135 @@
 .cj-login .aside {
   position: relative;
   overflow: hidden;
-  padding: 56px 56px 48px;
+  min-height: 0;
+  padding: clamp(24px, 3vw, 40px) clamp(28px, 3.4vw, 48px);
   display: flex; flex-direction: column;
-  background: linear-gradient(160deg, var(--bg-canvas) 0%, var(--bg-app) 100%);
+  background:
+    linear-gradient(160deg, color-mix(in oklab, var(--brand-500) 6%, var(--bg-canvas)) 0%, var(--bg-app) 100%);
   color: var(--ink-800);
   border-right: 1px solid var(--line-1);
 }
 .cj-login .aside::before,
 .cj-login .aside::after {
-  content: ""; position: absolute; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle, color-mix(in oklab, var(--brand-500) 12%, transparent), transparent 70%);
-  filter: blur(8px);
+  content: "";
+  position: absolute;
+  pointer-events: none;
 }
-.cj-login .aside::before { width: 420px; height: 420px; right: -120px; top: -100px; animation: cj-orb1 14s var(--ease-soft) infinite alternate; }
-.cj-login .aside::after { width: 320px; height: 320px; left: -80px; bottom: -80px; background: radial-gradient(circle, color-mix(in oklab, var(--accent-warm, #E8965A) 14%, transparent), transparent 70%); animation: cj-orb2 18s var(--ease-soft) infinite alternate; }
-@keyframes cj-orb1 { to { transform: translate(-40px, 50px) scale(1.15); } }
-@keyframes cj-orb2 { to { transform: translate(50px, -30px) scale(1.1); } }
+.cj-login .aside::before {
+  inset: 0;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 27px, color-mix(in oklab, var(--brand-500) 5%, transparent) 28px 29px),
+    repeating-linear-gradient(90deg, transparent 0 27px, color-mix(in oklab, var(--brand-500) 4%, transparent) 28px 29px);
+  opacity: 0.28;
+}
+.cj-login .aside::after {
+  right: -28px;
+  bottom: 28px;
+  width: 170px;
+  height: 170px;
+  background: url("/brand/props/silicoville-mini.webp") center / contain no-repeat;
+  opacity: 0.18;
+  animation: login-town-breathe 4.8s ease-in-out infinite;
+}
+@keyframes login-town-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.14; }
+  50% { transform: scale(1.05); opacity: 0.24; }
+}
 
 .cj-login .aside-brand { display: flex; align-items: center; gap: 12px; position: relative; z-index: 1; }
 .cj-login .aside-brand .mk { width: 40px; height: 40px; border-radius: 11px; background: var(--brand-50); color: var(--brand-600); display: grid; place-items: center; border: 1px solid var(--line-1); }
 .cj-login .aside-brand .nm { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
+.cj-login .login-office-scene {
+  position: relative;
+  z-index: 1;
+  margin: clamp(14px, 2vh, 20px) 0 clamp(12px, 1.8vh, 18px);
+  border: 1px solid color-mix(in oklab, var(--brand-500) 18%, var(--line-1));
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--bg-card);
+  box-shadow: 0 18px 42px -28px rgba(74, 58, 36, 0.42);
+  height: clamp(190px, 30vh, 270px);
+  min-height: 0;
+}
+.cj-login .login-office-scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background:
+    linear-gradient(90deg, transparent 0 62%, color-mix(in oklab, var(--brand-500) 8%, var(--bg-card)) 100%),
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.03));
+  pointer-events: none;
+}
+.cj-login .login-office-scene img {
+  display: block;
+}
+.cj-login .login-office-scene picture,
+.cj-login .login-office-scene picture > img {
+  width: 100%;
+  height: 100%;
+}
+.cj-login .login-office-scene picture > img {
+  object-fit: cover;
+  object-position: left center;
+}
+.cj-login .scene-lamp-glow {
+  position: absolute;
+  z-index: 3;
+  right: 17%;
+  top: 23%;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent-gold, #FFD66A) 66%, var(--brand-500));
+  filter: blur(8px);
+  opacity: 0.32;
+  animation: login-light-breathe 3.8s ease-in-out infinite;
+}
+.cj-login .scene-prop {
+  position: absolute;
+  z-index: 4;
+  width: 58px;
+  height: auto;
+  object-fit: contain;
+  filter: var(--brand-asset-filter, saturate(1)) drop-shadow(0 8px 14px rgba(74, 58, 36, 0.16));
+}
+.cj-login .scene-prop-book {
+  right: 18px;
+  bottom: 14px;
+  transform: rotate(-8deg);
+}
+.cj-login .scene-prop-plant {
+  right: 76px;
+  bottom: 0;
+  transform-origin: 50% 100%;
+  animation: login-leaf-sway 5.4s ease-in-out infinite;
+}
+.cj-login .scene-prop-typewriter {
+  left: 16px;
+  bottom: 10px;
+  width: 72px;
+  transform: rotate(-3deg);
+}
+.cj-login .scene-prop-cat {
+  right: 126px;
+  bottom: 5px;
+  width: 64px;
+  transform-origin: 50% 95%;
+  animation: login-cat-purr 3.4s ease-in-out infinite;
+}
+@keyframes login-light-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.22; }
+  50% { transform: scale(1.18); opacity: 0.4; }
+}
+@keyframes login-leaf-sway {
+  0%, 100% { transform: rotate(-2deg) translateY(0); }
+  50% { transform: rotate(2deg) translateY(-2px); }
+}
+@keyframes login-cat-purr {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-1px) scale(1.018, 0.988); }
+}
 .cj-login .aside-hero { margin-top: auto; position: relative; z-index: 1; }
 .cj-login .aside-hero h1 { font-size: 38px; line-height: 1.25; font-weight: 800; margin: 0 0 16px; letter-spacing: -0.01em; }
 .cj-login .aside-hero h1 .grad { background: linear-gradient(90deg, #C8BDFF, #fff); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -79,19 +190,19 @@
 .cj-login .login-foot .env-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok-500); box-shadow: 0 0 0 3px rgba(29,185,122,0.18); }
 
 /* ════ v2:背景故事 + 团队 + 进入卡(作者名 + 激活码)════ */
-.cj-login .aside { padding: 44px 48px; }
-.cj-login .story { margin-top: 24px; position: relative; z-index: 1; max-width: 500px; }
-.cj-login .story h1 { font-size: 29px; line-height: 1.4; font-weight: 800; margin: 0 0 16px; letter-spacing: -0.01em; color: var(--ink-900); }
+.cj-login .aside { padding: clamp(24px, 3vw, 40px) clamp(28px, 3.4vw, 48px); }
+.cj-login .story { margin-top: 0; position: relative; z-index: 1; max-width: 650px; }
+.cj-login .story h1 { font-size: clamp(22px, 2.1vw, 27px); line-height: 1.3; font-weight: 800; margin: 0 0 10px; letter-spacing: 0; color: var(--ink-900); }
 .cj-login .story h1 .grad { background: linear-gradient(90deg, var(--brand-500), var(--brand-700)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.cj-login .story p { font-size: 13.5px; line-height: 1.85; color: var(--ink-600); margin: 0 0 11px; }
+.cj-login .story p { font-size: 12.8px; line-height: 1.68; color: var(--ink-600); margin: 0 0 7px; }
 .cj-login .story p b { color: var(--ink-900); font-weight: 700; }
-.cj-login .story .slogan { font-size: 19px; font-weight: 800; letter-spacing: 0.06em; color: var(--accent-warm-deep); margin: 15px 0; text-shadow: none; }
+.cj-login .story .slogan { font-size: 16.5px; font-weight: 800; letter-spacing: 0.04em; color: var(--accent-warm-deep); margin: 9px 0; text-shadow: none; }
 
 /* 硅基小镇背景 —— 「by the way」式旁白,顶部虚线分隔,略小略淡 */
 .cj-login .story .lore {
-  margin-top: 16px; padding-top: 14px;
+  margin-top: 10px; padding-top: 9px;
   border-top: 1px dashed var(--line-2, var(--line-1));
-  font-size: 12.5px; line-height: 1.85; color: var(--ink-500);
+  font-size: 12px; line-height: 1.62; color: var(--ink-500);
 }
 /* 硅基小镇 —— 通往另一座宇宙的入口:品牌渐变 + 像素体 */
 .cj-login .silicon {
@@ -150,19 +261,19 @@
   .cj-login .slogan .juan { animation: none; }
 }
 .cj-login .story .promise { color: var(--ink-700); }
-.cj-login .team { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 8px; position: relative; z-index: 1; }
-.cj-login .team-m { width: 58px; height: 58px; border-radius: 13px; background: var(--bg-card); border: 1px solid var(--line-1); display: grid; place-items: center; padding: 3px; box-shadow: var(--sh-1); transition: transform .18s var(--ease-spring-cj, ease), box-shadow .18s, border-color .18s; animation: cj-team-in .5s var(--ease-spring-cj, ease) both; animation-delay: var(--d, 0s); }
+.cj-login .team { margin-top: 13px; display: flex; flex-wrap: wrap; gap: 7px; position: relative; z-index: 1; }
+.cj-login .team-m { width: 48px; height: 48px; border-radius: 11px; background: var(--bg-card); border: 1px solid var(--line-1); display: grid; place-items: center; padding: 2px; box-shadow: var(--sh-1); transition: transform .18s var(--ease-spring-cj, ease), box-shadow .18s, border-color .18s; animation: cj-team-in .5s var(--ease-spring-cj, ease) both; animation-delay: var(--d, 0s); }
 .cj-login .team-m:hover { transform: translateY(-3px) rotate(-3deg); box-shadow: var(--sh-2); border-color: var(--brand-200); }
 @keyframes cj-team-in { from { opacity: 0; transform: translateY(8px) scale(0.82); } to { opacity: 1; transform: none; } }
 
-.cj-login .panel { display: flex; align-items: center; justify-content: center; padding: 40px; }
-.cj-login .card { width: 100%; max-width: 384px; background: var(--bg-card); border: 1px solid var(--line-1); border-radius: var(--r-2xl); padding: 30px 28px; box-shadow: var(--sh-3); animation: cj-fade-in var(--motion-slow, .36s) var(--ease-out-cj, ease); }
+.cj-login .panel { display: flex; align-items: center; justify-content: center; padding: clamp(24px, 3vw, 40px); min-height: 0; }
+.cj-login .card { width: 100%; max-width: 372px; max-height: calc(100dvh - 44px); overflow-y: auto; background: var(--bg-card); border: 1px solid var(--line-1); border-radius: 15px; padding: 20px 22px; box-shadow: var(--sh-3); animation: cj-fade-in var(--motion-slow, .36s) var(--ease-out-cj, ease); scrollbar-width: thin; }
 .cj-login .card-emblem { width: 44px; height: 44px; border-radius: 12px; background: var(--brand-50); color: var(--brand-600); display: grid; place-items: center; margin-bottom: 14px; }
 .cj-login .card h2 { font-size: 22px; font-weight: 800; color: var(--ink-900); margin: 0; }
 .cj-login .card-sub { font-size: 13px; color: var(--ink-500); margin: 6px 0 22px; line-height: 1.6; }
-.cj-login .card .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.cj-login .card .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
 .cj-login .card .lab { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--ink-700); }
-.cj-login .card .inp { height: 42px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--bg-canvas); padding: 0 13px; font-size: 14px; color: var(--ink-900); transition: border-color .15s, box-shadow .15s; }
+.cj-login .card .inp { height: 40px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--bg-canvas); padding: 0 13px; font-size: 14px; color: var(--ink-900); transition: border-color .15s, box-shadow .15s; }
 .cj-login .card .inp.mono { font-family: var(--font-num); letter-spacing: 0.08em; }
 .cj-login .card .inp::placeholder { color: var(--ink-300); }
 .cj-login .card .inp:focus-visible { outline: none; border-color: var(--brand-400, var(--brand-500)); box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand-500) 18%, transparent); }
@@ -186,15 +297,15 @@
 
 /* 公众号领码引导:没填激活码时出现,微信搜一搜/扫码横条 + 引导文案 */
 .cj-login .code-claim {
-  display: flex; flex-direction: column; gap: 10px;
-  margin: 0 0 16px; padding: 13px;
+  display: flex; flex-direction: column; gap: 7px;
+  margin: 0 0 12px; padding: 9px;
   background: color-mix(in oklab, var(--brand-500) 5%, var(--bg-canvas));
   border: 1px solid color-mix(in oklab, var(--brand-500) 18%, var(--line-1));
   border-radius: var(--r-lg);
   animation: cj-fade-in var(--motion, .2s) var(--ease-out-cj, ease);
 }
 .cj-login .cc-title { font-size: 12.5px; font-weight: 700; color: var(--brand-700, var(--brand-600)); }
-.cj-login .cc-banner { display: block; width: 100%; height: auto; border-radius: var(--r-md); background: #fff; border: 1px solid var(--line-1); }
+.cj-login .cc-banner { display: block; width: 100%; max-height: 66px; object-fit: cover; object-position: top center; border-radius: var(--r-md); background: #fff; border: 1px solid var(--line-1); }
 .cj-login .cc-banner-fallback {
   display: grid; place-items: center; gap: 3px; width: 100%; min-height: 92px; padding: 14px;
   font-size: 12.5px; font-weight: 700; color: var(--ink-400); text-align: center; line-height: 1.3;
@@ -202,13 +313,26 @@
   background: repeating-linear-gradient(45deg, var(--bg-sunken), var(--bg-sunken) 7px, transparent 7px, transparent 14px);
 }
 .cj-login .cc-banner-fallback span { font-size: 10.5px; color: var(--ink-300); font-weight: 500; }
-.cj-login .cc-hint { font-size: 12px; line-height: 1.6; color: var(--ink-600); margin: 0; }
+.cj-login .cc-hint { font-size: 11.5px; line-height: 1.45; color: var(--ink-600); margin: 0; }
 .cj-login .cc-hint b { color: var(--ink-900); font-weight: 700; }
 
 @media (max-width: 880px) {
-  .cj-login { grid-template-columns: 1fr; }
+  .cj-login { grid-template-columns: 1fr; height: auto; min-height: 100dvh; overflow: visible; }
   .cj-login .aside { padding: 30px 26px; }
+  .cj-login .login-office-scene { height: auto; aspect-ratio: 16 / 9; margin-top: 18px; }
   .cj-login .story h1 { font-size: 23px; }
+  .cj-login .story .promise,
+  .cj-login .story .lore { display: none; }
+  .cj-login .team { max-height: 103px; overflow: hidden; }
   .cj-login .panel { padding: 28px; }
+  .cj-login .card { max-height: none; overflow: visible; }
 }
-@media (prefers-reduced-motion: reduce) { .cj-login .team-m { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .cj-login .team-m,
+  .cj-login .aside::after,
+  .cj-login .scene-lamp-glow,
+  .cj-login .scene-prop-plant,
+  .cj-login .scene-prop-cat {
+    animation: none !important;
+  }
+}

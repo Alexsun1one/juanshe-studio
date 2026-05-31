@@ -71,6 +71,7 @@ const DEPTS: ReadonlyArray<{
 
 export function FirstRunHero({ onCreate }: { onCreate: () => void }) {
   const authorName = useAuthorName()
+  const authorSalutation = authorName.trim().endsWith("大大") ? authorName.trim() : `${authorName.trim()} 大大`
   return (
     <div className="first-run">
       <header className="fr-head">
@@ -78,7 +79,7 @@ export function FirstRunHero({ onCreate }: { onCreate: () => void }) {
           <span className="fr-badge-dot" />
           卷舍 · 17 位 AI 编辑已就位
         </span>
-        <h1 className="fr-title">{authorName} 大大,你的编辑部待命中</h1>
+        <h1 className="fr-title">{authorSalutation},你的编辑部待命中</h1>
         <p className="fr-desc">
           上百个 AI、六个部门,日夜替你卷。开张只要三步:配好你自己的写作模型,开第一本书,剩下的——
           规划、落笔、评审、修订、签发——交给下面这群永不疲倦的家伙。

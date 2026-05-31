@@ -34,8 +34,8 @@ export const metadata: Metadata = {
   description:
     "像素时代的 AI 写作工作室 — 17 位编辑部角色协作完成从选题到发布的全流程长篇创作",
   icons: {
-    icon: "/juanshe-logo.svg",
-    apple: "/juanshe-logo.svg",
+    icon: "/brand/brand-icon.png",
+    apple: "/brand/apple-icon.png",
   },
 }
 

@@ -2,7 +2,7 @@ import Link from "next/link"
 
 /**
  * 空工作区占位 — 路由/外壳已就位,但本地工作区还没有作品(或该域暂无数据)。
- * 用一张温和的代码绘制占位插画 + 引导动作,而不是报错式提示。
+ * 用一张温和的像素编辑部静物 + 引导动作,而不是报错式提示。
  */
 export function CjPlaceholder({
   title,
@@ -41,25 +41,15 @@ export function CjPlaceholder({
   )
 }
 
-/** 代码绘制的占位插画:一张待写的稿纸 + 品牌色灵感火花。随主题自适应。 */
+/** 像素静物占位:稿纸 + 台灯 + 绿植。随主题自适应。 */
 export function EmptyArt() {
   return (
-    <svg viewBox="0 0 140 108" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <ellipse cx="70" cy="96" rx="46" ry="6" fill="currentColor" opacity="0.07" />
-      <rect
-        x="48" y="18" width="52" height="68" rx="8"
-        fill="var(--bg-sunken)" stroke="currentColor" strokeOpacity="0.16" strokeWidth="1.4"
-      />
-      <rect
-        x="40" y="24" width="60" height="64" rx="9"
-        fill="var(--bg-card)" stroke="currentColor" strokeOpacity="0.4" strokeWidth="1.6"
-      />
-      <rect x="51" y="40" width="30" height="5" rx="2.5" fill="currentColor" opacity="0.22" />
-      <rect x="51" y="52" width="38" height="5" rx="2.5" fill="currentColor" opacity="0.15" />
-      <rect x="51" y="64" width="24" height="5" rx="2.5" fill="currentColor" opacity="0.15" />
-      <g transform="translate(86 14) scale(0.7)" fill="var(--brand-500)">
-        <path d="M12 2.5l1.7 5.2c.2.6.6 1 1.2 1.2l5.2 1.7-5.2 1.7c-.6.2-1 .6-1.2 1.2L12 18.7l-1.7-5.2c-.2-.6-.6-1-1.2-1.2L3.9 10.6l5.2-1.7c.6-.2 1-.6 1.2-1.2z" />
-      </g>
-    </svg>
+    <div className="empty-pixel-scene" aria-hidden="true">
+      <img className="eps-manuscript" src="/brand/props/manuscript-stack.webp" alt="" width={96} height={96} draggable={false} />
+      <img className="eps-lamp" src="/brand/props/desk-lamp.webp" alt="" width={82} height={82} draggable={false} />
+      <img className="eps-plant" src="/brand/props/potted-plant.webp" alt="" width={78} height={78} draggable={false} />
+      <img className="eps-cat" src="/brand/props/sleeping-cat.webp" alt="" width={76} height={76} draggable={false} />
+      <span className="eps-glow" />
+    </div>
   )
 }

@@ -134,6 +134,30 @@ export default function LoginPage() {
           <span className="nm">卷舍 · 编辑部</span>
         </div>
 
+        <div className="login-office-scene" aria-hidden="true">
+          <picture>
+            <source
+              type="image/webp"
+              srcSet="/brand/office-hero-small.webp 720w, /brand/office-hero-medium.webp 1080w, /brand/office-hero-large.webp 1440w"
+              sizes="(max-width: 880px) 92vw, 58vw"
+            />
+            <img
+              src="/brand/office-hero-medium.webp"
+              alt=""
+              width={1080}
+              height={608}
+              decoding="async"
+              fetchPriority="high"
+              draggable={false}
+            />
+          </picture>
+          <span className="scene-lamp-glow" />
+          <img className="scene-prop scene-prop-book" src="/brand/props/logo-book-quill.webp" alt="" width={80} height={80} draggable={false} />
+          <img className="scene-prop scene-prop-plant" src="/brand/props/potted-plant.webp" alt="" width={74} height={74} draggable={false} />
+          <img className="scene-prop scene-prop-typewriter" src="/brand/props/typewriter.webp" alt="" width={86} height={86} draggable={false} />
+          <img className="scene-prop scene-prop-cat" src="/brand/props/sleeping-cat.webp" alt="" width={76} height={76} draggable={false} />
+        </div>
+
         <div className="story">
           <h1>卷舍不是凭空开张的,<br />它是<span className="grad">硅基小镇</span>派来的编辑部。</h1>
           <p>
@@ -164,7 +188,7 @@ export default function LoginPage() {
         <div className="team" aria-label="编辑部成员">
           {TEAM.map((m, i) => (
             <span className="team-m" key={m.fid} style={{ ["--d" as string]: `${i * 0.1}s` }} title={m.name}>
-              <AgentPixel id={m.fid} size={48} ariaLabel={m.name} />
+              <AgentPixel id={m.fid} size={40} ariaLabel={m.name} />
             </span>
           ))}
         </div>
@@ -229,9 +253,9 @@ export default function LoginPage() {
                   onError={() => setQrError(true)}
                 />
               ) : (
-                <div className="cc-banner-fallback" title="把公众号横条素材放到 public/wechat-qr.png">
-                  公众号二维码待上传
-                  <span>放到 public/wechat-qr.png</span>
+                <div className="cc-banner-fallback" title="公众号二维码待配置">
+                  公众号二维码待配置
+                  <span>稍后在产品设置里配置</span>
                 </div>
               )}
               <p className="cc-hint">

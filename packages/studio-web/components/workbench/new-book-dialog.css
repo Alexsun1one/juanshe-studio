@@ -1,6 +1,39 @@
 /* 新建书向导 — 表单 → 实时进度 → 完成/失败 */
 
-.nb-dialog { max-width: 640px !important; }
+.nb-dialog {
+  max-width: 640px !important;
+  max-height: calc(100dvh - 48px);
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.nb-dialog::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 23px, color-mix(in oklab, var(--brand-500) 4%, transparent) 24px 25px),
+    linear-gradient(135deg, color-mix(in oklab, var(--brand-500) 5%, transparent), transparent 42%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.nb-dialog::after {
+  content: "";
+  position: absolute;
+  right: 20px;
+  top: 18px;
+  width: 88px;
+  aspect-ratio: 1;
+  background: url("/brand/props/story-board.webp") center / contain no-repeat;
+  opacity: 0.15;
+  filter: var(--brand-asset-filter, saturate(1));
+  pointer-events: none;
+}
+.nb-dialog > * {
+  position: relative;
+  z-index: 1;
+}
 
 .nb-form { display: flex; flex-direction: column; gap: 16px; padding: 4px 2px 0; }
 .nb-row { display: flex; gap: 12px; align-items: stretch; }

@@ -252,9 +252,13 @@
 /* 固定外壳:main 撑满视口,顶栏固定,内容区(.main-scroll)是默认滚动容器——
    不再依赖 document/body 滚动。改成 flex 列,使「工作站页」(.cj-screen)能 flex:1 精确撑满、
    自身不滚;旧页面(普通文档流)仍按内容高度在 .main-scroll 内滚动,二者并存不冲突。 */
-.app main { min-width: 0; min-height: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.app main { min-width: 0; min-height: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; position: relative; z-index: 1; }
 .app .main-scroll { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
 .app .main-scroll:focus, .app .main-scroll:focus-visible { outline: none; }
+.app .cj-logo-img {
+  filter: var(--brand-asset-filter, none);
+  transition: filter var(--motion-base) var(--ease-soft), transform var(--motion-fast) var(--ease-soft);
+}
 
 /* ═══════════════════════════════════════════════════
    工作站布局原语 —— 一屏一意图,滚动只在 pane 内。
@@ -265,12 +269,81 @@
    .cj-inspector   右侧检视面板(质量/接棒/风险/设置)
    .cj-pane-scroll 任意需要滚动的子区域,只有它局部滚
    ═══════════════════════════════════════════════════ */
-.app .cj-screen { flex: 1 1 auto; min-height: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
-.app .cj-workhead { flex: 0 0 auto; min-width: 0; }
-.app .cj-screen-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) var(--inspector-w, 340px); overflow: hidden; }
+.app .cj-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+.app .cj-workhead {
+  flex: 0 0 auto;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.app .cj-workhead::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(90deg, color-mix(in oklab, var(--brand-500) 7%, transparent), transparent 42%),
+    repeating-linear-gradient(90deg, transparent 0 19px, color-mix(in oklab, var(--brand-500) 4%, transparent) 20px 21px),
+    var(--bg-app);
+  opacity: 0.8;
+  pointer-events: none;
+}
+.app .cj-workhead::after {
+  content: "";
+  position: absolute;
+  right: clamp(18px, 3vw, 42px);
+  bottom: -24px;
+  z-index: 0;
+  width: clamp(70px, 8vw, 112px);
+  aspect-ratio: 1;
+  background: var(--page-prop) center / contain no-repeat;
+  opacity: 0.14;
+  filter: var(--brand-asset-filter, saturate(1));
+  pointer-events: none;
+  transform: rotate(-4deg);
+}
+.app .cj-workhead > * { position: relative; z-index: 1; }
+.app .cj-screen-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--inspector-w, 340px);
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--brand-500) 2.6%, transparent), transparent 46%),
+    var(--bg-app);
+}
 .app .cj-screen-body.solo { grid-template-columns: minmax(0, 1fr); }
-.app .cj-mainpane { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-.app .cj-inspector { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid var(--line-1); background: color-mix(in oklab, var(--bg-app) 55%, var(--bg-card)); }
+.app .cj-mainpane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--bg-card) 42%, transparent), transparent 26%),
+    color-mix(in oklab, var(--bg-app) 82%, var(--bg-card));
+}
+.app .cj-inspector {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--line-1);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--brand-500) 3%, transparent), transparent 38%),
+    color-mix(in oklab, var(--bg-app) 54%, var(--bg-card));
+}
 .app .cj-pane-scroll { min-height: 0; overflow-y: auto; overflow-x: hidden; }
 @media (max-width: 1100px) {
   /* 窄窗:Inspector 收窄,极窄时叠到主区下方仍只在 pane 内滚 */
@@ -453,6 +526,7 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   overflow-y: auto;
   overflow-x: hidden;
   transition: background var(--motion-base) var(--ease-soft);
+  z-index: 2;
 }
 .brand {
   display: flex; align-items: center; gap: 10px;
@@ -1478,15 +1552,26 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
    CARDS
    ═══════════════════════════════════════════════════ */
 .card {
-  background: var(--bg-card);
+  position: relative;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--pixel-paper, #FFFAF0) 46%, transparent), transparent 42%),
+    var(--bg-card);
   border: 1px solid var(--line-1);
-  border-radius: var(--r-xl);
+  border-radius: var(--r-md);
   padding: 14px 16px;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--pixel-paper, #FFFAF0) 64%, transparent),
+    0 1px 0 color-mix(in oklab, var(--line-1) 68%, transparent);
   transition:
     border-color var(--motion-fast) var(--ease-soft),
     box-shadow   var(--motion-fast) var(--ease-soft);
 }
-.card.hoverable:hover { border-color: var(--brand-200); box-shadow: var(--sh-2); }
+.card.hoverable:hover {
+  border-color: color-mix(in oklab, var(--brand-500) 28%, var(--line-1));
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--pixel-paper, #FFFAF0) 70%, transparent),
+    0 8px 22px -18px color-mix(in oklab, var(--brand-500) 46%, #2B2620);
+}
 .card.is-selected {
   border-color: var(--brand-500);
   box-shadow: 0 0 0 3px var(--brand-50);
@@ -1496,10 +1581,12 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
 .card-head {
   display: flex; align-items: center; gap: 10px;
   margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed color-mix(in oklab, var(--line-2) 72%, transparent);
 }
 .card-title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ink-900);
 }
 .card-title .muted {
@@ -1547,11 +1634,74 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   animation: cj-empty-in 0.45s var(--ease-soft, ease-out) both;
 }
 .empty-lg .empty-art {
-  width: 140px; height: 108px;
+  width: 170px; height: 118px;
   margin-bottom: 12px;
   color: var(--ink-300);
 }
 .empty-lg .empty-art svg { width: 100%; height: 100%; display: block; }
+.empty-pixel-scene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.empty-pixel-scene::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  width: 112px;
+  height: 13px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--ink-900) 8%, transparent);
+  transform: translateX(-50%);
+}
+.empty-pixel-scene img {
+  position: absolute;
+  z-index: 1;
+  display: block;
+  object-fit: contain;
+  filter: var(--brand-asset-filter, saturate(1)) drop-shadow(0 7px 12px rgba(74, 58, 36, 0.14));
+}
+.eps-manuscript {
+  left: 42px;
+  bottom: 14px;
+  width: 76px;
+  transform: rotate(-4deg);
+}
+.eps-lamp {
+  left: 84px;
+  bottom: 26px;
+  width: 62px;
+  transform-origin: 50% 100%;
+  animation: eps-lamp-breathe 4.1s ease-in-out infinite;
+}
+.eps-plant {
+  left: 12px;
+  bottom: 11px;
+  width: 58px;
+  transform-origin: 50% 100%;
+  animation: eps-leaf 5.5s ease-in-out infinite;
+}
+.eps-cat {
+  left: 103px;
+  bottom: 8px;
+  width: 60px;
+  transform-origin: 50% 95%;
+  animation: eps-cat-purr 3.6s ease-in-out infinite;
+}
+.eps-glow {
+  position: absolute;
+  z-index: 0;
+  right: 34px;
+  top: 30px;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent-gold, #FFD66A) 72%, var(--brand-500));
+  filter: blur(10px);
+  opacity: 0.18;
+  animation: eps-glow 3.8s ease-in-out infinite;
+}
 .empty-lg .empty-title {
   font-size: 16px;
   font-weight: 650;
@@ -1573,8 +1723,30 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes eps-lamp-breathe {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-1.4deg); }
+}
+@keyframes eps-leaf {
+  0%, 100% { transform: rotate(-1deg); }
+  50% { transform: rotate(2deg) translateY(-1px); }
+}
+@keyframes eps-glow {
+  0%, 100% { transform: scale(1); opacity: 0.16; }
+  50% { transform: scale(1.12); opacity: 0.26; }
+}
+@keyframes eps-cat-purr {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-1px) scale(1.018, 0.988); }
+}
 @media (prefers-reduced-motion: reduce) {
-  .empty-lg { animation: none; }
+  .empty-lg,
+  .eps-lamp,
+  .eps-plant,
+  .eps-cat,
+  .eps-glow {
+    animation: none !important;
+  }
 }
 
 .skel {
