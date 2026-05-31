@@ -173,7 +173,31 @@
 .cj-library-fulltext .lib-fulltext-body { min-height: 0; flex: 1 1 auto; overflow-y: auto; padding-right: 8px; font-family: var(--font-serif); font-size: var(--text-title); line-height: 1.85; color: var(--ink-700); white-space: pre-wrap; }
 .cj-library-fulltext .lib-fulltext-acts { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--line-1); padding-top: 14px; }
 
-.cj-library .lib-empty { padding: 44px; text-align: center; color: var(--ink-400); font-size: var(--text-body); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; }
+.cj-library .lib-empty {
+  margin: 8px auto 0;
+  padding: 34px 28px 38px;
+  max-width: 720px;
+  text-align: center;
+  color: var(--ink-500);
+  font-size: var(--text-body);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid color-mix(in oklab, var(--line-1) 84%, var(--brand-500));
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(420px 220px at 50% 22%, color-mix(in oklab, var(--accent-amber, #F8C994) 15%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in oklab, var(--pixel-paper, #FFFAF0) 74%, transparent), var(--bg-card));
+  box-shadow: var(--sh-1);
+}
+.cj-library .lib-empty-art {
+  flex: 1 1 100%;
+  width: min(360px, 78%);
+  height: 220px;
+  margin: 0 auto 2px;
+}
 .cj-library .lib-empty svg { color: var(--ink-300); }
 .cj-library .lib-empty-reset, .cj-library .lib-empty-cta { display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px; font-size: var(--text-cap); font-weight: 600; color: var(--brand-600); background: var(--brand-50); border: 1px solid var(--line-2); border-radius: var(--r-pill); cursor: pointer; text-decoration: none; transition: all var(--motion-fast) var(--ease-soft); }
 .cj-library .lib-empty-reset:hover, .cj-library .lib-empty-cta:hover { border-color: var(--brand-300); }
@@ -293,6 +317,8 @@
   .cj-library .lib-search { margin-left: 0; min-width: 0; width: 100%; order: 3; flex-basis: 100%; }
   .cj-library .lib-cover { padding: 11px 14px; }
   .cj-library .lib-pane-scroll { padding: 10px 10px 12px 14px; }
+  .cj-library .lib-empty { padding: 24px 18px 28px; }
+  .cj-library .lib-empty-art { width: min(280px, 86%); height: 180px; }
   .cj-library .lib-row-line { align-items: stretch; display: grid; grid-template-columns: minmax(0, 1fr) auto; }
   .cj-library .lib-row-main { flex-wrap: wrap; gap: 8px; min-width: 0; padding: 12px; width: 100%; }
   .cj-library .lib-title { flex-basis: 100%; order: 2; white-space: normal; }

@@ -51,6 +51,16 @@
       <br><sub>章节编辑器：写作、修稿、润色、审稿与质量侧栏。</sub>
     </td>
   </tr>
+  <tr>
+    <td width="50%">
+      <img src="assets/readme/screenshot-story-graph.png" alt="卷舍故事图谱">
+      <br><sub>故事图谱：角色关系板、状态线索和长期设定的可视化入口。</sub>
+    </td>
+    <td width="50%">
+      <img src="assets/readme/screenshot-library.png" alt="卷舍内容库">
+      <br><sub>内容库：把章节和多平台成品收进一座可发布资产架。</sub>
+    </td>
+  </tr>
 </table>
 
 ## 它已经能做什么

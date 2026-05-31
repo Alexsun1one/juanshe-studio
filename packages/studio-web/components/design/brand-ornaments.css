@@ -37,9 +37,20 @@
 
 .app[data-route-key="books"],
 .app[data-route-key="library"],
-.app[data-route-key="wiki"],
+.app[data-route-key="wiki"] {
+  --page-prop: url("/brand/props/asset-library-desk.webp");
+  --page-prop-size: clamp(126px, 14vw, 216px);
+  --page-prop-opacity: 0.19;
+  --workhead-prop-size: clamp(116px, 13vw, 198px);
+  --workhead-prop-opacity: 0.16;
+}
+
 .app[data-route-key="memory"] {
-  --page-prop: url("/brand/props/library-shelf.webp");
+  --page-prop: url("/brand/props/memory-scroll-desk.webp");
+  --page-prop-size: clamp(128px, 15vw, 226px);
+  --page-prop-opacity: 0.2;
+  --workhead-prop-size: clamp(120px, 14vw, 210px);
+  --workhead-prop-opacity: 0.16;
 }
 
 .app[data-route-key="assistant"],
@@ -85,7 +96,11 @@
 .app[data-route-key="outline"],
 .app[data-route-key="characters"],
 .app[data-route-key="knowledge"] {
-  --page-prop: url("/brand/props/story-board.webp");
+  --page-prop: url("/brand/props/story-map-desk.webp");
+  --page-prop-size: clamp(128px, 15vw, 226px);
+  --page-prop-opacity: 0.2;
+  --workhead-prop-size: clamp(120px, 14vw, 210px);
+  --workhead-prop-opacity: 0.16;
 }
 
 .app[data-route-key="materials"],
@@ -105,6 +120,14 @@
 .app[data-route-key="detect"],
 .app[data-route-key="graph"] {
   --page-prop: url("/brand/props/radar-desk.webp");
+}
+
+.app[data-route-key="graph"] {
+  --page-prop: url("/brand/props/story-map-desk.webp");
+  --page-prop-size: clamp(128px, 15vw, 226px);
+  --page-prop-opacity: 0.2;
+  --workhead-prop-size: clamp(120px, 14vw, 210px);
+  --workhead-prop-opacity: 0.16;
 }
 
 .app[data-route-key="preferences"],

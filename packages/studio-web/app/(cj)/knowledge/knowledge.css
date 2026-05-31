@@ -72,6 +72,20 @@
 
 /* 左:实体树 */
 .cj-knowledge .kg-tree { overflow-y: auto; padding: 12px 10px; border-right: 1px solid var(--line-1); }
+.cj-knowledge .kg-tree-loading {
+  display: grid;
+  gap: 9px;
+  padding: 2px 4px;
+}
+.cj-knowledge .kg-tree-loading span {
+  height: 34px;
+  border-radius: var(--r-md);
+  background:
+    linear-gradient(90deg, color-mix(in oklab, var(--pixel-paper, #FFFAF0) 74%, transparent), transparent 72%),
+    linear-gradient(90deg, var(--bg-sunken), var(--bg-hover), var(--bg-sunken));
+  background-size: auto, 200% 100%;
+  animation: cj-skel-shimmer 1.4s linear infinite;
+}
 .cj-knowledge .tree-group { margin-bottom: 14px; }
 .cj-knowledge .tree-group:last-child { margin-bottom: 2px; }
 .cj-knowledge .tree-group > .tg-head { font-size: var(--text-micro); font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: 0.06em; padding: 4px 6px; display: flex; align-items: center; gap: 6px; }
@@ -98,6 +112,30 @@
   radial-gradient(circle at 20px 20px, color-mix(in oklab, var(--brand-500) 4%, transparent) 1px, transparent 1px) 0 0 / 28px 28px,
   var(--bg-canvas); }
 .cj-knowledge .kg-graph svg { width: 100%; height: 100%; display: block; }
+.cj-knowledge .kg-graph-loading {
+  height: 100%;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 32px;
+  text-align: center;
+  background:
+    radial-gradient(360px 220px at 50% 34%, color-mix(in oklab, var(--accent-amber, #F8C994) 15%, transparent), transparent 72%),
+    repeating-linear-gradient(90deg, transparent 0 23px, color-mix(in oklab, var(--brand-500) 3%, transparent) 24px 25px);
+}
+.cj-knowledge .kg-graph-loading b {
+  color: var(--ink-800);
+  font-size: 15px;
+}
+.cj-knowledge .kg-graph-loading span {
+  max-width: 34ch;
+  color: var(--ink-500);
+  font-size: var(--text-cap);
+  line-height: 1.7;
+}
 .cj-knowledge .kg-graph .gnode { cursor: pointer; }
 .cj-knowledge .kg-graph .gnode:focus-visible { outline: none; }
 .cj-knowledge .kg-graph .gnode:focus-visible circle { stroke: var(--brand-700); stroke-width: 4px; }
@@ -132,6 +170,17 @@
 
 /* 图谱 / 抽屉空态:温暖引导,而非裸露占位字串 */
 .cj-knowledge .kg-empty { height: 100%; gap: 8px; padding: 32px 24px; }
+.cj-knowledge .kg-empty-art {
+  width: min(330px, 72%);
+  height: 210px;
+  margin: 0 auto 4px;
+  opacity: 0.98;
+}
+.cj-knowledge .kg-empty-art.mini {
+  width: min(210px, 74%);
+  height: 140px;
+  margin-top: 6px;
+}
 .cj-knowledge .kg-empty .empty-ico { color: var(--brand-500); background: var(--brand-50); border-color: var(--brand-100); margin-bottom: 2px; }
 .cj-knowledge .kg-empty .kg-empty-title { font-size: var(--text-title); font-weight: 650; color: var(--ink-800); }
 .cj-knowledge .kg-empty .kg-empty-desc { max-width: 30ch; font-size: var(--text-cap); line-height: 1.65; color: var(--ink-500); }

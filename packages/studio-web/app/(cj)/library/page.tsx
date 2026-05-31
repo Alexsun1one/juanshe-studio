@@ -49,7 +49,7 @@ import {
   type ContentDraft,
 } from "@/lib/api/client"
 import { useWorkspace } from "@/lib/workspace-context"
-import { CjPlaceholder } from "@/components/design/cj-placeholder"
+import { CjPlaceholder, EmptyArt } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
 import { EarnPath } from "@/components/workbench/earn-path"
@@ -357,6 +357,7 @@ export default function LibraryPage() {
                   <div className="lib-empty">
                     {drafts.length === 0 ? (
                       <>
+                        <div className="lib-empty-art"><EmptyArt variant="library" /></div>
                         <Sparkles size={16} />
                         <span>还没有多平台成品。去「多平台创作」把一个选题一次产出成多平台成品资产。</span>
                         <Link href="/compose" className="lib-empty-cta"><Wand2 size={13} /> 去创作</Link>
@@ -433,6 +434,7 @@ export default function LibraryPage() {
                   </div>
                 ) : chapters.length === 0 ? (
                   <div className="lib-empty">
+                    <div className="lib-empty-art"><EmptyArt variant="library" /></div>
                     <FileText size={16} />
                     {bookId ? (
                       <>

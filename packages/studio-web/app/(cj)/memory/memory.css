@@ -197,6 +197,32 @@
   min-height: 140px; padding: 24px;
   font-size: var(--text-cap); color: var(--ink-400);
 }
+.cj-memory .scroll-canvas .mem-empty-dock {
+  position: absolute;
+  inset: 18px 18px 18px 168px;
+  min-height: 0;
+  gap: 6px;
+  border: 1px solid color-mix(in oklab, var(--line-1) 82%, var(--brand-500));
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(440px 210px at 50% 28%, color-mix(in oklab, var(--accent-amber, #F8C994) 16%, transparent), transparent 72%),
+    linear-gradient(180deg, color-mix(in oklab, var(--pixel-paper, #FFFAF0) 74%, transparent), var(--bg-card));
+  box-shadow: var(--sh-1);
+  color: var(--ink-600);
+}
+.cj-memory .mem-empty-art {
+  width: min(390px, 72%);
+  height: 230px;
+}
+.cj-memory .mem-empty-dock b {
+  font-size: 16px;
+  color: var(--ink-800);
+}
+.cj-memory .mem-empty-dock span {
+  max-width: 40ch;
+  color: var(--ink-500);
+  line-height: 1.7;
+}
 
 /* ════════════════════════════════════════════════════════════
    Inspector · 记忆守护焦点 + 增长走势 + 泳道构成 + 节拍 + 最新记忆
@@ -348,4 +374,6 @@
   .cj-memory .mem-hero-pixel { width: 40px; height: 40px; }
   .cj-memory .mem-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cj-memory .mem-mainpane-hint { display: none; }
+  .cj-memory .scroll-canvas .mem-empty-dock { inset: 18px 12px 18px 150px; }
+  .cj-memory .mem-empty-art { width: min(280px, 86%); height: 180px; }
 }

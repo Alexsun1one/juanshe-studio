@@ -41,9 +41,9 @@ const SCENES: Record<EmptyArtVariant, EmptyScene> = {
     prop("sleeping-cat", "eps-cat", 76, 76),
   ]),
   library: scene("成品架还在等第一份稿件", "library", [
-    prop("bookshelf", "eps-tall", 96, 96),
-    prop("publishing-envelope", "eps-main", 84, 84),
-    prop("coffee-mug", "eps-left", 66, 66),
+    prop("asset-library-desk", "eps-main", 180, 160),
+    prop("publishing-envelope", "eps-left", 72, 72),
+    prop("flower-branch", "eps-tall", 72, 72),
     prop("sleeping-cat", "eps-cat", 76, 76),
   ]),
   materials: scene("素材箱还没拆封", "materials", [
@@ -65,15 +65,15 @@ const SCENES: Record<EmptyArtVariant, EmptyScene> = {
     prop("flower-branch", "eps-cat", 74, 74),
   ]),
   knowledge: scene("知识柜还在等第一批设定", "knowledge", [
-    prop("library-shelf", "eps-tall", 98, 98),
-    prop("manuscript-stack", "eps-main", 92, 92),
-    prop("potted-plant", "eps-left", 76, 76),
-    prop("editor-bot", "eps-cat", 74, 74),
+    prop("story-map-desk", "eps-main", 184, 144),
+    prop("manuscript-stack", "eps-left", 78, 78),
+    prop("desk-lamp", "eps-tall", 74, 74),
+    prop("studio-cat", "eps-cat", 76, 76),
   ]),
   graph: scene("关系图还在等人物登场", "graph", [
-    prop("story-board", "eps-main", 96, 96),
-    prop("library-shelf", "eps-tall", 88, 88),
+    prop("story-map-desk", "eps-main", 184, 144),
     prop("coffee-mug", "eps-left", 66, 66),
+    prop("desk-lamp", "eps-tall", 74, 74),
     prop("editor-bot", "eps-cat", 74, 74),
   ]),
   editor: scene("稿纸已经铺好", "editor", [
@@ -95,15 +95,15 @@ const SCENES: Record<EmptyArtVariant, EmptyScene> = {
     prop("flower-bouquet", "eps-left", 78, 78),
   ]),
   wiki: scene("Wiki 书页还没翻开", "wiki", [
-    prop("library-shelf", "eps-tall", 98, 98),
-    prop("logo-book-quill", "eps-main", 88, 88),
-    prop("ink-quill", "eps-left", 72, 72),
+    prop("asset-library-desk", "eps-main", 178, 156),
+    prop("logo-book-quill", "eps-left", 72, 72),
+    prop("ink-quill", "eps-tall", 72, 72),
     prop("coffee-mug", "eps-cat", 66, 66),
   ]),
   memory: scene("记忆长卷还没铺开", "memory", [
-    prop("manuscript-stack", "eps-main", 96, 96),
+    prop("memory-scroll-desk", "eps-main", 184, 144),
     prop("seal-desk", "eps-left", 76, 76),
-    prop("library-shelf", "eps-tall", 92, 92),
+    prop("desk-lamp", "eps-tall", 76, 76),
     prop("flower-branch", "eps-cat", 74, 74),
   ]),
   agents: scene("编辑部成员档案暂时没拿到", "agents", [

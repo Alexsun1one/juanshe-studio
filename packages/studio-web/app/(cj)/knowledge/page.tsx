@@ -27,7 +27,7 @@ import {
 } from "@/lib/api/client"
 import type { Cast, Relation } from "@/lib/studio-data"
 import { useWorkspace } from "@/lib/workspace-context"
-import { CjPlaceholder } from "@/components/design/cj-placeholder"
+import { CjPlaceholder, EmptyArt } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { KpiChip, Meter } from "@/components/design/kit"
 import "./knowledge.css"
@@ -305,7 +305,13 @@ export default function KnowledgePage() {
                   ))}
                 </div>
               )}
-              {!graph && <div className="skel" style={{ height: 200 }} />}
+              {!graph && (
+                <div className="kg-tree-loading" aria-label="正在加载实体树">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              )}
             </div>
 
             <div className="kg-resizer" onPointerDown={startDrag("l")} onDoubleClick={resetCol("l")} />
@@ -397,9 +403,14 @@ export default function KnowledgePage() {
                   })}
                 </svg>
               ) : !graph ? (
-                <div className="skel" style={{ height: "100%", minHeight: 220, borderRadius: "var(--r-lg)" }} />
+                <div className="kg-graph-loading" role="status">
+                  <div className="kg-empty-art"><EmptyArt variant="knowledge" /></div>
+                  <b>正在铺开关系板</b>
+                  <span>实体、派系和章节线索会汇到这张像素白板上。</span>
+                </div>
               ) : (
                 <div className="empty kg-empty">
+                  <div className="kg-empty-art"><EmptyArt variant="knowledge" /></div>
                   <span className="empty-ico"><Network size={24} aria-hidden /></span>
                   <div className="kg-empty-title">关系网络还未生成</div>
                   <div className="kg-empty-desc">触发「重新生成关系图谱」后,角色与派系的关系会在这里编织成网。</div>
@@ -468,6 +479,7 @@ export default function KnowledgePage() {
                 </>
               ) : (
                 <div className="empty kg-empty">
+                  <div className="kg-empty-art mini"><EmptyArt variant="knowledge" /></div>
                   <span className="empty-ico"><Users size={22} aria-hidden /></span>
                   <div className="kg-empty-title">尚未选择实体</div>
                   <div className="kg-empty-desc">在左侧实体树或中间图谱中点选一个角色,这里会展开 TA 的设定与关系网。</div>

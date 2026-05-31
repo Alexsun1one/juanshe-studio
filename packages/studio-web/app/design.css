@@ -1694,25 +1694,25 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
 
 /* 整页空态(CjPlaceholder / 首屏无作品)— 温和的占位插画 + 引导,而非报错 */
 .empty-lg {
-  min-height: clamp(320px, 50vh, 540px);
-  gap: 6px;
-  padding: 48px 24px 64px;
+  min-height: clamp(360px, 56vh, 620px);
+  gap: 8px;
+  padding: 44px 28px 58px;
   animation: cj-empty-in 0.45s var(--ease-soft, ease-out) both;
 }
 .editorial-empty {
   position: relative;
   overflow: hidden;
-  width: min(100%, 760px);
+  width: min(100%, 840px);
   margin: 18px auto 0;
   border: 1px solid color-mix(in oklab, var(--line-1) 86%, var(--brand-500));
   border-radius: var(--r-xl);
   background:
-    radial-gradient(420px 220px at 50% 0%, color-mix(in oklab, var(--brand-500) 7%, transparent), transparent 72%),
-    repeating-linear-gradient(90deg, transparent 0 19px, color-mix(in oklab, var(--brand-500) 3%, transparent) 20px 21px),
-    linear-gradient(180deg, color-mix(in oklab, var(--pixel-paper, #FFFAF0) 74%, transparent), var(--bg-card));
+    radial-gradient(440px 230px at 50% 0%, color-mix(in oklab, var(--brand-500) 9%, transparent), transparent 72%),
+    repeating-linear-gradient(90deg, transparent 0 19px, color-mix(in oklab, var(--brand-500) 3.5%, transparent) 20px 21px),
+    linear-gradient(180deg, color-mix(in oklab, var(--pixel-paper, #FFFAF0) 88%, transparent), var(--bg-card));
   box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 56%, transparent),
-    0 18px 42px -34px color-mix(in oklab, var(--ink-900) 45%, transparent);
+    inset 0 1px 0 color-mix(in oklab, white 64%, transparent),
+    0 20px 46px -32px color-mix(in oklab, var(--ink-900) 52%, transparent);
 }
 .editorial-empty::before,
 .editorial-empty::after {
@@ -1740,12 +1740,17 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   transform: rotate(5deg);
 }
 .empty-lg .empty-art {
-  width: 228px; height: 152px;
+  width: 248px; height: 166px;
   margin-bottom: 12px;
   color: var(--ink-300);
 }
 .editorial-empty[data-empty-variant="editor"] .empty-art,
-.editorial-empty[data-empty-variant="publish"] .empty-art {
+.editorial-empty[data-empty-variant="publish"] .empty-art,
+.editorial-empty[data-empty-variant="library"] .empty-art,
+.editorial-empty[data-empty-variant="knowledge"] .empty-art,
+.editorial-empty[data-empty-variant="graph"] .empty-art,
+.editorial-empty[data-empty-variant="memory"] .empty-art,
+.editorial-empty[data-empty-variant="wiki"] .empty-art {
   width: 320px;
   height: 210px;
   margin-bottom: 14px;
@@ -1792,20 +1797,62 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   max-width: 178px;
   transform: rotate(-2deg);
 }
+.empty-pixel-scene[data-empty-variant="library"] .eps-main,
+.empty-pixel-scene[data-empty-variant="knowledge"] .eps-main,
+.empty-pixel-scene[data-empty-variant="graph"] .eps-main,
+.empty-pixel-scene[data-empty-variant="memory"] .eps-main,
+.empty-pixel-scene[data-empty-variant="wiki"] .eps-main {
+  left: 50%;
+  bottom: 13px;
+  width: min(92%, 350px);
+  max-width: 350px;
+  transform: translateX(-50%) rotate(-1deg);
+  transform-origin: 50% 100%;
+  animation: eps-main-float 5.8s ease-in-out infinite;
+}
 .empty-pixel-scene[data-empty-variant="editor"] .eps-tall,
 .empty-pixel-scene[data-empty-variant="publish"] .eps-tall {
   left: 218px;
   bottom: 52px;
+}
+.empty-pixel-scene[data-empty-variant="library"] .eps-tall,
+.empty-pixel-scene[data-empty-variant="knowledge"] .eps-tall,
+.empty-pixel-scene[data-empty-variant="graph"] .eps-tall,
+.empty-pixel-scene[data-empty-variant="memory"] .eps-tall,
+.empty-pixel-scene[data-empty-variant="wiki"] .eps-tall {
+  left: auto;
+  right: 14px;
+  bottom: 72px;
+  width: 64px;
 }
 .empty-pixel-scene[data-empty-variant="editor"] .eps-left,
 .empty-pixel-scene[data-empty-variant="publish"] .eps-left {
   left: 28px;
   bottom: 18px;
 }
+.empty-pixel-scene[data-empty-variant="library"] .eps-left,
+.empty-pixel-scene[data-empty-variant="knowledge"] .eps-left,
+.empty-pixel-scene[data-empty-variant="graph"] .eps-left,
+.empty-pixel-scene[data-empty-variant="memory"] .eps-left,
+.empty-pixel-scene[data-empty-variant="wiki"] .eps-left {
+  left: 12px;
+  bottom: 22px;
+  width: 60px;
+}
 .empty-pixel-scene[data-empty-variant="editor"] .eps-cat,
 .empty-pixel-scene[data-empty-variant="publish"] .eps-cat {
   left: 244px;
   bottom: 15px;
+}
+.empty-pixel-scene[data-empty-variant="library"] .eps-cat,
+.empty-pixel-scene[data-empty-variant="knowledge"] .eps-cat,
+.empty-pixel-scene[data-empty-variant="graph"] .eps-cat,
+.empty-pixel-scene[data-empty-variant="memory"] .eps-cat,
+.empty-pixel-scene[data-empty-variant="wiki"] .eps-cat {
+  left: auto;
+  right: 18px;
+  bottom: 11px;
+  width: 58px;
 }
 .eps-tall {
   left: 126px;
@@ -1878,9 +1925,14 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   0%, 100% { transform: translateY(0) scale(1); }
   50% { transform: translateY(-1px) scale(1.018, 0.988); }
 }
+@keyframes eps-main-float {
+  0%, 100% { transform: translateX(-50%) rotate(-1deg) translateY(0); }
+  50% { transform: translateX(-50%) rotate(1deg) translateY(-3px); }
+}
 @media (prefers-reduced-motion: reduce) {
   .empty-lg,
   .editorial-empty::before,
+  .eps-main,
   .eps-tall,
   .eps-left,
   .eps-cat,
@@ -1912,7 +1964,12 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
     justify-content: center;
   }
   .editorial-empty[data-empty-variant="editor"] .empty-art,
-  .editorial-empty[data-empty-variant="publish"] .empty-art {
+  .editorial-empty[data-empty-variant="publish"] .empty-art,
+  .editorial-empty[data-empty-variant="library"] .empty-art,
+  .editorial-empty[data-empty-variant="knowledge"] .empty-art,
+  .editorial-empty[data-empty-variant="graph"] .empty-art,
+  .editorial-empty[data-empty-variant="memory"] .empty-art,
+  .editorial-empty[data-empty-variant="wiki"] .empty-art {
     width: min(226px, 74vw);
     height: 170px;
   }
@@ -1922,6 +1979,15 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
     width: 132px;
     max-width: 132px;
   }
+  .empty-pixel-scene[data-empty-variant="library"] .eps-main,
+  .empty-pixel-scene[data-empty-variant="knowledge"] .eps-main,
+  .empty-pixel-scene[data-empty-variant="graph"] .eps-main,
+  .empty-pixel-scene[data-empty-variant="memory"] .eps-main,
+  .empty-pixel-scene[data-empty-variant="wiki"] .eps-main {
+    left: 50%;
+    width: min(92%, 270px);
+    max-width: 270px;
+  }
   .empty-pixel-scene[data-empty-variant="editor"] .eps-tall,
   .empty-pixel-scene[data-empty-variant="publish"] .eps-tall {
     left: 154px;
@@ -1930,6 +1996,32 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   .empty-pixel-scene[data-empty-variant="editor"] .eps-cat,
   .empty-pixel-scene[data-empty-variant="publish"] .eps-cat {
     left: 166px;
+  }
+  .empty-pixel-scene[data-empty-variant="library"] .eps-tall,
+  .empty-pixel-scene[data-empty-variant="knowledge"] .eps-tall,
+  .empty-pixel-scene[data-empty-variant="graph"] .eps-tall,
+  .empty-pixel-scene[data-empty-variant="memory"] .eps-tall,
+  .empty-pixel-scene[data-empty-variant="wiki"] .eps-tall {
+    right: 8px;
+    bottom: 60px;
+    width: 54px;
+  }
+  .empty-pixel-scene[data-empty-variant="library"] .eps-left,
+  .empty-pixel-scene[data-empty-variant="knowledge"] .eps-left,
+  .empty-pixel-scene[data-empty-variant="graph"] .eps-left,
+  .empty-pixel-scene[data-empty-variant="memory"] .eps-left,
+  .empty-pixel-scene[data-empty-variant="wiki"] .eps-left {
+    left: 4px;
+    bottom: 20px;
+    width: 52px;
+  }
+  .empty-pixel-scene[data-empty-variant="library"] .eps-cat,
+  .empty-pixel-scene[data-empty-variant="knowledge"] .eps-cat,
+  .empty-pixel-scene[data-empty-variant="graph"] .eps-cat,
+  .empty-pixel-scene[data-empty-variant="memory"] .eps-cat,
+  .empty-pixel-scene[data-empty-variant="wiki"] .eps-cat {
+    right: 10px;
+    width: 50px;
   }
 }
 

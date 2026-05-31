@@ -16,7 +16,7 @@ import {
 import { fetchMemory, fetchOutline, fetchPlotProgress } from "@/lib/api/client"
 import type { MemoryItem } from "@/lib/studio-data"
 import { useWorkspace } from "@/lib/workspace-context"
-import { CjPlaceholder } from "@/components/design/cj-placeholder"
+import { CjPlaceholder, EmptyArt } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
@@ -278,7 +278,11 @@ export default function MemoryPage() {
               )}
 
               {items.length === 0 && memory && (
-                <div className="empty">本作品暂无记忆条目 · 开始写作后,世界观与焦点会按章铺到这条长卷上</div>
+                <div className="empty mem-empty-dock">
+                  <div className="mem-empty-art"><EmptyArt variant="memory" /></div>
+                  <b>记忆长卷还没铺开</b>
+                  <span>开始写作后,世界观与焦点会按章铺到这条长卷上。</span>
+                </div>
               )}
             </div>
           </div>

@@ -314,34 +314,32 @@
 .sg-hint { margin-left: auto; color: var(--ink-400); }
 
 /* —— 空数据态:像素节点小图,呼应「随写作生长的图谱」—— */
-.sg-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 440px; text-align: center; padding: 40px; }
-.sg-empty-ill {
-  position: relative; width: 96px; height: 72px;
+.sg-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 440px; text-align: center; padding: 36px 40px 44px;
   background:
-    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--brand-500) 9%, transparent), transparent 70%);
+    radial-gradient(360px 220px at 50% 34%, color-mix(in oklab, var(--accent-amber, #F8C994) 14%, transparent), transparent 72%),
+    repeating-linear-gradient(90deg, transparent 0 23px, color-mix(in oklab, var(--brand-500) 3%, transparent) 24px 25px);
 }
-/* 三个像素方块节点 + 连线,crispEdges 像素感 */
+.sg-empty-ill {
+  position: relative;
+  width: min(360px, 72vw);
+  height: 235px;
+  background: url("/brand/props/story-map-desk.webp") center / contain no-repeat;
+  filter: var(--brand-asset-filter, saturate(1)) drop-shadow(0 18px 22px rgba(74, 58, 36, 0.14));
+  animation: sg-empty-float 5.8s ease-in-out infinite;
+}
 .sg-empty-ill::before,
 .sg-empty-ill::after {
-  content: ""; position: absolute; border-radius: 2px;
+  content: none;
 }
-/* 连线层 */
-.sg-empty-ill::before {
-  inset: 0;
-  background:
-    linear-gradient(to right, color-mix(in srgb, var(--brand-500) 32%, transparent) 0 100%) no-repeat 22px 30px / 30px 3px,
-    linear-gradient(to right, color-mix(in srgb, var(--ink-400) 40%, transparent) 0 100%) no-repeat 44px 32px / 26px 3px;
-  transform: rotate(-9deg);
-}
-/* 三个节点 */
-.sg-empty-ill::after {
-  inset: 0;
-  background:
-    linear-gradient(var(--brand-500), var(--brand-600)) no-repeat 14px 22px / 16px 16px,
-    linear-gradient(#C66E2F, #A85724) no-repeat 40px 8px / 13px 13px,
-    linear-gradient(#2BB97A, #1A8E5C) no-repeat 64px 38px / 15px 15px;
-  border-radius: 0;
-}
-.sg-empty-t { font-size: 15px; font-weight: 600; color: var(--ink-700); margin: 18px 0 6px; }
-.sg-empty-s { font-size: 12.5px; color: var(--ink-500); max-width: 400px; line-height: 1.7; margin: 0; }
+.sg-empty-t { font-size: 16px; font-weight: 700; color: var(--ink-800); margin: 6px 0 6px; }
+.sg-empty-s { font-size: 13px; color: var(--ink-600); max-width: 430px; line-height: 1.75; margin: 0; }
 .sg-empty-actions { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+@keyframes sg-empty-float {
+  0%, 100% { transform: rotate(-1deg) translateY(0); }
+  50% { transform: rotate(1deg) translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sg-empty-ill { animation: none; }
+}
