@@ -301,13 +301,13 @@
   content: "";
   position: absolute;
   right: clamp(18px, 3vw, 42px);
-  bottom: -24px;
+  bottom: -34px;
   z-index: 0;
-  width: clamp(70px, 8vw, 112px);
+  width: var(--workhead-prop-size, clamp(70px, 8vw, 112px));
   aspect-ratio: 1;
   background: var(--page-prop) center / contain no-repeat;
-  opacity: 0.14;
-  filter: var(--brand-asset-filter, saturate(1));
+  opacity: var(--workhead-prop-opacity, 0.14);
+  filter: var(--brand-asset-filter, saturate(1)) drop-shadow(0 12px 18px rgba(74, 58, 36, 0.12));
   pointer-events: none;
   transform: rotate(-4deg);
 }
@@ -334,6 +334,8 @@
     color-mix(in oklab, var(--bg-app) 82%, var(--bg-card));
 }
 .app .cj-inspector {
+  position: relative;
+  isolation: isolate;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -343,6 +345,24 @@
   background:
     linear-gradient(180deg, color-mix(in oklab, var(--brand-500) 3%, transparent), transparent 38%),
     color-mix(in oklab, var(--bg-app) 54%, var(--bg-card));
+}
+.app .cj-inspector::after {
+  content: "";
+  position: absolute;
+  right: -18px;
+  bottom: 12px;
+  z-index: 0;
+  width: var(--inspector-prop-size, clamp(82px, 9vw, 138px));
+  aspect-ratio: 1;
+  background: var(--page-prop) center / contain no-repeat;
+  opacity: var(--inspector-prop-opacity, 0.085);
+  filter: var(--brand-asset-filter, saturate(1)) drop-shadow(0 10px 18px rgba(74, 58, 36, 0.12));
+  pointer-events: none;
+  transform: rotate(3deg);
+}
+.app .cj-inspector > * {
+  position: relative;
+  z-index: 1;
 }
 .app .cj-pane-scroll { min-height: 0; overflow-y: auto; overflow-x: hidden; }
 @media (max-width: 1100px) {
@@ -1383,10 +1403,10 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   top: 74px;
   right: clamp(28px, 5vw, 92px);
   z-index: 0;
-  width: clamp(86px, 9vw, 132px);
+  width: var(--page-prop-size, clamp(86px, 9vw, 132px));
   aspect-ratio: 1;
   background: var(--page-prop) center / contain no-repeat;
-  opacity: 0.12;
+  opacity: calc(var(--page-prop-opacity, 0.18) * 0.68);
   filter: var(--brand-asset-filter, saturate(1)) drop-shadow(0 10px 16px rgba(74, 58, 36, 0.12));
   transform: rotate(-4deg);
   animation: page-prop-float 5.8s ease-in-out infinite;

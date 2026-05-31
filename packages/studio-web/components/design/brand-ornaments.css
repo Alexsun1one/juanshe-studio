@@ -9,7 +9,10 @@
 
 .app {
   --page-prop: url("/brand/props/typewriter.webp");
+  --page-prop-size: clamp(86px, 9vw, 132px);
   --page-prop-opacity: 0.18;
+  --workhead-prop-size: clamp(70px, 8vw, 112px);
+  --workhead-prop-opacity: 0.14;
 }
 
 .app[data-route-section="creation"] {
@@ -40,9 +43,16 @@
 }
 
 .app[data-route-key="assistant"],
-.app[data-route-key="agents"],
-.app[data-route-key="system"] {
+.app[data-route-key="agents"] {
   --page-prop: url("/brand/props/editor-bot.webp");
+}
+
+.app[data-route-key="system"] {
+  --page-prop: url("/brand/props/run-console.webp");
+  --page-prop-size: clamp(108px, 12vw, 178px);
+  --page-prop-opacity: 0.2;
+  --workhead-prop-size: clamp(104px, 12vw, 168px);
+  --workhead-prop-opacity: 0.18;
 }
 
 .app[data-route-key="compose"],
@@ -50,9 +60,16 @@
   --page-prop: url("/brand/props/publishing-envelope.webp");
 }
 
-.app[data-route-key="editor"],
-.app[data-route-key="runs"] {
+.app[data-route-key="editor"] {
   --page-prop: url("/brand/props/typewriter.webp");
+}
+
+.app[data-route-key="runs"] {
+  --page-prop: url("/brand/props/run-console.webp");
+  --page-prop-size: clamp(112px, 13vw, 190px);
+  --page-prop-opacity: 0.2;
+  --workhead-prop-size: clamp(112px, 13vw, 188px);
+  --workhead-prop-opacity: 0.18;
 }
 
 .app[data-route-key="outline"],
@@ -76,11 +93,25 @@
   --page-prop: url("/brand/props/radar-desk.webp");
 }
 
-.app[data-route-key="llm"],
 .app[data-route-key="preferences"],
-.app[data-route-key="shortcuts"],
 .app[data-route-key="capabilities"] {
   --page-prop: url("/brand/props/settings-gear.webp");
+}
+
+.app[data-route-key="llm"] {
+  --page-prop: url("/brand/props/model-rack.webp");
+  --page-prop-size: clamp(108px, 12vw, 176px);
+  --page-prop-opacity: 0.18;
+  --workhead-prop-size: clamp(104px, 12vw, 168px);
+  --workhead-prop-opacity: 0.16;
+}
+
+.app[data-route-key="shortcuts"] {
+  --page-prop: url("/brand/props/shortcut-desk.webp");
+  --page-prop-size: clamp(124px, 15vw, 220px);
+  --page-prop-opacity: 0.2;
+  --workhead-prop-size: clamp(120px, 15vw, 212px);
+  --workhead-prop-opacity: 0.18;
 }
 
 .app.sidebar-collapsed .brand-ornaments {
@@ -158,7 +189,7 @@
   position: absolute;
   right: clamp(110px, 15vw, 250px);
   top: clamp(52px, 9vh, 118px);
-  width: clamp(78px, 9vw, 132px);
+  width: var(--page-prop-size, clamp(78px, 9vw, 132px));
   aspect-ratio: 1;
   background: var(--page-prop) center / contain no-repeat;
   opacity: var(--page-prop-opacity, 0.18);

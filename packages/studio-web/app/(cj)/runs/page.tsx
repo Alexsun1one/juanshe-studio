@@ -51,7 +51,7 @@ export default function RunsPage() {
           <div className="runs-head-id">
             <PixelBadge
               kind="runs"
-              size={32}
+              size={44}
               className="page-title-pixel"
               ariaLabel={t("runs.title")}
             />

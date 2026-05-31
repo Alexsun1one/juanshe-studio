@@ -1,6 +1,6 @@
 "use client"
 
-import { Sparkles, Zap } from "lucide-react"
+import { Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/lib/i18n"
 
@@ -13,16 +13,23 @@ import { useT } from "@/lib/i18n"
 export function RunsEmpty({ onCreate }: { onCreate: () => void }) {
   const t = useT()
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-5 py-24 text-center">
-      <div className="bg-primary/8 ring-primary/20 relative flex size-20 items-center justify-center rounded-full ring-1">
-        <Sparkles className="text-primary size-9" strokeWidth={1.6} />
-      </div>
+    <div className="runs-empty-state">
+      <img
+        className="runs-empty-prop"
+        src="/brand/props/run-console.webp"
+        alt=""
+        width={560}
+        height={425}
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+      />
 
-      <div className="flex flex-col gap-2">
-        <h2 className="text-lg font-semibold tracking-tight text-balance">
+      <div className="runs-empty-copy">
+        <h2>
           {t("runs.empty.title")}
         </h2>
-        <p className="text-muted-foreground text-xs leading-relaxed text-pretty">
+        <p>
           {t("runs.empty.desc")}
         </p>
       </div>
