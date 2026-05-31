@@ -1,0 +1,340 @@
+/* ───────────────────────────────────────────────────────────────────────
+   全屏沉浸写作 · (scoped .cj-immersive)
+   不在 .app cj 外壳里,是独立全屏舞台。配色全部走 design 的 CSS 变量
+   (ink、brand、bg、line、状态语义色、accent-warm),随日间夜间与 cj-theme
+   切换:日间是暖纸夜读、夜间是深墨夜读,不再硬编码脱离主题的深空蓝紫。
+   保留沉浸三件套:全屏 fixed 舞台、流式逐字正文、宋体大字号皇冠明珠。
+   ─────────────────────────────────────────────────────────────────────── */
+
+.cj-immersive {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(ellipse 130% 90% at 50% 0%, color-mix(in oklab, var(--brand-500) 9%, var(--bg-canvas)), transparent 62%), var(--bg-app);
+  color: var(--ink-800);
+  font-family: var(--font-sans-cj);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.cj-immersive .tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+/* ── 顶部工作条 ───────────────────────────────────────────────────────── */
+.cj-immersive .im-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 32px;
+  border-bottom: 1px solid var(--line-1);
+  background: color-mix(in oklab, var(--bg-card) 50%, transparent);
+  backdrop-filter: blur(4px);
+}
+.cj-immersive .im-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-md);
+  background: var(--bg-card);
+  border: 1px solid var(--line-1);
+  transition: transform var(--motion-base) var(--ease-spring-cj, ease), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-immersive .im-mark:hover { transform: translateY(-1px) rotate(-2deg); border-color: var(--brand-200); }
+.cj-immersive .im-mark svg { display: block; }
+
+.cj-immersive .im-headline { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cj-immersive .im-book {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cj-immersive .im-ch-line { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.cj-immersive .im-ch-ico { color: var(--ink-400); flex: none; }
+.cj-immersive .im-ch-num { font-size: 12px; font-weight: 600; color: var(--brand-600); flex: none; }
+.cj-immersive .im-ch-title {
+  font-size: 12px;
+  color: var(--ink-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cj-immersive .im-ch-title::before { content: "·"; margin-right: 5px; color: var(--ink-300); }
+
+/* 状态 chip — .pill 限 .app,这里用状态语义色 token 自绘,语义与全站一致 */
+.cj-immersive .im-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid transparent;
+}
+.cj-immersive .im-status .im-pulse { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+.cj-immersive .im-status.is-running {
+  color: var(--st-running);
+  background: var(--st-running-bg);
+  border-color: color-mix(in oklab, var(--st-running) 28%, transparent);
+}
+.cj-immersive .im-status.is-running .im-pulse {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--st-running) 24%, transparent);
+  animation: im-pulse 1.5s ease-in-out infinite;
+}
+.cj-immersive .im-status.is-idle {
+  color: var(--ink-500);
+  background: var(--bg-sunken);
+  border-color: var(--line-1);
+}
+
+/* 本章实时指标 — 密集 token,夹在状态与退出之间,克制不抢焦 */
+.cj-immersive .im-metrics { display: inline-flex; align-items: center; gap: 12px; margin-left: 2px; }
+.cj-immersive .im-metric { display: inline-flex; align-items: baseline; gap: 4px; font-size: 11px; color: var(--ink-500); }
+.cj-immersive .im-metric-ico { color: var(--ink-400); align-self: center; }
+.cj-immersive .im-metric b { font-family: var(--font-num); font-size: 14px; font-weight: 700; color: var(--ink-800); }
+.cj-immersive .im-metric i { font-style: normal; font-size: 10.5px; color: var(--ink-400); }
+
+.cj-immersive .im-exit {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-600);
+  padding: 7px 12px;
+  border-radius: var(--r-md);
+  background: var(--bg-card);
+  border: 1px solid var(--line-1);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-immersive .im-exit:hover { background: var(--bg-hover); color: var(--ink-900); border-color: var(--line-3); }
+.cj-immersive .im-exit:focus-visible,
+.cj-immersive .im-dock-link:focus-visible,
+.cj-immersive .im-empty-cta:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-immersive .im-exit .kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-400);
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+}
+
+/* ── 舞台:皇冠明珠,宋体大字号流式正文 ───────────────────────────────── */
+.cj-immersive .im-stage {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  padding: 40px 72px 56px;
+}
+.cj-immersive .im-paper { width: 100%; max-width: 880px; }
+
+.cj-immersive .im-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 30px;
+  text-align: center;
+}
+.cj-immersive .im-title-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--brand-500);
+  padding: 3px 12px;
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--brand-500) 12%, transparent);
+}
+.cj-immersive .im-title-kicker svg { flex: none; }
+.cj-immersive .im-title-name {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ink-900);
+  line-height: 1.3;
+}
+
+.cj-immersive .im-body {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  line-height: 2.05;
+  color: var(--ink-800);
+  letter-spacing: 0;
+}
+.cj-immersive .im-body p { margin: 0 0 1.1em; text-indent: 2em; }
+.cj-immersive .im-body .accent { color: var(--accent-warm-deep); font-style: italic; }
+
+/* 加载态 — 镜像正文节奏的骨架(.skel 来自 design.css 的全站 shimmer),非空非错 */
+.cj-immersive .im-loading { width: 100%; }
+.cj-immersive .im-loading-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+.cj-immersive .im-skel-kicker { width: 96px; height: 20px; border-radius: var(--r-pill); }
+.cj-immersive .im-skel-name { width: min(420px, 64%); height: 28px; border-radius: var(--r-sm); }
+.cj-immersive .im-loading-body { display: flex; flex-direction: column; gap: 16px; }
+.cj-immersive .im-skel-line { height: 16px; border-radius: var(--r-xs); }
+
+/* 空态 — 像素书签 + 引导 CTA,不再裸文字 */
+.cj-immersive .im-empty {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  padding: 40px 24px;
+}
+.cj-immersive .im-empty-mark {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 6px;
+  border-radius: var(--r-xl);
+  background: var(--bg-card);
+  border: 1px solid var(--line-1);
+}
+.cj-immersive .im-empty-title { font-size: 15px; font-weight: 650; color: var(--ink-700); }
+.cj-immersive .im-empty-desc { font-size: 13px; color: var(--ink-500); }
+.cj-immersive .im-empty-cta {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-inv);
+  background: var(--brand-500);
+  padding: 8px 16px;
+  border-radius: var(--r-md);
+  transition: background var(--motion-fast) var(--ease-soft), transform var(--motion-fast) var(--ease-soft);
+}
+.cj-immersive .im-empty-cta:hover { background: var(--brand-600); transform: translateY(-1px); }
+
+/* ── 底部状态条 ───────────────────────────────────────────────────────── */
+.cj-immersive .im-foot {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 13px 32px;
+  font-size: 12px;
+  color: var(--ink-500);
+  border-top: 1px solid var(--line-1);
+  background: color-mix(in oklab, var(--bg-card) 50%, transparent);
+  backdrop-filter: blur(4px);
+}
+.cj-immersive .im-foot-mode { display: inline-flex; align-items: center; gap: 6px; flex: none; color: var(--ink-500); }
+.cj-immersive .im-foot-mode svg { color: var(--ink-400); }
+
+.cj-immersive .im-foot-progress { display: flex; align-items: center; gap: 9px; flex: 1; max-width: 380px; }
+.cj-immersive .im-foot-label { font-size: 11px; color: var(--ink-400); flex: none; }
+.cj-immersive .im-foot .pbar {
+  flex: 1;
+  height: 5px;
+  background: var(--bg-sunken);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+.cj-immersive .im-foot .pbar > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--brand-500), color-mix(in srgb, var(--brand-500) 62%, white));
+  transition: width var(--motion-base) var(--ease-out-cj, ease);
+}
+.cj-immersive .im-foot-pct { font-size: 11.5px; font-weight: 700; color: var(--brand-600); flex: none; min-width: 34px; text-align: right; }
+
+.cj-immersive .im-foot-stats { display: inline-flex; align-items: center; gap: 12px; margin-left: auto; flex: none; }
+.cj-immersive .im-stat { display: inline-flex; align-items: baseline; gap: 4px; }
+.cj-immersive .im-stat-ico { color: var(--ink-400); align-self: center; }
+.cj-immersive .im-stat b { font-family: var(--font-num); font-size: 13px; font-weight: 700; color: var(--ink-700); }
+.cj-immersive .im-stat-of { font-size: 11px; font-weight: 600; color: var(--ink-400); }
+.cj-immersive .im-stat i { font-style: normal; font-size: 11px; color: var(--ink-500); }
+.cj-immersive .im-stat-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-300); align-self: center; }
+
+/* ── 右侧 dock ────────────────────────────────────────────────────────── */
+.cj-immersive .im-dock {
+  position: absolute;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border-radius: var(--r-lg);
+  background: color-mix(in oklab, var(--bg-card) 70%, transparent);
+  border: 1px solid var(--line-1);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--sh-1, 0 2px 8px rgba(0, 0, 0, 0.06));
+}
+.cj-immersive .im-dock-link {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  color: var(--ink-500);
+  background: transparent;
+  border: 1px solid transparent;
+  transition: all var(--motion-fast) var(--ease-soft);
+}
+.cj-immersive .im-dock-link:hover {
+  background: var(--bg-active);
+  color: var(--brand-600);
+  border-color: color-mix(in oklab, var(--brand-500) 24%, transparent);
+}
+
+@keyframes im-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cj-immersive .im-status.is-running .im-pulse { animation: none; }
+}
+
+/* ── 响应式 ───────────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .cj-immersive .im-metrics { display: none; }
+}
+@media (max-width: 760px) {
+  .cj-immersive .im-top { flex-wrap: wrap; gap: 8px 10px; padding: 12px 16px; }
+  .cj-immersive .im-headline { flex: 1 1 auto; min-width: 0; }
+  .cj-immersive .im-exit { margin-left: 0; min-height: 36px; }
+  .cj-immersive .im-stage { padding: 22px 18px 32px; }
+  .cj-immersive .im-title-name { font-size: 22px; }
+  .cj-immersive .im-body { font-size: 17px; line-height: 2; }
+  .cj-immersive .im-foot { flex-wrap: wrap; gap: 8px 14px; padding: 10px 16px; }
+  .cj-immersive .im-foot-progress { order: 3; flex-basis: 100%; max-width: none; }
+  .cj-immersive .im-foot-stats { margin-left: 0; }
+  .cj-immersive .im-dock {
+    position: static;
+    transform: none;
+    flex-direction: row;
+    justify-content: center;
+    margin: 0 16px 12px;
+    backdrop-filter: none;
+  }
+}

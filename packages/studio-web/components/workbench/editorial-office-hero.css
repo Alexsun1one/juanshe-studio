@@ -1,0 +1,804 @@
+/* EditorialOfficeHero — 卷·编辑部 像素工作室全景 */
+
+.eo-hero {
+  --eo-wall-top: #FAF5EB;
+  --eo-wall-bot: #F2E9D8;
+  --eo-floor-top: #C49A66;
+  --eo-floor-bot: #A07642;
+  --eo-floor-line: #6D4A24;
+  --eo-shelf: #6D4A24;
+  --eo-desk: #8B5E36;
+  --eo-desk-shadow: #5C3A1E;
+  --eo-lamp-arm: #2F3848;
+  --eo-name-bg: rgba(255, 255, 255, 0.92);
+  --eo-name-fg: #1F2433;
+
+  margin-bottom: 20px;
+  border-radius: var(--r-xl, 14px);
+  overflow: hidden;
+  border: 1px solid var(--line-1);
+  background: var(--bg-card);
+}
+
+/* Dark 模式 — 暗夜紫工作室 + 黄灯 */
+:where(html.dark) .eo-hero {
+  --eo-wall-top: #1A1A28;
+  --eo-wall-bot: #0F0F18;
+  --eo-floor-top: #2A1F12;
+  --eo-floor-bot: #15100A;
+  --eo-floor-line: #4A3422;
+  --eo-shelf: #4A3422;
+  --eo-desk: #4A3422;
+  --eo-desk-shadow: #2A1F12;
+  --eo-lamp-arm: #9D8AFF;
+  --eo-name-bg: rgba(31, 36, 51, 0.92);
+  --eo-name-fg: #F0F0FA;
+}
+
+/* ── 顶部状态条 ─────────────────────────────────────────── */
+.eo-status-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px;
+  background: linear-gradient(180deg, rgba(110, 91, 250, 0.04), transparent);
+  border-bottom: 1px solid var(--line-1);
+  flex-wrap: wrap; gap: 8px;
+}
+.eo-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-700);
+  letter-spacing: 0.04em;
+}
+.eo-status-pills { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+.eo-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  color: var(--ink-600);
+}
+.eo-pill.live { background: var(--brand-50); color: var(--brand-600); }
+.eo-pill.idle { background: var(--bg-sunken); color: var(--ink-500); }
+.eo-pill.brand { background: var(--brand-100, var(--brand-50)); color: var(--brand-700, var(--brand-600)); }
+.eo-pill.ok { background: var(--ok-50); color: var(--ok-500); }
+.eo-pill-dot {
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+.eo-pill.live .eo-pill-dot {
+  animation: eo-dot-pulse 1.4s ease-in-out infinite;
+  box-shadow: 0 0 0 0 currentColor;
+}
+@keyframes eo-dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; }
+  50%      { box-shadow: 0 0 0 4px transparent; }
+}
+
+/* ── 场景 ───────────────────────────────────────────────── */
+.eo-scene {
+  position: relative;
+  min-height: 280px;
+  overflow: hidden;
+}
+.eo-bg {
+  position: absolute; inset: 0;
+  pointer-events: none;
+}
+.eo-bg-svg {
+  width: 100%; height: 100%;
+  shape-rendering: crispEdges;
+  image-rendering: pixelated;
+}
+
+/* 工位 grid */
+.eo-floor {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  padding: 36px 18px 22px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+}
+.eo-floor::-webkit-scrollbar { height: 6px; }
+.eo-floor::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.15); border-radius: 3px; }
+
+.eo-dept {
+  display: flex; flex-direction: column; gap: 8px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+}
+.eo-dept-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-500);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: var(--r-sm, 4px);
+  align-self: flex-start;
+  backdrop-filter: blur(4px);
+}
+:where(html.dark) .eo-dept-tag {
+  background: rgba(31, 36, 51, 0.75);
+  color: var(--ink-300);
+}
+/* horizontal 下:沿用旧外观 —— 只显示部门名,隐藏 vertical 专用的状态小字 */
+.eo-horizontal .eo-dept-name { font: inherit; color: inherit; letter-spacing: inherit; }
+.eo-horizontal .eo-dept-meta { display: none; }
+
+.eo-stations {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+/* ── 单个工位 ───────────────────────────────────────────── */
+.eo-station {
+  position: relative;
+  width: 76px;
+  height: 152px;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  padding: 0 4px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform .2s var(--ease-soft, ease-out);
+}
+.eo-station:hover { transform: translateY(-3px); }
+.eo-station:hover .eo-name { background: var(--brand-500); color: white; }
+.eo-station:focus-visible { outline: none; }
+.eo-station:focus-visible .eo-name { box-shadow: 0 0 0 3px rgba(110, 91, 250, 0.32); }
+
+/* 台灯 — 弯臂 + 灯罩 + 灯泡 */
+.eo-lamp {
+  position: absolute;
+  top: 6px;
+  left: 14px;
+  width: 16px;
+  height: 32px;
+  pointer-events: none;
+}
+.eo-lamp-arm {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  width: 2px;
+  height: 18px;
+  background: var(--eo-lamp-arm);
+  transform: rotate(15deg);
+  transform-origin: bottom;
+}
+.eo-lamp-shade {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 6px;
+  background: var(--eo-lamp-arm);
+  border-radius: 2px 2px 0 0;
+}
+.eo-lamp-bulb {
+  position: absolute;
+  top: 5px;
+  left: 3px;
+  width: 6px;
+  height: 4px;
+  background: #555;
+  border-radius: 50%;
+}
+.eo-running .eo-lamp-bulb {
+  background: #FFD66A;
+  box-shadow: 0 0 8px #FFD66A;
+}
+.eo-done .eo-lamp-bulb {
+  background: #3FD394;
+  box-shadow: 0 0 6px rgba(63, 211, 148, 0.5);
+}
+.eo-lamp-glow {
+  position: absolute;
+  top: 12px;
+  left: -8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 214, 106, 0.45) 0%, transparent 65%);
+  animation: eo-glow-breath 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes eo-glow-breath {
+  0%, 100% { transform: scale(0.9); opacity: 0.7; }
+  50%      { transform: scale(1.15); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eo-lamp-glow,
+  .eo-pill.live .eo-pill-dot { animation: none; }
+}
+
+/* 角色 */
+.eo-figure {
+  position: relative;
+  z-index: 1;
+  display: block;
+  margin-bottom: -6px;
+}
+.eo-running .eo-figure {
+  animation: eo-fig-breath 1.5s ease-in-out infinite;
+}
+@keyframes eo-fig-breath {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eo-running .eo-figure { animation: none; }
+}
+
+/* 桌子 — 顶板 + 桌沿阴影 */
+.eo-desk {
+  position: relative;
+  width: 64px;
+  height: 14px;
+  background: var(--eo-desk);
+  border-top: 2px solid #C49A66;
+  border-radius: 1px;
+  box-shadow:
+    inset 0 -3px 0 var(--eo-desk-shadow),
+    0 1px 0 rgba(0, 0, 0, 0.18);
+}
+:where(html.dark) .eo-desk {
+  border-top-color: #6B4A26;
+}
+
+/* 名牌 */
+.eo-name {
+  position: absolute;
+  bottom: -8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--eo-name-fg);
+  background: var(--eo-name-bg);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid var(--line-1);
+  z-index: 2;
+  transition: background .15s, color .15s, box-shadow .15s;
+}
+
+.eo-running .eo-name {
+  background: var(--brand-500);
+  color: white;
+  border-color: var(--brand-500);
+  animation: eo-name-pulse 1.6s ease-in-out infinite;
+}
+@keyframes eo-name-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(110, 91, 250, 0.45); }
+  50%      { box-shadow: 0 0 0 4px rgba(110, 91, 250, 0); }
+}
+.eo-done .eo-name {
+  background: var(--ok-50);
+  color: var(--ok-500);
+  border-color: rgba(34, 197, 94, 0.32);
+}
+
+/* 响应式 */
+@media (max-width: 760px) {
+  .eo-horizontal .eo-floor { padding: 28px 12px 18px; }
+  .eo-horizontal .eo-station { width: 64px; height: 132px; }
+  .eo-name { font-size: 9.5px; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Vertical 模式 — 右侧竖列(放在 grid-2 右栏)
+   ════════════════════════════════════════════════════════════════ */
+.eo-vertical .eo-scene {
+  min-height: auto;
+  /* 给整个 scene 一个 warm 米黄渐变背景,跟工作室氛围一致 */
+  background:
+    linear-gradient(180deg, #FAF5EB 0%, #F2E9D8 100%);
+}
+:where(html.dark) .eo-vertical .eo-scene {
+  background: linear-gradient(180deg, #1A1A28 0%, #0F0F18 100%);
+}
+
+.eo-vertical .eo-bg-svg {
+  /* 竖列不绘制顶部书架(由 dept 自带小书架代替) */
+  display: none;
+}
+
+.eo-vertical .eo-floor {
+  flex-direction: column;
+  padding: 8px;
+  gap: 6px;
+  /* 17 位一屏展示,不再内部滚动(用户:不想下拉才看到全部 agent) */
+  overflow: visible;
+}
+
+/* dept 块 — 横排:[左侧部门标签栏] + [工位填满右侧]。
+   这样消除右侧大片空白,[部门名] + [2-3 工位] 同一横排排开。
+   只在偶数 dept(0/2/4)顶部加一条书架装饰,避免每行重复。 */
+.eo-vertical .eo-dept {
+  width: 100%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 10px;
+  padding: 6px 10px 6px 0;       /* 左侧 0,留给标签栏自己的 padding */
+  position: relative;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(31, 36, 51, 0.08);
+  overflow: hidden;
+}
+.eo-vertical .eo-dept.has-shelf {
+  padding-top: 13px;             /* 有书架时给顶部书架条留空间 */
+}
+:where(html.dark) .eo-vertical .eo-dept {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+/* running 部门:左缘点一条品牌色,作为唯一强调色(克制) */
+.eo-vertical .eo-dept.eo-dept-running {
+  border-color: color-mix(in srgb, var(--brand-500) 38%, transparent);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--brand-500) 9%, transparent) 0%, transparent 30%),
+    rgba(255, 255, 255, 0.55);
+}
+:where(html.dark) .eo-vertical .eo-dept.eo-dept-running {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--brand-500) 16%, transparent) 0%, transparent 32%),
+    rgba(255, 255, 255, 0.04);
+}
+
+/* 只 has-shelf 部门顶上:像素书架 — 稀疏 + 几本斜着,自然不规整。
+   横排布局下书架只盖在右侧工位区上方(避开左侧标签栏)。 */
+.eo-vertical .eo-dept.has-shelf::before {
+  content: "";
+  position: absolute;
+  top: 5px; left: 78px; right: 11px;
+  height: 10px;
+  background:
+    /* 6 本立着的书 + 几段空隙,书宽不齐 */
+    linear-gradient(90deg,
+      transparent 0%, transparent 4%,
+      #6E5BFA 4%, #6E5BFA 9%,
+      transparent 9%, transparent 13%,
+      #F8C994 13%, #F8C994 17%,
+      transparent 17%, transparent 24%,
+      #2BB97A 24%, #2BB97A 30%,
+      transparent 30%, transparent 38%,
+      #E04848 38%, #E04848 42%,
+      transparent 42%, transparent 51%,
+      #9D8AFF 51%, #9D8AFF 55%,
+      transparent 55%, transparent 64%,
+      #4A8AE0 64%, #4A8AE0 70%,
+      transparent 70% 100%);
+  border-bottom: 1.5px solid #6D4A24;
+  image-rendering: pixelated;
+  opacity: 0.7;
+}
+/* 斜着的两本书 — 用 :after 叠在 ::before 上,绝对定位 + rotate */
+.eo-vertical .eo-dept.has-shelf::after {
+  content: "";
+  position: absolute;
+  /* 第一本斜书:右侧工位区上方 */
+  top: 3px;
+  right: 20%;
+  width: 4px;
+  height: 13px;
+  background: #F08A4B;
+  border: 1px solid rgba(0,0,0,0.18);
+  transform: rotate(14deg);
+  transform-origin: bottom center;
+  box-shadow: 18px 1px 0 -1px #B173E8;  /* 第二本斜书,通过 box-shadow 模拟 */
+  image-rendering: pixelated;
+}
+:where(html.dark) .eo-vertical .eo-dept.has-shelf::before {
+  border-bottom-color: #4A3422;
+  opacity: 0.5;
+}
+
+/* 左侧部门标签栏:部门名 + 状态小字,竖向占满该行高度,右侧一条细分隔线。
+   不再悬于工位上方,而是与工位同一横排。 */
+.eo-vertical .eo-dept-tag {
+  position: static;
+  transform: none;
+  flex: 0 0 64px;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 4px 8px 4px 11px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid rgba(31, 36, 51, 0.10);
+  border-radius: 0;
+  z-index: 1;
+  letter-spacing: normal;
+}
+.eo-vertical .eo-dept.has-shelf .eo-dept-tag {
+  /* 横排布局下书架不再压在标签上,无需下移 */
+}
+:where(html.dark) .eo-vertical .eo-dept-tag {
+  background: transparent;
+  border-right-color: rgba(255, 255, 255, 0.10);
+}
+.eo-vertical .eo-dept-name {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  /* --ink-700 在深浅两色自动反相(浅=深字 / 深=亮字),无需手写 dark 覆盖 */
+  color: var(--ink-700);
+  letter-spacing: 0.01em;
+  /* 长名(如"战略选题")自然换行,不挤压工位区 */
+  word-break: keep-all;
+}
+.eo-vertical .eo-dept-meta {
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+}
+.eo-vertical .eo-dept-meta-run { color: var(--brand-600); }
+.eo-vertical .eo-dept-meta-done { color: var(--ok-600, var(--ok-500)); }
+.eo-vertical .eo-dept-meta-idle { color: var(--ink-400); }
+
+/* 工位填满右侧:2-3 个工位用 space-around 在剩余宽度上铺开,直抵右边缘,
+   消除右侧大片空白。窄屏自动 wrap。 */
+.eo-vertical .eo-stations {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  gap: 6px 8px;
+  align-items: end;
+  margin-top: 0;
+  min-width: 0;
+}
+
+.eo-vertical .eo-station {
+  flex: 1 1 66px;
+  max-width: 96px;
+  width: auto;
+  height: auto;
+  min-height: 50px;
+  padding: 0;
+}
+/* 错落:每行的第 2 个工位下沉 4px,第 3 个再上抬 2px,做出"自然摆放"感 */
+.eo-vertical .eo-station:nth-child(2) { transform: translateY(4px); }
+.eo-vertical .eo-station:nth-child(3) { transform: translateY(-2px); }
+.eo-vertical .eo-station:hover { transform: translateY(-3px); }
+.eo-vertical .eo-station:nth-child(2):hover { transform: translateY(1px); }
+.eo-vertical .eo-station:nth-child(3):hover { transform: translateY(-5px); }
+
+/* 灯:挪到桌角 — 不再在头顶,只在工位右下角点一个小灯 */
+.eo-vertical .eo-lamp {
+  position: absolute;
+  top: auto;
+  bottom: 22px;
+  right: 4px;
+  left: auto;
+  transform: none;
+  width: 6px;
+  height: 6px;
+}
+.eo-vertical .eo-lamp-arm,
+.eo-vertical .eo-lamp-shade { display: none; }
+.eo-vertical .eo-lamp-bulb {
+  position: absolute;
+  inset: 0;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+}
+.eo-vertical .eo-lamp-glow {
+  top: -4px; left: -4px;
+  width: 14px; height: 14px;
+}
+
+.eo-vertical .eo-figure {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.eo-vertical .eo-figure svg { width: 32px; height: 32px; }
+
+.eo-vertical .eo-desk {
+  width: 44px;
+  height: 6px;
+  border-top-width: 1px;
+}
+
+.eo-vertical .eo-name {
+  position: static;
+  bottom: auto;
+  margin-top: 3px;
+  font-size: 9.5px;
+  padding: 1px 5px;
+  background: transparent;
+  border: none;
+  color: var(--ink-700);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+:where(html.dark) .eo-vertical .eo-name { color: var(--ink-200); }
+.eo-vertical .eo-running .eo-name {
+  background: var(--brand-500);
+  color: white;
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+.eo-vertical .eo-done .eo-name { color: var(--ok-600, var(--ok-500)); font-weight: 600; }
+
+.eo-vertical .eo-status-bar {
+  padding: 5px 12px;
+  background: transparent;
+}
+.eo-vertical .eo-title { font-size: 11px; color: var(--ink-500); }
+.eo-vertical .eo-pill { padding: 2px 8px; font-size: 10.5px; }
+
+/* 窄容器(右栏被压窄 / 小屏):标签栏收窄,工位仍铺满不挤 */
+@media (max-width: 520px) {
+  .eo-vertical .eo-dept-tag {
+    flex-basis: 56px;
+    padding: 4px 6px 4px 9px;
+  }
+  .eo-vertical .eo-dept-name { font-size: 10.5px; }
+  .eo-vertical .eo-dept.has-shelf::before { left: 70px; }
+  .eo-vertical .eo-station { flex-basis: 64px; max-width: 84px; }
+}
+
+/* ── ① 仿真:写作时冒汗 + 接棒时手稿滑给下一个人 ───────────────────── */
+
+/* 在写的人:头上一滴汗,周期性滴落(克制,不抢戏) */
+.eo-station.eo-running .eo-figure { position: relative; }
+.eo-station.eo-running .eo-figure::after {
+  content: "";
+  position: absolute;
+  top: 1px; right: 3px;
+  width: 3px; height: 4px;
+  background: #7FC1EC;
+  border-radius: 40% 40% 55% 55%;
+  image-rendering: pixelated;
+  opacity: 0;
+  pointer-events: none;
+  animation: eo-sweat 3.1s ease-in infinite;
+}
+@keyframes eo-sweat {
+  0%, 60% { opacity: 0; transform: translateY(0); }
+  68%     { opacity: 0.9; transform: translateY(0); }
+  100%    { opacity: 0; transform: translateY(9px); }
+}
+
+/* 手稿快递:从上一个人滑到下一个人,轻微抛物线 + 品牌色辉光轨迹 */
+.eo-courier {
+  position: absolute;
+  left: 0; top: 0;
+  width: 14px; height: 16px;
+  z-index: 6;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: eo-courier-fly 0.92s var(--ease-soft, cubic-bezier(.4, 0, .2, 1)) forwards;
+}
+@keyframes eo-courier-fly {
+  0%   { transform: translate(var(--x1), var(--y1)) scale(0.55) rotate(-8deg); opacity: 0; }
+  18%  { opacity: 1; }
+  50%  { transform: translate(calc((var(--x1) + var(--x2)) / 2), calc((var(--y1) + var(--y2)) / 2 - 22px)) scale(1.05) rotate(7deg); }
+  82%  { opacity: 1; }
+  100% { transform: translate(var(--x2), var(--y2)) scale(0.7) rotate(0deg); opacity: 0; }
+}
+.eo-courier-page {
+  display: block;
+  width: 14px; height: 16px;
+  border: 1px solid #B49A6A;
+  border-radius: 1px;
+  image-rendering: pixelated;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 3px, color-mix(in srgb, #9A8050 45%, transparent) 3px 4px),
+    #FBF7EC;
+  box-shadow: 0 0 10px 2px color-mix(in srgb, var(--brand-500) 55%, transparent);
+}
+
+/* 交接 · 发出方:角色起身把稿子递出去 */
+.eo-station.eo-depart .eo-figure { animation: eo-handoff-give 0.85s var(--ease-soft, cubic-bezier(.4,0,.2,1)); }
+@keyframes eo-handoff-give {
+  0% { transform: none; }
+  28% { transform: translateY(-5px) rotate(-4deg); }
+  60% { transform: translateY(-2px) rotate(1deg); }
+  100% { transform: none; }
+}
+/* 交接 · 送达方:收到稿子,轻弹一下 + 桌面暖光一闪 */
+.eo-station.eo-deliver .eo-figure { animation: eo-handoff-take 1s var(--ease-spring-cj, cubic-bezier(.34,1.56,.64,1)); }
+@keyframes eo-handoff-take {
+  0% { transform: none; }
+  35% { transform: translateY(-3px) scale(1.07); }
+  100% { transform: none; }
+}
+.eo-station.eo-deliver .eo-desk {
+  animation: eo-deliver-glow 1.1s ease-out;
+}
+@keyframes eo-deliver-glow {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand-500) 50%, transparent); }
+  40% { box-shadow: 0 0 14px 3px color-mix(in srgb, var(--brand-500) 45%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand-500) 0%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eo-station.eo-running .eo-figure::after { animation: none; opacity: 0; }
+  .eo-courier { animation-duration: 0.01ms; opacity: 0; }
+  .eo-station.eo-depart .eo-figure,
+  .eo-station.eo-deliver .eo-figure,
+  .eo-station.eo-deliver .eo-desk { animation: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   竖排重做 v2 · 4 人一桌(面对面)· pod 分散排布 · 紧凑省空间
+   像真实公司:工位成组靠边,中间留走道;门/地砖/挂钟/花草/报纸点缀生活感。
+   ═══════════════════════════════════════════════════════════════ */
+.eo-vertical .eo-floor.eo-grid {
+  position: relative;
+  display: block;
+  padding: 34px 12px 14px;          /* 顶部留"墙 + 门" */
+  overflow: visible;
+  background: linear-gradient(180deg, #FBF6EC 0%, #F1E7D4 100%);
+  border-radius: 12px;
+}
+:where(html.dark) .eo-vertical .eo-floor.eo-grid {
+  background: linear-gradient(180deg, #1A1A28 0%, #12101A 100%);
+}
+/* 地砖(细网格)*/
+.eo-vertical .eo-floor.eo-grid::before {
+  content: "";
+  position: absolute; left: 8px; right: 8px; top: 30px; bottom: 8px;
+  background-image:
+    linear-gradient(rgba(109, 74, 36, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(109, 74, 36, 0.05) 1px, transparent 1px);
+  background-size: 38px 34px;
+  border-radius: 10px;
+  z-index: 0; pointer-events: none;
+}
+.eo-vertical .eo-floor.eo-grid > .eo-courier { z-index: 3; }
+
+/* —— pod 网格:两列 + 中间走道;5 个 pod = 2+2+(总编单人桌压底)—— */
+.eo-vertical .eo-grid .eo-pods {
+  position: relative; z-index: 1;
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px 30px;                   /* 30px 列距 = 中央走道 */
+  justify-items: center; align-items: start;
+}
+/* —— 单个 pod:上 2 人 / 共享桌 / 下 2 人(面对面四人桌)—— */
+.eo-vertical .eo-grid .eo-pod {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto 16px auto;
+  justify-items: center; align-items: end;
+  column-gap: 12px;
+}
+.eo-vertical .eo-grid .eo-pod .eo-station:nth-child(2) { grid-area: 1 / 1; }
+.eo-vertical .eo-grid .eo-pod .eo-station:nth-child(3) { grid-area: 1 / 2; }
+.eo-vertical .eo-grid .eo-pod .eo-station:nth-child(4) { grid-area: 3 / 1; align-self: start; }
+.eo-vertical .eo-grid .eo-pod .eo-station:nth-child(5) { grid-area: 3 / 2; align-self: start; }
+/* 共享桌(中间行,横跨两列)*/
+.eo-vertical .eo-grid .eo-pod-table {
+  grid-area: 2 / 1 / 3 / 3;
+  align-self: stretch; justify-self: stretch; margin: 0 4px;
+  background: linear-gradient(180deg, #B07B45, #8B5E36);
+  border: 1px solid #6D4A24; border-radius: 4px;
+  box-shadow: inset 0 -3px 0 #5C3A1E, 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+/* 总编单人桌:占整行居中,像角落的主编办公桌 */
+.eo-vertical .eo-grid .eo-pod-solo { grid-column: 1 / -1; grid-template-columns: auto; grid-template-rows: auto 14px; }
+.eo-vertical .eo-grid .eo-pod-solo .eo-station:nth-child(2) { grid-area: 1 / 1; }
+.eo-vertical .eo-grid .eo-pod-solo .eo-pod-table { grid-area: 2 / 1 / 3 / 2; }
+
+/* —— 小工位:figure 由组件传 size=30;pod 内用共享桌,隐藏单人桌,名牌走静态流 —— */
+.eo-vertical .eo-grid .eo-station {
+  width: 56px; height: auto;
+  padding-top: 13px;
+  justify-content: flex-end;
+}
+.eo-vertical .eo-grid .eo-station .eo-desk { display: none; }
+.eo-vertical .eo-grid .eo-lamp { top: 7px; left: 10px; transform: scale(0.72); transform-origin: top left; }
+.eo-vertical .eo-grid .eo-figure { margin-bottom: 0; }
+.eo-vertical .eo-grid .eo-name {
+  position: static; bottom: auto; margin-top: 2px;
+  font-size: 8.5px; padding: 1px 5px;
+}
+
+/* —— 装饰层(纯装饰,z 在工位之下)—— */
+.eo-vertical .eo-floor.eo-grid .eo-decor { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+/* 门:顶部居中,嵌进墙 */
+.eo-vertical .eo-grid .eo-door {
+  position: absolute; top: 1px; left: 50%; transform: translateX(-50%);
+  width: 32px; height: 30px;
+  background: linear-gradient(180deg, #B58050, #8B5E36);
+  border: 1.5px solid #6D4A24; border-bottom: 0; border-radius: 6px 6px 0 0;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.12), inset 0 -10px 12px rgba(0, 0, 0, 0.12);
+}
+.eo-vertical .eo-grid .eo-door-knob { position: absolute; top: 14px; right: 5px; width: 3px; height: 3px; border-radius: 50%; background: #F8C994; }
+/* 挂钟 */
+.eo-vertical .eo-grid .eo-clock {
+  position: absolute; top: 7px; left: calc(50% + 34px);
+  width: 13px; height: 13px; border-radius: 50%;
+  background: #FBF7EC; border: 1.5px solid #6D4A24;
+}
+.eo-vertical .eo-grid .eo-clock::after { content: ""; position: absolute; top: 2.5px; left: 5.5px; width: 1.5px; height: 4px; background: #6D4A24; border-radius: 1px; transform-origin: bottom; transform: rotate(40deg); }
+/* 盆栽(左右下角)*/
+.eo-vertical .eo-grid .eo-plant { position: absolute; bottom: 6px; width: 18px; height: 24px; }
+.eo-vertical .eo-grid .eo-plant-a { left: 4px; }
+.eo-vertical .eo-grid .eo-plant-b { right: 4px; }
+.eo-vertical .eo-grid .eo-plant::before {
+  content: ""; position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  width: 16px; height: 17px; border-radius: 50% 50% 42% 42%;
+  background: radial-gradient(circle at 50% 28%, #62C081, #2BA86E);
+  box-shadow: inset 0 -3px 4px rgba(0, 0, 0, 0.12);
+}
+.eo-vertical .eo-grid .eo-pot { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 12px; height: 9px; background: linear-gradient(180deg, #D17B3A, #B5632B); border-radius: 0 0 3px 3px; }
+/* 地上一份报纸 */
+.eo-vertical .eo-grid .eo-news {
+  position: absolute; bottom: 9px; left: 28px; width: 17px; height: 12px;
+  background: repeating-linear-gradient(180deg, #FBF7EC 0 2px, #DDD3BE 2px 3px), #FBF7EC;
+  border: 1px solid #C8BFA8; border-radius: 1px; transform: rotate(-9deg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.10);
+}
+
+/* ════ 办公室 v3 精修:名字全显 / 背对坐 / 中央绿植 / 缩小 / 暖化 ════ */
+/* 缩小:figure 容器、桌、间距整体收一档 */
+.eo-vertical .eo-grid .eo-pods { gap: 10px 24px; }
+.eo-vertical .eo-grid .eo-pod { column-gap: 8px; grid-template-rows: auto 13px auto; }
+.eo-vertical .eo-grid .eo-station { width: 62px; padding-top: 11px; }
+.eo-vertical .eo-grid .eo-pod-table { height: 13px; }
+.eo-vertical .eo-grid .eo-floor.eo-grid { padding: 32px 10px 14px; }
+
+/* 名字全显:不截断、可微溢出到列距、字号收一点 */
+.eo-vertical .eo-grid .eo-name {
+  position: static; bottom: auto; margin-top: 3px;
+  font-size: 8px; line-height: 1.15; padding: 1px 4px;
+  white-space: nowrap; overflow: visible; text-overflow: clip; max-width: none;
+}
+
+/* 背对坐:每个四人桌下排(nth-child 4、5)显示背影剪影(发+肩),不显正脸 */
+.eo-vertical .eo-grid .eo-pod .eo-station:nth-child(4) .eo-figure,
+.eo-vertical .eo-grid .eo-pod .eo-station:nth-child(5) .eo-figure {
+  position: relative; width: 30px; height: 30px;
+}
+.eo-vertical .eo-grid .eo-pod .eo-station:nth-child(4) .eo-figure > *,
+.eo-vertical .eo-grid .eo-pod .eo-station:nth-child(5) .eo-figure > * { visibility: hidden; }
+/* 肩背 */
+.eo-vertical .eo-grid .eo-pod .eo-station:nth-child(4) .eo-figure::before,
+.eo-vertical .eo-grid .eo-pod .eo-station:nth-child(5) .eo-figure::before {
+  content: ""; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 24px; height: 15px; border-radius: 9px 9px 4px 4px;
+  background: linear-gradient(180deg, #8C7BF5, #6E5BFA);
+}
+/* 后脑勺 */
+.eo-vertical .eo-grid .eo-pod .eo-station:nth-child(4) .eo-figure::after,
+.eo-vertical .eo-grid .eo-pod .eo-station:nth-child(5) .eo-figure::after {
+  content: ""; position: absolute; bottom: 11px; left: 50%; transform: translateX(-50%);
+  width: 15px; height: 15px; border-radius: 50% 50% 46% 46%;
+  background: #3A2A1A; box-shadow: inset 0 2px 0 rgba(255,255,255,0.10);
+}
+/* 下排第二人换个发色,显得不是复制粘贴 */
+.eo-vertical .eo-grid .eo-pod .eo-station:nth-child(5) .eo-figure::after { background: #5A3A22; }
+.eo-vertical .eo-grid .eo-pod .eo-station:nth-child(5) .eo-figure::before { background: linear-gradient(180deg, #E8965A, #C26B2E); }
+
+/* 中央绿植:坐落在中央走道,填补"空落落" */
+.eo-vertical .eo-grid .eo-plant-center {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 26px; height: 34px; bottom: auto;
+}
+.eo-vertical .eo-grid .eo-plant-center::before { width: 24px; height: 26px; }
+.eo-vertical .eo-grid .eo-plant-center .eo-pot { width: 16px; height: 13px; }
+
+/* 暖地毯:中央一块暖色地毯,给办公室一点家的感觉 */
+.eo-vertical .eo-grid .eo-rug {
+  position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%);
+  width: 64%; height: 58%; border-radius: 14px; z-index: 0;
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--accent-warm, #E8965A) 12%, transparent), transparent 72%);
+}

@@ -1,0 +1,36 @@
+node_modules/
+dist/
+.env
+.env.local
+.npmrc
+*.tgz
+.DS_Store
+coverage/
+.turbo/
+*.tsbuildinfo
+_notes/
+_tmp_*
+test-project/
+.venv*/
+.gstack/
+.worktrees/
+docs/*
+novel-to-comic-research.docx
+.pnpm-store/
+tmp/
+packages/studio-electron/.electron-resources/
+_*.md
+
+# Local runtime data
+/books/
+/prompt/
+
+# Local reference docs and generated assets
+packages/studio-web/docs/
+
+# Root-level design review snapshots
+*-redesign-*.png
+*-snapshot.md
+
+# 测试产物
+test-results/

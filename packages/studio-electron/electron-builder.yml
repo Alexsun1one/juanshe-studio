@@ -1,0 +1,54 @@
+# 卷舍 桌面客户端打包配置(electron-builder)
+# 前置:先构建后端/前端/核心产物 —— 见 README:
+#   pnpm --filter @juanshe/studio-electron build              # 编译 main/preload
+#   cd packages/core && tsc                                   # core dist(注意:有在途改动时先确认)
+#   pnpm --filter @juanshe/studio build                       # studio dist
+#   pnpm --filter @juanshe/studio-web build                   # next build(standalone, webpack)
+# 然后:pnpm --filter @juanshe/studio-electron pack:mac
+appId: com.juanshe.studio
+productName: 卷舍
+copyright: © 卷舍 编辑部
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - "!**/*.{map,md}"
+# 把内嵌后端 + 前端 standalone + 核心 打进资源,main.ts 的 spawnBackends 据此路径启动
+extraResources:
+  # 通用排除:测试夹具(含示例内容,绝不进包)、sourcemap、声明文件 —— 既防泄漏又减体积
+  - from: .electron-resources/app/packages/studio
+    to: app/packages/studio
+    filter: ["**/*", "!**/__tests__/**", "!**/*.test.*", "!**/*.spec.*", "!**/*.map", "!**/*.d.ts"]
+  - from: ../../packages/core
+    to: app/packages/core
+    filter: ["dist/**/*", "package.json", "!**/__tests__/**", "!**/*.test.*", "!**/*.spec.*", "!**/*.map", "!**/*.d.ts"]
+  - from: ../../packages/engine
+    to: app/packages/engine
+    filter: ["dist/**/*", "package.json", "!**/__tests__/**", "!**/*.test.*", "!**/*.spec.*", "!**/*.map", "!**/*.d.ts"]
+  - from: ../../packages/studio-web/.next/standalone
+    to: app/packages/studio-web
+  - from: ../../packages/studio-web/.next/static
+    to: app/packages/studio-web/.next/static
+  - from: ../../packages/studio-web/public
+    to: app/packages/studio-web/public
+  # 首启播种用的干净工作区模板(无任何个人作品、空书架 → 触发新手引导);滤掉陈旧运行态
+  - from: ../../../Autow/workspace-template
+    to: workspace-template
+    filter: ["**/*", "!.hardwrite/**", "!**/.DS_Store", "!**/*.log"]
+  # 随包携带商业授权协议全文
+  - from: ../../LICENSE
+    to: LICENSE
+# 图标:提供 build/icon.png(1024²,卷舍 品牌),electron-builder 自动派生 mac .icns / win .ico
+# (想换更精的图,把 build/icon.png 替成 Image Gen 出的 1024² 图即可)
+icon: build/icon.png
+mac:
+  category: public.app-category.productivity
+  target: [dmg]
+  darkModeSupport: true
+  # 线上分发需 Apple 公证(notarytool);本地试用可跳过签名
+win:
+  target: [nsis]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

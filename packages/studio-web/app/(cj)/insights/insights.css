@@ -1,0 +1,300 @@
+/* 洞察中心 · 工作站化:一屏不下拉,滚动只在 pane 内 (scoped .cj-insights) */
+
+/* ════════════════════════════════════════════════════════════
+   顶部工作条:像素「洞察」+ 焦点总评 + 一行密集 KPI(非大卡平铺)
+   ════════════════════════════════════════════════════════════ */
+.cj-insights .ins-head {
+  padding: 12px 20px 12px;
+  border-bottom: 1px solid var(--line-1);
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in srgb, var(--brand-500) 6%, transparent), transparent 58%),
+    var(--bg-app);
+}
+.cj-insights .ins-headline {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+.cj-insights .ins-hero-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 6px color-mix(in oklab, var(--brand-500) 28%, transparent));
+  transition: transform 240ms var(--ease-soft);
+}
+.cj-insights .ins-head:hover .ins-hero-pixel { transform: translateY(-2px) rotate(-3deg); }
+.cj-insights .ins-headline-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.cj-insights .ins-headline-text .page-title-row {
+  margin: 0;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.cj-insights .ins-headline-text .page-sub {
+  margin-top: 3px;
+  max-width: 760px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cj-insights .ins-head-acts {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 标题旁的综合质量徽:大数值 + 一字总评(语义只走档位色) */
+.cj-insights .ins-grade { display: inline-flex; align-items: baseline; gap: 5px; padding: 2px 10px; border-radius: var(--r-pill); }
+.cj-insights .ins-grade b { font-family: var(--font-num); font-size: 17px; font-weight: 800; line-height: 1; }
+.cj-insights .ins-grade i { font-style: normal; font-size: 11px; font-weight: 600; opacity: 0.85; }
+.cj-insights .ins-grade.ok { background: var(--ok-50); color: var(--ok-600, var(--ok-500)); }
+.cj-insights .ins-grade.brand { background: var(--brand-50); color: var(--brand-600); }
+.cj-insights .ins-grade.warn { background: var(--warn-50); color: var(--warn-500); }
+.cj-insights .ins-grade.muted { background: var(--bg-sunken); color: var(--ink-400); }
+
+/* hero 里的最热机会:从死标签变成可点击去适配的入口 */
+.cj-insights .ins-hero-opp {
+  min-width: 0; max-width: 100%;
+  display: inline-flex; align-items: center; gap: 5px;
+  font: inherit; font-size: 12px; color: var(--brand-600); cursor: pointer;
+  padding: 2px 9px 2px 8px; border-radius: var(--r-pill);
+  border: 1px solid color-mix(in oklab, var(--brand-500) 24%, transparent);
+  background: var(--brand-50);
+  transition: background var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft), transform var(--motion-fast) var(--ease-soft);
+}
+.cj-insights .ins-hero-opp b { color: var(--brand-600); font-weight: 700; max-width: 13ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cj-insights .ins-hero-opp .num { font-family: var(--font-num); font-size: 12.5px; }
+.cj-insights .ins-hero-opp .ins-hero-opp-go { opacity: 0.6; transition: transform var(--motion-fast) var(--ease-soft); }
+.cj-insights .ins-hero-opp:hover { background: color-mix(in oklab, var(--brand-500) 14%, var(--brand-50)); border-color: color-mix(in oklab, var(--brand-500) 42%, transparent); transform: translateY(-1px); }
+.cj-insights .ins-hero-opp:hover .ins-hero-opp-go { transform: translate(1px, -1px); opacity: 1; }
+.cj-insights .ins-hero-opp:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* 一行 KPI:密集而不乱,横向铺满 */
+.cj-insights .ins-kpis {
+  margin-top: 11px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+
+/* ════════════════════════════════════════════════════════════
+   主体:主区(趋势 + 机会 + 读者,pane 内滚) + Inspector
+   ════════════════════════════════════════════════════════════ */
+.cj-insights .ins-mainpane { padding: 0; }
+.cj-insights .ins-pane-scroll {
+  flex: 1 1 auto;
+  padding: 14px 16px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.cj-insights .ins-pane-scroll > .earn-path { margin: 0; }
+
+/* 共用:无边框区块标题(机会/读者),靠 .sh + 留白组织层级,不堆框 */
+.cj-insights .sh { font-size: 12px; font-weight: 700; color: var(--ink-700); text-transform: uppercase; letter-spacing: 0.1em; padding-bottom: 10px; margin: 0 0 12px; border-bottom: 1px solid var(--line-1); display: flex; align-items: center; gap: 8px; }
+.cj-insights .sh > svg { color: var(--brand-600); }
+.cj-insights .sh .c { font-family: var(--font-num); color: var(--ink-400); font-weight: 600; letter-spacing: 0; text-transform: none; }
+.cj-insights .ins-block { min-width: 0; }
+.cj-insights .ins-card-ic { color: var(--brand-600); flex: 0 0 auto; }
+
+/* 多维趋势卡(主视觉) */
+.cj-insights .ins-trend { padding: 14px 16px; }
+.cj-insights .ins-trend .card-head { margin-bottom: 12px; }
+.cj-insights .ins-legend { margin-left: auto; display: flex; gap: 14px; font-size: 11.5px; color: var(--ink-500); }
+.cj-insights .ins-legend .li { display: inline-flex; align-items: center; gap: 5px; }
+.cj-insights .ins-legend .sw { width: 12px; height: 3px; border-radius: 2px; }
+.cj-insights .ins-legend .sw-tension { background: var(--brand-500); }
+.cj-insights .ins-legend .sw-words { background: var(--c-memory); }
+.cj-insights .ins-chart-box { width: 100%; height: 232px; }
+.cj-insights .recharts-cartesian-axis-tick-value { font-size: 10.5px; fill: var(--ink-400); font-family: var(--font-num); }
+.cj-insights .rc-tip { background: var(--bg-card); border: 1px solid var(--line-2); border-radius: var(--r-md); padding: 8px 10px; box-shadow: var(--sh-pop); font-size: 12px; }
+.cj-insights .rc-tip .t { font-family: var(--font-num); color: var(--ink-500); margin-bottom: 4px; }
+.cj-insights .rc-tip .r { display: flex; align-items: center; gap: 6px; color: var(--ink-800); }
+.cj-insights .rc-tip .r b { font-family: var(--font-num); margin-left: auto; }
+
+/* ── 市场机会雷达:每个机会 = 「能赚在哪 + 一步去做」的可行动选题 ── */
+.cj-insights .opp-list { display: flex; flex-direction: column; }
+.cj-insights .opp {
+  display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center;
+  width: 100%; text-align: left; font: inherit; cursor: pointer;
+  padding: 11px 8px; border: 0; border-bottom: 1px dashed var(--line-1); border-radius: var(--r-md);
+  background: transparent; color: inherit;
+  transition: background var(--motion-fast) var(--ease-soft), transform var(--motion-fast) var(--ease-soft);
+}
+.cj-insights .opp:last-child { border-bottom: none; }
+.cj-insights .opp:hover { background: var(--bg-sunken); transform: translateX(2px); }
+.cj-insights .opp:focus-visible { outline: none; box-shadow: var(--ring); }
+/* 最热机会:轻量高亮的 spotlight,不靠重框 */
+.cj-insights .opp.is-top {
+  border-bottom-style: solid; border-radius: var(--r-lg); margin-bottom: 2px;
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in oklab, var(--brand-500) 9%, transparent), transparent 62%),
+    var(--brand-50);
+}
+.cj-insights .opp.is-top:hover { background: color-mix(in oklab, var(--brand-500) 7%, var(--brand-50)); }
+
+.cj-insights .opp .opp-score {
+  position: relative; width: 40px; height: 40px; flex: 0 0 40px;
+  border-radius: var(--r-md); display: grid; place-items: center;
+  font-family: var(--font-num); font-weight: 800; font-size: 16px;
+}
+.cj-insights .opp .opp-score.ok   { background: var(--ok-50);    color: var(--ok-600, var(--ok-500)); }
+.cj-insights .opp .opp-score.brand{ background: var(--brand-50); color: var(--brand-600); }
+.cj-insights .opp .opp-score.warn { background: var(--warn-50);  color: var(--warn-500); }
+.cj-insights .opp.is-top .opp-score.brand { background: color-mix(in oklab, var(--brand-500) 16%, var(--bg-card)); }
+.cj-insights .opp .opp-flame {
+  position: absolute; top: -5px; right: -5px; width: 16px; height: 16px;
+  display: grid; place-items: center; border-radius: var(--r-pill);
+  background: var(--c-focus); color: white; box-shadow: 0 1px 4px color-mix(in oklab, var(--c-focus) 50%, transparent);
+}
+.cj-insights .opp .opp-main { min-width: 0; }
+.cj-insights .opp .opp-name { display: block; font-size: 13px; font-weight: 600; color: var(--ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cj-insights .opp .opp-why { display: flex; align-items: center; gap: 7px; margin-top: 4px; min-width: 0; }
+.cj-insights .opp .opp-tag { flex: 0 0 auto; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: var(--r-pill); }
+.cj-insights .opp .opp-tag.ok   { background: var(--ok-50);    color: var(--ok-600, var(--ok-500)); }
+.cj-insights .opp .opp-tag.brand{ background: var(--brand-50); color: var(--brand-600); }
+.cj-insights .opp .opp-tag.warn { background: var(--warn-50);  color: var(--warn-500); }
+.cj-insights .opp .opp-hint { font-size: 11px; color: var(--ink-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cj-insights .opp .opp-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: 0 0 auto; }
+.cj-insights .opp .opp-trend { font-size: 12px; font-weight: 700; font-family: var(--font-num); display: inline-flex; align-items: center; gap: 3px; }
+.cj-insights .opp .opp-trend.up { color: var(--ok-500); } .cj-insights .opp .opp-trend.down { color: var(--err-500); } .cj-insights .opp .opp-trend.flat { color: var(--ink-400); }
+.cj-insights .opp .opp-go {
+  display: inline-flex; align-items: center; gap: 2px;
+  font-size: 10.5px; font-weight: 600; color: var(--ink-400);
+  opacity: 0; transform: translateX(-3px);
+  transition: opacity var(--motion-fast) var(--ease-soft), transform var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft);
+}
+.cj-insights .opp:hover .opp-go { opacity: 1; transform: translateX(0); color: var(--brand-600); }
+.cj-insights .opp.is-top .opp-go { opacity: 1; transform: none; color: var(--brand-600); }
+/* 没机会时:可爱像素雷达 + 温柔指引,不留粗糙空状态 */
+.cj-insights .opp-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 24px 8px 18px; }
+.cj-insights .opp-empty p { margin: 0; font-size: 12px; line-height: 1.65; color: var(--ink-500); }
+.cj-insights .opp-foot { margin: 12px 2px 0; font-size: 11px; line-height: 1.55; color: var(--ink-400); }
+
+/* ── 读者反馈 · 读者评审官 ── */
+.cj-insights .sh .rf-sum { margin-left: auto; display: flex; gap: 16px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--ink-500); font-size: 11.5px; }
+.cj-insights .sh .rf-sum b { font-family: var(--font-num); color: var(--ink-800); font-weight: 700; }
+.cj-insights .rf-list { display: flex; flex-direction: column; }
+.cj-insights .rf-row { display: grid; grid-template-columns: 78px 1fr auto auto 44px; gap: 14px; align-items: center; padding: 11px 8px; border-radius: var(--r-md); border-bottom: 1px solid var(--line-1); font-size: 12.5px; transition: background var(--motion-fast) var(--ease-soft); }
+.cj-insights .rf-row:last-child { border-bottom: none; }
+.cj-insights .rf-row:hover { background: var(--bg-sunken); }
+.cj-insights .rf-ch { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-num); color: var(--ink-400); white-space: nowrap; }
+.cj-insights .rf-ch-ic { color: var(--ink-300); flex: 0 0 auto; }
+.cj-insights .rf-title { font-weight: 600; color: var(--ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cj-insights .rf-verdict { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-500); padding: 3px 9px; border-radius: var(--r-pill); background: var(--bg-sunken); white-space: nowrap; }
+.cj-insights .rf-verdict .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--ink-300); }
+.cj-insights .rf-verdict.ok { color: var(--ok-600, var(--ok-500)); background: var(--ok-50); }
+.cj-insights .rf-verdict.ok .dot { background: var(--ok-500); }
+.cj-insights .rf-metrics { display: flex; gap: 10px; font-family: var(--font-num); font-size: 11.5px; color: var(--ink-500); }
+.cj-insights .rf-score { font-family: var(--font-num); font-weight: 800; font-size: 15px; text-align: right; }
+
+/* ════════════════════════════════════════════════════════════
+   Inspector · 创作健康度(Meter 密集) + 本书速览 + 变现就绪度
+   ════════════════════════════════════════════════════════════ */
+.cj-insights .ins-insp-scroll {
+  padding: 14px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cj-insights .ins-insp-scroll > .card,
+.cj-insights .ins-insp-scroll > .cj-foldcard { margin: 0; }
+
+.cj-insights .ins-radar-chip {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-num); font-size: 11px; font-weight: 600;
+  color: var(--brand-600); padding: 3px 9px; border-radius: var(--r-pill);
+  background: var(--brand-50);
+}
+
+/* 健康度:四条 Meter + 注脚 */
+.cj-insights .ins-health-meters { display: flex; flex-direction: column; gap: 13px; }
+.cj-insights .ins-health-row { display: flex; flex-direction: column; gap: 3px; }
+.cj-insights .ins-health-sub { font-size: 11px; line-height: 1.5; color: var(--ink-400); }
+
+/* 本书速览:四宫格紧凑读数 */
+.cj-insights .ins-focus-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.cj-insights .ins-focus-cell {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 9px 11px;
+  border: 1px solid var(--line-1); border-radius: var(--r-lg);
+  background: var(--bg-sunken);
+}
+.cj-insights .ins-focus-cell i { font-style: normal; font-size: 11px; color: var(--ink-500); }
+.cj-insights .ins-focus-cell b { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 700; line-height: 1; color: var(--ink-900); }
+.cj-insights .ins-focus-cell b em { font-style: normal; font-size: 11px; font-weight: 600; color: var(--ink-400); margin-left: 2px; }
+
+/* 变现就绪度:FoldCard 里把真实评分转成单一可行动判断 */
+.cj-insights .ins-ready .cj-foldcard-icon { color: var(--brand-600); }
+.cj-insights .ins-ready.gap   .cj-foldcard-icon { color: var(--warn-500); }
+.cj-insights .ins-ready.ready .cj-foldcard-icon { color: var(--ok-600, var(--ok-500)); }
+.cj-insights .ins-ready.none  .cj-foldcard-icon { color: var(--ink-400); }
+.cj-insights .ins-ready-body { padding-top: 2px; }
+.cj-insights .mon-line { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--ink-600); }
+.cj-insights .mon-gaps { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.cj-insights .mon-gaps li { display: flex; align-items: center; gap: 10px; padding-left: 12px; position: relative; }
+.cj-insights .mon-gaps li::before { content: ""; position: absolute; left: 0; top: 6px; width: 5px; height: 5px; border-radius: var(--r-pill); background: var(--ink-300); }
+.cj-insights .mon-gaps li.is-key::before { background: var(--warn-500); }
+.cj-insights .mon-gap-body { flex: 1; min-width: 0; }
+.cj-insights .mon-gap-label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-900); }
+.cj-insights .mon-gaps li.is-key .mon-gap-label { color: var(--warn-500); }
+.cj-insights .mon-gap-tip { display: block; font-size: 11px; color: var(--ink-500); margin-top: 2px; line-height: 1.5; }
+.cj-insights .mon-gap-cta, .cj-insights .mon-ready-cta {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+  font: inherit; font-size: 11.5px; font-weight: 600;
+  padding: 5px 11px; border-radius: var(--r-pill);
+  border: 1px solid color-mix(in oklab, var(--brand-500) 28%, transparent);
+  background: var(--brand-50); color: var(--brand-600);
+  transition: background var(--motion-fast) var(--ease-soft), transform var(--motion-fast) var(--ease-soft);
+}
+.cj-insights .mon-gap-cta:hover, .cj-insights .mon-ready-cta:hover { background: color-mix(in oklab, var(--brand-500) 14%, var(--brand-50)); transform: translateY(-1px); }
+.cj-insights .mon-gap-cta:focus-visible, .cj-insights .mon-ready-cta:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-insights .mon-ready-cta { margin-top: 12px; }
+
+/* ── 响应式 ── */
+@media (max-width: 1180px) {
+  .cj-insights .ins-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cj-insights .ins-kpis > .cj-kpi:nth-child(4),
+  .cj-insights .ins-kpis > .cj-kpi:nth-child(5) { grid-column: span 1; }
+}
+@media (max-width: 1000px) {
+  /* 窄屏 Inspector 收起为单栏(由 cj-screen-body 默认两栏退化) */
+  .cj-insights .ins-headline { flex-wrap: wrap; gap: 12px; }
+  .cj-insights .ins-headline-text .page-sub { white-space: normal; }
+  .cj-insights .ins-head-acts { margin-left: 0; }
+  .cj-insights .ins-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cj-insights .rf-row { grid-template-columns: 66px 1fr auto 44px; }
+  .cj-insights .rf-metrics { display: none; }
+}
+@media (max-width: 720px) {
+  .cj-insights .ins-head { padding: 12px 14px; }
+  .cj-insights .ins-hero-pixel { width: 40px; height: 40px; }
+  .cj-insights .ins-pane-scroll { padding: 12px 12px 14px; }
+  .cj-insights .ins-hero-opp { display: none; }
+  /* 机会卡在窄屏收起说明文,保留分数+标题+势头+去做,仍可一步行动 */
+  .cj-insights .opp .opp-hint { display: none; }
+  .cj-insights .opp .opp-go { opacity: 1; transform: none; }
+  .cj-insights .mon-gaps li { flex-wrap: wrap; }
+  .cj-insights .mon-gap-cta { margin-top: 2px; }
+}
+
+/* —— Token 用量卡(萌系:三块各上暖色)—— */
+.cj-insights .ins-token-total { font-family: var(--font-num); font-size: 15px; font-weight: 800; color: var(--c-focus); white-space: nowrap; }
+.cj-insights .ins-token-total em { font-style: normal; font-size: 10px; font-weight: 600; color: var(--ink-400); margin-left: 3px; }
+.cj-insights .ins-token-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0 8px; }
+.cj-insights .ins-token-stat { display: flex; flex-direction: column; gap: 3px; padding: 11px 13px; border-radius: var(--r-lg); border: 1px solid transparent; transition: transform .16s var(--ease-spring-cj, ease); }
+.cj-insights .ins-token-stat:hover { transform: translateY(-2px); }
+.cj-insights .ins-token-stat b { font-family: var(--font-num); font-size: 18px; font-weight: 800; line-height: 1; }
+.cj-insights .ins-token-stat span { font-size: 11px; color: var(--ink-500); }
+.cj-insights .ins-token-stat.ts-prompt { background: var(--c-memory-bg); }
+.cj-insights .ins-token-stat.ts-prompt b { color: var(--c-memory); }
+.cj-insights .ins-token-stat.ts-completion { background: var(--brand-50); }
+.cj-insights .ins-token-stat.ts-completion b { color: var(--brand-600); }
+.cj-insights .ins-token-stat.ts-avg { background: var(--c-focus-bg); }
+.cj-insights .ins-token-stat.ts-avg b { color: var(--c-focus); }
+.cj-insights .ins-token-chart { height: 178px; }

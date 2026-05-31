@@ -1,0 +1,156 @@
+/* 题材库 · 焦点带(scoped .cj-genres)
+   焦点带 = 选题前的市场契合度判断:像素徽章 + 标题 + 静态可配置维度 +
+   下方共享面板三条能力流水线的「先讲清」预览(题材库→导入台→检测台)。
+   下方真实可操作面板由共享 CapabilityWorkbench 渲染(本文件不动它)。
+   字号/圆角/颜色一律走设计 token,深浅色与多主题自动适配;不新造颜色、不堆等大卡片。 */
+
+.cj-genres { display: flex; flex-direction: column; gap: 14px; }
+
+/* ── 焦点带外框:暖纸卡 + 柔紫角向晕染(随主题切换)── */
+.cj-genres .gn-hero {
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(120% 150% at 0% 0%, color-mix(in oklab, var(--brand-500) 7%, transparent), transparent 48%),
+    var(--bg-card);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── 顶行:左标识(像素+标题+一句用途)| 右静态维度,宽屏并排、窄屏堆叠 ── */
+.cj-genres .gn-hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px 24px;
+  flex-wrap: wrap;
+}
+.cj-genres .gn-hero-head { display: flex; align-items: flex-start; gap: 13px; min-width: 0; flex: 1 1 420px; }
+.cj-genres .gn-hero-pixel {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--brand-600) 22%, transparent));
+  transition: transform 240ms var(--ease-soft);
+}
+.cj-genres .gn-hero:hover .gn-hero-pixel { transform: translateY(-2px) rotate(-3deg); }
+.cj-genres .gn-hero-id { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.cj-genres .gn-eyebrow {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--text-micro); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent-warm-deep);
+}
+.cj-genres .gn-eyebrow .ic { width: 13px; height: 13px; color: var(--accent-warm-deep); }
+.cj-genres .gn-hero-id .page-title-row { margin: 0; }
+.cj-genres .gn-hero-id .page-title { font-size: var(--text-h1); line-height: var(--text-h1--line-height, 1.25); }
+.cj-genres .gn-hero-sub {
+  font-size: var(--text-cap); line-height: var(--text-body--line-height, 1.6); color: var(--ink-500);
+  max-width: 640px; margin: 3px 0 0;
+}
+.cj-genres .gn-hero-sub b { color: var(--ink-800); font-weight: 600; }
+.cj-genres .gn-hero-sub code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--text-micro); color: var(--brand-600);
+  padding: 1px 6px; border-radius: var(--r-sm);
+  background: color-mix(in oklab, var(--brand-500) 9%, transparent);
+  border: 1px solid color-mix(in oklab, var(--brand-500) 16%, transparent);
+}
+
+/* 静态可配置维度:竖向小密集组,数字用 --font-num + v-tone 语义色,图标标注含义 */
+.cj-genres .gn-facets {
+  display: flex; flex-direction: column; gap: 7px;
+  flex: 0 0 auto;
+  padding: 9px 14px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  background: var(--bg-sunken);
+}
+.cj-genres .gn-facet { display: inline-flex; align-items: baseline; gap: 7px; min-width: 0; }
+.cj-genres .gn-facet-ic { width: 13px; height: 13px; color: var(--ink-400); align-self: center; flex: 0 0 auto; }
+.cj-genres .gn-facet .num {
+  font-family: var(--font-num); font-variant-numeric: tabular-nums;
+  font-size: var(--text-head); font-weight: 700; line-height: 1; min-width: 14px;
+}
+.cj-genres .gn-facet .lbl { font-size: var(--text-micro); color: var(--ink-500); white-space: nowrap; }
+
+/* ── 能力流水线:题材库 → 导入台 → 检测台,每条带像素角色 + lucide 图标 + 状态 pill ── */
+.cj-genres .gn-pipeline {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  align-items: stretch;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line-2);
+}
+.cj-genres .gn-pipe {
+  display: flex; align-items: flex-start; gap: 10px; min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  background: color-mix(in oklab, var(--bg-card) 70%, transparent);
+  transition: border-color var(--motion-fast) var(--ease-soft), box-shadow var(--motion-fast) var(--ease-soft);
+}
+.cj-genres .gn-pipe:hover {
+  border-color: color-mix(in oklab, var(--brand-500) 26%, var(--line-1));
+  box-shadow: var(--sh-1);
+}
+.cj-genres .gn-pipe-pixel { flex: 0 0 auto; margin-top: 1px; }
+.cj-genres .gn-pipe-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cj-genres .gn-pipe-titleline { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.cj-genres .gn-pipe-ic { width: 14px; height: 14px; color: var(--brand-600); flex: 0 0 auto; }
+.cj-genres .gn-pipe-title {
+  font-size: var(--text-cap); font-weight: 700; color: var(--ink-800);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.cj-genres .gn-pipe-titleline .pill { flex: 0 0 auto; margin-left: auto; }
+.cj-genres .gn-pipe-desc {
+  margin: 0; font-size: var(--text-micro); line-height: 1.5; color: var(--ink-500);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.cj-genres .gn-pipe-arrow {
+  display: inline-flex; align-items: center; justify-content: center; align-self: center;
+  color: var(--ink-300); flex: 0 0 auto;
+}
+.cj-genres .gn-pipe-arrow svg { width: 16px; height: 16px; }
+
+/* ── 收口行:对位平台中性 chip | 直连保障 statline ── */
+.cj-genres .gn-foot {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: 8px 16px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line-2);
+}
+.cj-genres .gn-plats { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.cj-genres .gn-plats-k {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--text-micro); font-weight: 600; color: var(--ink-600);
+  margin-right: 2px;
+}
+.cj-genres .gn-plats-k .ic { width: 13px; height: 13px; color: var(--brand-500); }
+.cj-genres .gn-plat {
+  font-size: var(--text-micro); line-height: 1; color: var(--ink-600);
+  padding: 4px 9px; border-radius: var(--r-pill);
+  border: 1px solid var(--line-2); background: var(--bg-sunken);
+  white-space: nowrap;
+  transition: color var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-genres .gn-plat:hover { color: var(--brand-600); border-color: color-mix(in oklab, var(--brand-500) 32%, transparent); }
+.cj-genres .gn-guard { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.cj-genres .gn-guard .ic { width: 14px; height: 14px; color: var(--ok-600, var(--ok-500)); flex: 0 0 auto; }
+
+/* ── 响应式:窄屏流水线竖排、隐藏箭头,焦点带留白收紧 ── */
+@media (max-width: 960px) {
+  .cj-genres .gn-pipeline { grid-template-columns: 1fr; }
+  .cj-genres .gn-pipe-arrow { display: none; }
+}
+@media (max-width: 760px) {
+  .cj-genres .gn-hero { padding: 14px 14px; }
+  .cj-genres .gn-facets { width: 100%; }
+  .cj-genres .gn-facet .num { font-size: var(--text-h2); }
+}
+
+/* ── 降低动效偏好:关掉像素头像的悬停位移/旋转(与检测台一致)── */
+@media (prefers-reduced-motion: reduce) {
+  .cj-genres .gn-hero:hover .gn-hero-pixel { transform: none; }
+}

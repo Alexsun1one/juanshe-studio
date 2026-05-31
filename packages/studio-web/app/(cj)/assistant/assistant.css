@@ -1,0 +1,271 @@
+/* AI 助手 · 工作站化页面外壳(scoped .cj-assistant)
+   范式对齐 books/工作台:.cj-screen 顶部工作条(像素 + 标题 + 一行密集能力数据 + 语义图标 cue 条),
+   主体单栏铺满,把共享的 AssistantConsole(自带 工作对象/会话/对话 两栏 + 内部滚动)框进标准工作区。
+   只重排页面外壳 + 给 console 一个有界、铺满的父级;不改 console 内部结构,保功能/SWR/handler 不动。 */
+
+/* ── 顶部工作条:像素 + 标题 + 能力数据 + cue 条(非大卡平铺)── */
+.cj-assistant .as-head {
+  padding: 12px 20px 12px;
+  border-bottom: 1px solid var(--line-1);
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in srgb, var(--brand-500) 6%, transparent), transparent 58%),
+    var(--bg-app);
+}
+.cj-assistant .as-headline {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+.cj-assistant .as-hero-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--brand-600) 22%, transparent));
+  transition: transform 240ms var(--ease-soft);
+}
+.cj-assistant .as-head:hover .as-hero-pixel {
+  transform: translateY(-2px) rotate(-3deg);
+}
+/* 编辑部的猫:hero 头像盒(品牌暖紫圆角 + 居中猫图标) */
+.cj-assistant .as-hero-cat {
+  width: 46px; height: 46px; border-radius: 13px;
+  display: grid; place-items: center;
+  background: linear-gradient(160deg, color-mix(in oklab, var(--brand-400) 28%, var(--bg-card)), var(--bg-card));
+  border: 1px solid var(--line-1);
+  color: var(--brand-600);
+}
+.cj-assistant .as-headline-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+/* 眉标:对齐设计系统约定 —— kicker/eyebrow 用暖橙强调,与柔紫品牌字标拉开层次 */
+.cj-assistant .as-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent-warm-deep);
+  letter-spacing: 0.01em;
+}
+.cj-assistant .as-kicker svg {
+  width: 13px;
+  height: 13px;
+}
+.cj-assistant .as-headline-text .page-title-row {
+  margin: 2px 0 0;
+}
+.cj-assistant .as-headline-text .page-title {
+  font-size: var(--text-h1);
+  font-weight: 700;
+  line-height: 1.15;
+}
+/* 描述是正文而非眉标:盖掉全局 .page-sub 的暖橙,回到可读次要墨色;单行省略,不撑高头部 */
+.cj-assistant .as-headline-text .page-sub {
+  margin-top: 3px;
+  max-width: 720px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 右侧能力数据条:1 个 KpiChip(可信计数)+ 2 个文字事实 tile(无可信数字时不硬凑数字) */
+.cj-assistant .as-kpis {
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: flex;
+  align-items: stretch;
+  gap: 9px;
+}
+.cj-assistant .as-kpis > .cj-kpi {
+  min-width: 96px;
+}
+.cj-assistant .as-fact {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 13px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  background: var(--bg-card);
+  cursor: default;
+}
+.cj-assistant .as-fact-ico {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  color: var(--ink-400);
+}
+.cj-assistant .as-fact-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cj-assistant .as-fact-v {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink-900);
+  white-space: nowrap;
+}
+.cj-assistant .as-fact-l {
+  font-size: 11px;
+  color: var(--ink-400);
+  white-space: nowrap;
+}
+
+/* ── 能力提示条:一行内联「可以直接对它说」,每条带语义图标,chip 而非等大卡片 ── */
+.cj-assistant .as-cues {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 11px;
+  min-width: 0;
+}
+.cj-assistant .as-cues-lead {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+  white-space: nowrap;
+}
+.cj-assistant .as-cues-lead svg {
+  width: 14px;
+  height: 14px;
+  color: var(--brand-500);
+}
+.cj-assistant .as-cue-strip {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px 8px;
+  min-width: 0;
+}
+/* 静态参考 chip:示例任务,真正输入在下方对话台 textarea —— 不是按钮。
+   保留温和的高亮回应(品牌色暖起 + 图标点亮)让它有生气,但不做 translateY 上浮、
+   不显示手型,避免伪装成可点按钮(死按钮是粗糙感来源)。 */
+.cj-assistant .as-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px 5px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  background: var(--bg-card);
+  color: var(--ink-700);
+  font-size: 12.5px;
+  line-height: 1.4;
+  cursor: default;
+  box-shadow: var(--sh-1);
+  transition:
+    border-color var(--motion-fast) var(--ease-soft),
+    background-color var(--motion-fast) var(--ease-soft),
+    color var(--motion-fast) var(--ease-soft);
+}
+.cj-assistant .as-cue:hover {
+  border-color: color-mix(in srgb, var(--brand-500) 38%, var(--line-2));
+  background: var(--brand-50);
+  color: var(--ink-900);
+}
+.cj-assistant .as-cue-k {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--brand-600);
+  letter-spacing: 0.04em;
+}
+.cj-assistant .as-cue-ico {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: var(--brand-500);
+  transition: color var(--motion-fast) var(--ease-soft), transform var(--motion-fast) var(--ease-spring-cj, ease);
+}
+/* 5 个模板图标各上一种欢快色 —— 去商务、加彩 */
+.cj-assistant .as-cue:nth-child(1) .as-cue-ico { color: #7C6BF5; }
+.cj-assistant .as-cue:nth-child(2) .as-cue-ico { color: #E68A3E; }
+.cj-assistant .as-cue:nth-child(3) .as-cue-ico { color: #2FA39A; }
+.cj-assistant .as-cue:nth-child(4) .as-cue-ico { color: #E0728E; }
+.cj-assistant .as-cue:nth-child(5) .as-cue-ico { color: #2BB97A; }
+.cj-assistant .as-cue:hover .as-cue-ico { transform: scale(1.18) rotate(-4deg); }
+.cj-assistant .as-cues-tail {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cj-assistant .as-cue,
+  .cj-assistant .as-cue-ico,
+  .cj-assistant .as-hero-pixel {
+    transition: none;
+  }
+  .cj-assistant .as-head:hover .as-hero-pixel {
+    transform: none;
+  }
+}
+
+/* ── 主体:单栏铺满,把 AssistantConsole 框进标准工作区 ──
+   console 根 <section>(非 compact)自带 grid 两栏 + px/py 内边距,这里不再加横向留白;
+   覆盖其 min-h-[680px],让它跟随 pane 高度、滚动只在内部(对话区自带 overflow-auto)。 */
+.cj-assistant .as-mainpane {
+  min-height: 0;
+}
+.cj-assistant .as-mainpane > section {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* 主体网格内的对话栏:吃掉剩余高度而非撑到 680px 固定下限,避免整页溢出 */
+.cj-assistant .as-mainpane > section > div {
+  min-height: 0;
+}
+
+/* ── 响应式 ── */
+@media (max-width: 1180px) {
+  /* 窄屏:能力数据条换行到标题下方,不挤压标题 */
+  .cj-assistant .as-headline {
+    flex-wrap: wrap;
+  }
+  .cj-assistant .as-kpis {
+    margin-left: 59px;
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 860px) {
+  .cj-assistant .as-head {
+    padding: 12px 14px;
+  }
+  .cj-assistant .as-hero-pixel {
+    width: 40px;
+    height: 40px;
+  }
+  .cj-assistant .as-headline-text .page-sub {
+    white-space: normal;
+  }
+  .cj-assistant .as-kpis {
+    margin-left: 0;
+    width: 100%;
+  }
+  .cj-assistant .as-kpis > .cj-kpi,
+  .cj-assistant .as-fact {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .cj-assistant .as-cues {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .cj-assistant .as-cues-tail {
+    display: none;
+  }
+}

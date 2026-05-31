@@ -1,0 +1,164 @@
+/* 运行台 · (scoped .cj-runs) 工作站版式
+   目标(对齐工作台标杆,严守既有设计语言):
+   - 不整页下拉 → .cj-screen 工作站原语:工作条 + 主区 + Inspector,滚动只在 pane 内。
+   - 页头一行密集舰队 KPI(KpiChip/Meter/StatLine),信息密度高而不乱。
+   - 进行中任务走 12 列错落网格(交错 span);历史收进 Inspector 的 FoldCard 卡内滚。
+   - 颜色一律走 token(--ink/--brand/--bg/--line/--ok…),不硬编码 hex;字体一字不改。
+   - 量规圆环坑(.ring 黑框)本页不涉及——未引入任何 .ring。 */
+
+/* ── 顶部工作条:紧凑、不滚动、底分割线(替代旧 .page 整页内边距)── */
+.cj-runs.cj-workhead,
+.cj-runs > .runs-head {
+  flex: 0 0 auto;
+}
+.cj-runs .runs-head {
+  padding: 12px 20px 12px;
+  border-bottom: 1px solid var(--line-1);
+  background: var(--bg-app);
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+.cj-runs .runs-head-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+}
+.cj-runs .runs-head-id {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.cj-runs .runs-head-titles { min-width: 0; }
+.cj-runs .runs-head-titles .page-title { line-height: 1.2; }
+.cj-runs .runs-head-titles .page-sub { margin-top: 3px; }
+.cj-runs .runs-head .page-actions { margin-left: auto; }
+
+/* ── 舰队 KPI 一行 ── */
+.cj-runs .runs-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(190px, 1.4fr);
+  gap: 10px;
+  align-items: stretch;
+}
+/* 自定义「质量计量」KPI 单元:沿用 .cj-kpi 的纸卡气质,但内放 Meter + 章节进度 */
+.cj-runs .runs-kpi--meter {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  padding: 9px 12px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg, 12px);
+  justify-content: center;
+  transition: border-color var(--motion-fast) var(--ease-soft), box-shadow var(--motion-fast) var(--ease-soft);
+}
+.cj-runs .runs-kpi--meter:hover {
+  border-color: color-mix(in oklab, var(--ok-500) 28%, var(--line-1));
+  box-shadow: var(--sh-1);
+}
+.cj-runs .runs-kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-500);
+  letter-spacing: 0.01em;
+}
+.cj-runs .runs-kpi-empty {
+  font-family: var(--font-num);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink-300);
+  line-height: 1.1;
+}
+.cj-runs .runs-kpi-foot { margin-top: 1px; }
+
+/* ── 主体:主区 + Inspector(滚动只在各自 pane 内)── */
+.cj-runs .runs-body { gap: 0; }
+.cj-runs .runs-mainpane { min-width: 0; }
+.cj-runs .runs-pane-scroll { padding: 18px 20px 22px; }
+.cj-runs .runs-insp-scroll { padding: 16px 16px 20px; }
+
+/* 12 列错落网格。align-items:start 让不同高度的卡自然高低交错,而非被拉成等高一排。 */
+.cj-runs .runs-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 18px 20px;
+  align-items: start;
+}
+
+/* 每个单元的列跨度由 page.tsx 的 data-span 驱动(7/5、6/6、4…)。 */
+.cj-runs .runs-cell {
+  grid-column: span 6;
+  min-width: 0;
+}
+.cj-runs .runs-cell[data-span="3"] { grid-column: span 3; }
+.cj-runs .runs-cell[data-span="4"] { grid-column: span 4; }
+.cj-runs .runs-cell[data-span="5"] { grid-column: span 5; }
+.cj-runs .runs-cell[data-span="6"] { grid-column: span 6; }
+.cj-runs .runs-cell[data-span="7"] { grid-column: span 7; }
+.cj-runs .runs-cell[data-span="8"] { grid-column: span 8; }
+.cj-runs .runs-cell[data-span="12"] { grid-column: 1 / -1; }
+
+/* RunCard(article)填满所在单元的宽,高度随内容(配合 align-items:start 形成错落)。 */
+.cj-runs .runs-cell > article { width: 100%; }
+
+/* 活跃泳道:进行中的任务是焦点,占据主视觉。 */
+.cj-runs .runs-grid--live { margin-bottom: 0; }
+
+/* 主区无进行中任务时的轻提示(历史仍在 Inspector 折叠卡里) */
+.cj-runs .runs-idle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 56px 24px;
+  color: var(--ink-500);
+}
+.cj-runs .runs-idle-desc {
+  max-width: 360px;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink-500);
+}
+
+/* ── Inspector 历史折叠卡 ── */
+.cj-runs .runs-history-fold { background: transparent; }
+.cj-runs .runs-history-sub {
+  font-family: var(--font-num);
+  font-size: var(--text-micro, 11px);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ink-500);
+  padding: 2px 2px 12px;
+}
+/* 历史泳道在窄 Inspector(~340px)里改为竖排堆叠:span 退化为通栏,卡更轻更密。 */
+.cj-runs .runs-inspector .runs-grid--past {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+.cj-runs .runs-inspector .runs-grid--past .runs-cell {
+  grid-column: 1 / -1;
+}
+
+/* ── 响应式 ── */
+@media (max-width: 1100px) {
+  .cj-runs .runs-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .cj-runs .runs-kpi--meter { grid-column: span 3; }
+}
+@media (max-width: 1180px) {
+  .cj-runs .runs-grid--live .runs-cell { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .cj-runs .runs-head { padding: 12px 14px; }
+  .cj-runs .runs-pane-scroll { padding: 14px; }
+  .cj-runs .runs-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cj-runs .runs-kpi--meter { grid-column: 1 / -1; }
+  .cj-runs .runs-grid { gap: 14px; }
+}

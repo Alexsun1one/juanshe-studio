@@ -1,0 +1,642 @@
+/* Agent 实验室 · 工作站化(scoped .cj-agents)
+   范式对齐 books/工作台:.cj-screen / .cj-workhead / .cj-screen-body,
+   一屏不下拉、滚动只在 pane 内;左 编辑部流水线 + 右 成员档案编辑器。
+   视觉只用 token / 既有类 / kit;状态一律 .pill[data-state]。 */
+
+/* ── 顶部工作条:像素 + 标题 + 测试全部 + 一行密集 KPI ── */
+.cj-agents .ag-head {
+  padding: 12px 20px 12px;
+  border-bottom: 1px solid var(--line-1);
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in srgb, var(--brand-500) 6%, transparent), transparent 58%),
+    var(--bg-app);
+}
+.cj-agents .ag-headline {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+.cj-agents .ag-hero-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 5px color-mix(in srgb, var(--brand-600) 24%, transparent));
+  transition: transform 240ms var(--ease-soft);
+}
+.cj-agents .ag-head:hover .ag-hero-pixel {
+  transform: translateY(-2px) rotate(-3deg);
+}
+.cj-agents .ag-headline-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.cj-agents .ag-headline-text .page-title-row { margin: 0; }
+.cj-agents .ag-headline-text .page-sub {
+  margin-top: 3px;
+  max-width: 640px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cj-agents .ag-head-cta {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+}
+
+/* 一行 KPI:密集而不乱,横向铺满 */
+.cj-agents .ag-kpis {
+  margin-top: 11px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+
+/* ── 主体:左 流水线 rail(固定宽)+ 右 编辑器(覆写默认 2 栏栅格) ── */
+.cj-agents .ag-body {
+  grid-template-columns: 276px minmax(0, 1fr);
+}
+
+/* 左:agent 流水线(编号 + 像素 + 名称 + 模型 + 状态 pill),细线分隔,只在 list 内滚 */
+.cj-agents .ag-rail {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--line-1);
+  background: color-mix(in oklab, var(--bg-app) 55%, var(--bg-card));
+}
+.cj-agents .ag-rail-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line-1);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-500);
+}
+.cj-agents .ag-rail-head svg { color: var(--brand-500); flex: 0 0 auto; }
+.cj-agents .ag-rail-head .c {
+  margin-left: auto;
+  font-family: var(--font-num);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-400);
+}
+.cj-agents .ag-rail-list { flex: 1 1 auto; padding: 6px; }
+
+.cj-agents .ag-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  padding: 8px 9px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-600);
+  transition: background var(--motion-fast) var(--ease-soft),
+              color var(--motion-fast) var(--ease-soft),
+              border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-agents .ag-item:hover { background: var(--bg-hover); color: var(--ink-900); }
+.cj-agents .ag-item.active {
+  background: var(--brand-50);
+  border-color: color-mix(in oklab, var(--brand-500) 26%, transparent);
+  color: var(--ink-900);
+}
+.cj-agents .ag-item.active::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  border-radius: var(--r-pill);
+  background: var(--brand-500);
+}
+.cj-agents .ag-item:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-agents .ag-item .step {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-num);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-500);
+  background: var(--bg-sunken);
+  font-variant-numeric: tabular-nums;
+}
+.cj-agents .ag-item.active .step { background: var(--brand-500); color: #fff; }
+.cj-agents .ag-item .pix { flex: 0 0 auto; opacity: 0.92; transition: transform var(--motion-fast) var(--ease-soft); }
+.cj-agents .ag-item:hover .pix { transform: translateY(-1px) rotate(-2deg); }
+.cj-agents .ag-item-body { min-width: 0; flex: 1 1 auto; }
+.cj-agents .ag-item-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+  line-height: 1.25;
+  overflow: hidden;
+}
+.cj-agents .ag-item-name .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cj-agents .ag-item-name .lock { flex: 0 0 auto; color: var(--ink-400); }
+.cj-agents .ag-item-model {
+  font-family: var(--font-num);
+  font-size: 10.5px;
+  color: var(--ink-400);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 行内状态 pill:仅在 active/hover 时露出,常态收起避免噪声 */
+.cj-agents .ag-item-pill {
+  flex: 0 0 auto;
+  opacity: 0;
+  transform: translateX(2px);
+  transition: opacity var(--motion-fast) var(--ease-soft), transform var(--motion-fast) var(--ease-soft);
+}
+.cj-agents .ag-item:hover .ag-item-pill,
+.cj-agents .ag-item.active .ag-item-pill {
+  opacity: 1;
+  transform: none;
+}
+
+/* 右:编辑器面板(整列为 mainpane,内部 head 固定 + tabs 内部滚) */
+.cj-agents .ag-editorpane { min-width: 0; }
+.cj-agents .ag-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 成员档案带:像素 + 名称 + 状态 + 内联规模 StatLine + 动作 */
+.cj-agents .ag-ed-head {
+  flex: 0 0 auto;
+  padding: 14px 20px 12px;
+  border-bottom: 1px solid var(--line-1);
+}
+.cj-agents .ag-ed-profile {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.cj-agents .ag-ed-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 5px color-mix(in srgb, var(--brand-600) 22%, transparent));
+}
+.cj-agents .ag-ed-id { min-width: 0; flex: 1 1 auto; }
+.cj-agents .ag-ed-titleline {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.cj-agents .ag-ed-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink-900);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cj-agents .ag-ed-titleline .pill { flex: 0 0 auto; }
+.cj-agents .ag-ed-stats { margin-top: 5px; }
+.cj-agents .ag-ed-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* 元信息行:id · 模型 · Key · 工具 · 最近动作(密集内联) */
+.cj-agents .ag-ed-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 11px;
+  font-size: 11.5px;
+  color: var(--ink-500);
+}
+.cj-agents .ag-ed-meta .sep { width: 1px; height: 11px; background: var(--line-2); flex: 0 0 auto; }
+.cj-agents .ag-meta-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--ink-600);
+}
+.cj-agents .ag-meta-cell svg { color: var(--ink-400); flex: 0 0 auto; }
+.cj-agents .ag-meta-cell.mono {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cj-agents .ag-key .ks-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ink-300);
+}
+.cj-agents .ag-key .ks-dot[data-ok="true"] { background: var(--ok-500); }
+.cj-agents .ag-key .ks-dot[data-ok="false"] { background: var(--warn-500); }
+.cj-agents .ag-meta-link {
+  color: var(--brand-600);
+  font-weight: 500;
+  white-space: nowrap;
+  border-radius: var(--r-sm);
+  transition: color var(--motion-fast) var(--ease-soft);
+}
+.cj-agents .ag-meta-link:hover { text-decoration: underline; }
+.cj-agents .ag-meta-link:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-agents .ag-ed-activity {
+  margin-left: auto;
+  color: var(--ink-400);
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: var(--r-sm);
+  transition: color var(--motion-fast) var(--ease-soft);
+}
+.cj-agents .ag-ed-activity:hover { color: var(--brand-600, var(--ink-700)); }
+.cj-agents .ag-ed-activity:focus-visible { outline: none; box-shadow: var(--ring); color: var(--brand-600, var(--ink-700)); }
+
+/* 锁定 / 确定性提示:语义态,克制 */
+.cj-agents .ag-lock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 11px;
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--warn-500);
+  background: var(--warn-50);
+}
+.cj-agents .ag-lock svg { flex: 0 0 auto; }
+.cj-agents .ag-lock.ag-det {
+  color: var(--ink-500);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-2);
+}
+.cj-agents .ag-lock.ag-det svg { color: var(--ink-400); }
+
+/* tabs:头部固定,面板撑满剩余高度并在内部滚动(保证一屏不下拉) */
+.cj-agents .ag-ed-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 20px 16px;
+  overflow: hidden;
+}
+/* Tabs 根已带 gap-2(8px),再补一点点;不重复堆叠间距 */
+.cj-agents .ag-tabs-list { flex: 0 0 auto; margin-bottom: 4px; }
+.cj-agents .ag-tab-count {
+  margin-left: 6px;
+  font-family: var(--font-num);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  color: var(--ink-500);
+}
+/* Radix Tabs.Content:让被选中的面板成为可伸缩列 */
+.cj-agents .ag-tabpanel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cj-agents .ag-tabpanel[hidden] { display: none; }
+
+/* 提示词 / 模板:撑满面板高度,文本框内部滚 */
+.cj-agents .ag-prompt {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  color: var(--ink-800);
+  padding: 14px 16px;
+  font-family: var(--font-mono, var(--font-num));
+  font-size: 12.5px;
+  line-height: 1.75;
+  tab-size: 2;
+  transition: border-color var(--motion-fast) var(--ease-soft), box-shadow var(--motion-fast) var(--ease-soft);
+}
+.cj-agents .ag-prompt:focus-visible { outline: none; border-color: var(--brand-500); box-shadow: var(--ring); }
+.cj-agents .ag-prompt:disabled { opacity: 0.7; cursor: not-allowed; }
+
+/* 提示词页脚:字数原地展示 + 审计开关 + 工具标签 */
+.cj-agents .ag-prompt-foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.cj-agents .ag-count {
+  font-family: var(--font-num);
+  font-size: 11.5px;
+  color: var(--ink-400);
+  font-variant-numeric: tabular-nums;
+}
+.cj-agents .ag-count b { color: var(--ink-700); font-weight: 700; }
+.cj-agents .ag-foot-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cj-agents .ag-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--line-2);
+  background: var(--bg-card);
+  color: var(--ink-600);
+  transition: background var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-agents .ag-toggle:hover { background: var(--bg-hover); color: var(--ink-900); }
+.cj-agents .ag-toggle.on { background: var(--brand-50); border-color: color-mix(in oklab, var(--brand-500) 32%, transparent); color: var(--brand-600); }
+.cj-agents .ag-toggle:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-agents .ag-tools { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.cj-agents .ag-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-num);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: var(--bg-sunken);
+  color: var(--ink-600);
+}
+.cj-agents .ag-tool svg { color: var(--ink-400); }
+
+/* 审计视图:治理官追加段高亮(legend 固定 + 主体内部滚) */
+.cj-agents .ag-audit-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cj-agents .ag-audit-legend {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+.cj-agents .ag-audit-legend .pill { padding: 2px 9px; border-radius: var(--r-pill); font-weight: 600; }
+.cj-agents .ag-audit-legend .pill.human { background: var(--bg-sunken); color: var(--ink-600); }
+.cj-agents .ag-audit-legend .pill.gov { background: var(--brand-50); color: var(--brand-600); }
+.cj-agents .ag-audit-legend .pill.lock { background: var(--warn-50); color: var(--warn-500); }
+.cj-agents .ag-audit-legend .hint { margin-left: auto; color: var(--ink-400); }
+.cj-agents .ag-audit {
+  flex: 1 1 auto;
+  min-height: 0;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  padding: 12px 14px;
+  font-family: var(--font-mono, var(--font-num));
+  font-size: 12.5px;
+  line-height: 1.75;
+}
+.cj-agents .ag-audit .seg { margin: 2px 0; color: var(--ink-700); white-space: pre-wrap; word-break: break-word; }
+.cj-agents .ag-audit .gov {
+  margin: 8px 0;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid color-mix(in oklab, var(--brand-500) 28%, transparent);
+  background: color-mix(in oklab, var(--brand-500) 7%, transparent);
+}
+.cj-agents .ag-audit .gov .tag {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand-600);
+}
+.cj-agents .ag-audit .gov pre { margin: 0; color: var(--ink-800); white-space: pre-wrap; word-break: break-word; font: inherit; }
+
+/* 配置页:字段栅格 + 数字字体(内部滚) */
+.cj-agents .ag-cfg {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-right: 2px;
+}
+.cj-agents .ag-cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.cj-agents .ag-field { min-width: 0; }
+.cj-agents .ag-field-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-700);
+  margin-bottom: 7px;
+}
+.cj-agents .ag-field-label svg { color: var(--brand-500); flex: 0 0 auto; }
+.cj-agents .ag-field-label .val { font-family: var(--font-num); color: var(--brand-600); font-weight: 800; }
+.cj-agents .ag-schema {
+  margin: 7px 0 0;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  color: var(--ink-600);
+  padding: 12px 14px;
+  font-family: var(--font-mono, var(--font-num));
+  font-size: 11.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 模型 & Key 就地状态(点 agent 即见模型所属服务 + Key 是否配置,不跳 /llm) */
+.cj-agents .ag-key-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 7px;
+  font-size: var(--text-cap, 12px);
+  color: var(--ink-500);
+}
+.cj-agents .ag-key-status .ks-dot { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 999px; background: var(--ink-300); }
+.cj-agents .ag-key-status .ks-dot[data-ok="true"] { background: var(--ok-500); }
+.cj-agents .ag-key-status .ks-dot[data-ok="false"] { background: var(--warn-500); }
+.cj-agents .ag-key-status .ks-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cj-agents .ag-key-status .ks-link { margin-left: auto; flex: 0 0 auto; color: var(--brand-600); font-weight: 500; white-space: nowrap; border-radius: var(--r-sm); transition: color var(--motion-fast) var(--ease-soft); }
+.cj-agents .ag-key-status .ks-link:hover { text-decoration: underline; }
+.cj-agents .ag-key-status .ks-link:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* 历史版本:行式列表,内部滚 */
+.cj-agents .ag-hist {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-right: 4px;
+}
+.cj-agents .ag-ver {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 10px;
+  margin: 0 -6px;
+  border-radius: var(--r-md);
+  border-bottom: 1px solid var(--line-1);
+  transition: background var(--motion-fast) var(--ease-soft);
+}
+.cj-agents .ag-ver:hover { background: var(--bg-hover); }
+.cj-agents .ag-ver:last-child { border-bottom: none; }
+.cj-agents .ag-ver-body { min-width: 0; flex: 1 1 auto; }
+.cj-agents .ag-ver-note { font-size: 13px; font-weight: 600; color: var(--ink-900); }
+.cj-agents .ag-ver-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-num);
+  font-size: 10.5px;
+  color: var(--ink-400);
+  margin-top: 2px;
+}
+.cj-agents .ag-ver-meta svg { color: var(--ink-300); }
+.cj-agents .ag-ver-snip {
+  margin: 7px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--bg-sunken);
+  color: var(--ink-600);
+  font-family: var(--font-mono, var(--font-num));
+  font-size: 11px;
+  line-height: 1.6;
+  max-height: 78px;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 空态(历史无版本) */
+.cj-agents .ag-empty {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 44px 24px;
+  text-align: center;
+}
+.cj-agents .ag-empty-ic {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 8px;
+  border-radius: var(--r-lg);
+  color: var(--brand-600);
+  background: var(--brand-50);
+  border: 1px solid color-mix(in oklab, var(--brand-500) 18%, transparent);
+}
+.cj-agents .ag-empty-t { margin: 0; font-size: var(--text-title); font-weight: 600; color: var(--ink-800); }
+.cj-agents .ag-empty-d { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--ink-500); max-width: 320px; }
+
+/* 确认弹窗里的内联元信息块 */
+.cj-agents-dialog-meta {
+  display: block;
+  margin-top: 2px;
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-1);
+  background: var(--bg-sunken);
+  font-family: var(--font-num);
+  font-size: 11.5px;
+  color: var(--ink-700);
+  word-break: break-word;
+}
+
+/* ── 响应式 ── */
+@media (max-width: 1100px) {
+  .cj-agents .ag-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cj-agents .ag-kpis > .cj-kpi:nth-child(4),
+  .cj-agents .ag-kpis > .cj-kpi:nth-child(5) { grid-column: span 1; }
+  .cj-agents .ag-body { grid-template-columns: 240px minmax(0, 1fr); }
+}
+
+@media (max-width: 920px) {
+  /* 窄屏:rail 收成顶部横排,编辑器在下;各自仍 pane 内滚 */
+  .cj-agents .ag-body { display: flex; flex-direction: column; }
+  .cj-agents .ag-rail {
+    flex: 0 0 auto;
+    max-height: 200px;
+    border-right: none;
+    border-bottom: 1px solid var(--line-1);
+  }
+  .cj-agents .ag-headline { flex-wrap: wrap; gap: 12px; }
+  .cj-agents .ag-headline-text .page-sub { white-space: normal; }
+  .cj-agents .ag-head-cta { margin-left: 0; }
+  .cj-agents .ag-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .cj-agents .ag-head { padding: 12px 14px; }
+  .cj-agents .ag-ed-head { padding: 13px 14px 11px; }
+  .cj-agents .ag-ed-body { padding: 12px 14px 14px; }
+  .cj-agents .ag-ed-profile { flex-wrap: wrap; }
+  .cj-agents .ag-ed-actions { width: 100%; }
+  .cj-agents .ag-ed-actions .btn { flex: 1; justify-content: center; }
+  .cj-agents .ag-cfg-grid { grid-template-columns: 1fr; }
+  .cj-agents .ag-ed-activity { margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cj-agents .ag-hero-pixel,
+  .cj-agents .ag-item .pix { transition: none; }
+  /* 无障碍:关掉装饰性位移/旋转,只保留状态的瞬时切换 */
+  .cj-agents .ag-head:hover .ag-hero-pixel,
+  .cj-agents .ag-item:hover .pix { transform: none; }
+}

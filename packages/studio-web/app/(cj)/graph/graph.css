@@ -1,0 +1,347 @@
+/* 故事图谱 · 工作站化:一屏不下拉,滚动只在 pane 内 (scoped .cj-graph) */
+
+/* ── 顶部工作条:像素 + 标题 + 来源 pill + 一行密集 KPI(非大卡平铺)── */
+.cj-graph .g-head {
+  padding: 12px 20px 12px;
+  border-bottom: 1px solid var(--line-1);
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in srgb, var(--brand-500) 6%, transparent), transparent 58%),
+    var(--bg-app);
+}
+.cj-graph .g-headline {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+.cj-graph .g-hero-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 5px color-mix(in srgb, var(--brand-500) 28%, transparent));
+  transition: transform 240ms var(--ease-soft);
+}
+.cj-graph .g-head:hover .g-hero-pixel { transform: translateY(-2px) rotate(-3deg); }
+.cj-graph .g-headline-text { min-width: 0; flex: 1 1 auto; }
+.cj-graph .g-headline-text .page-title-row { margin: 0; gap: 10px; flex-wrap: wrap; }
+.cj-graph .g-sub {
+  margin-top: 3px;
+  max-width: 720px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cj-graph .g-sub b { font-family: var(--font-num); font-weight: 700; color: var(--ink-800); }
+.cj-graph .g-sub-hint { color: var(--ink-400); }
+.cj-graph .g-sub .g-sub-hint::before { content: "·"; margin: 0 6px; color: var(--ink-300); }
+
+/* 来源 pill:活图谱(绿,带呼吸点)/ fallback(琥珀) */
+.cj-graph .g-source-pill {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 22px; padding: 2px 10px 2px 8px;
+  border-radius: var(--r-pill); font-size: var(--text-micro); font-weight: 700; white-space: nowrap;
+}
+.cj-graph .g-source-pill .g-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.cj-graph .g-source-pill.live { background: var(--ok-50); color: var(--ok-600, var(--ok-500)); }
+.cj-graph .g-source-pill.live .g-dot { background: var(--ok-500); box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok-500) 60%, transparent); animation: g-live-pulse 2s ease-in-out infinite; }
+.cj-graph .g-source-pill.fallback { background: var(--warn-50); color: var(--warn-600, var(--warn-500)); }
+.cj-graph .g-source-pill.fallback .g-dot { background: var(--warn-500); }
+@keyframes g-live-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok-500) 55%, transparent); } 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok-500) 0%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .cj-graph .g-source-pill.live .g-dot { animation: none; } }
+
+/* 一行 KPI:密集而不乱,横向铺满 */
+.cj-graph .g-kpis {
+  margin-top: 11px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+.cj-graph .g-kpis .cj-kpi-sub .cj-statline-n { font-size: 11px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.cj-graph .g-warn {
+  flex: 0 0 auto; display: flex; align-items: flex-start; gap: 8px;
+  font-size: 12.5px; line-height: 1.55; color: var(--warn-600, var(--warn-500));
+  background: var(--warn-50); border: 1px solid color-mix(in srgb, var(--warn-500) 22%, transparent);
+  border-radius: var(--r-md); padding: 10px 12px; margin: 10px 20px 0;
+}
+.cj-graph .g-warn-ico { flex: 0 0 auto; margin-top: 1px; opacity: 0.9; }
+
+/* ── 主体:图谱画布(主区) + Inspector ── */
+.cj-graph .g-mainpane { padding: 0; min-width: 0; }
+.cj-graph .g-mainpane-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px 9px 20px;
+  border-bottom: 1px solid var(--line-1);
+}
+.cj-graph .g-mainpane-title {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 700; color: var(--ink-800); letter-spacing: 0.01em;
+}
+.cj-graph .g-mainpane-title svg { color: var(--brand-500); }
+.cj-graph .g-mainpane-stat { flex: 0 0 auto; }
+.cj-graph .g-mainpane-src {
+  margin-left: auto;
+  font-size: 11px; color: var(--ink-400);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 46%;
+}
+
+/* 画布容器:撑满主区剩余高度,图谱 SVG 自适应居中,只在内部滚 */
+.cj-graph .g-canvas-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg-card);
+}
+.cj-graph .g-canvas-wrap .sg-wrap { height: 100%; min-height: 440px; display: flex; flex-direction: column; }
+.cj-graph .g-canvas-wrap .sg-svg { flex: 1 1 auto; min-height: 0; height: auto; }
+.cj-graph .g-canvas-wrap .sg-empty { flex: 1 1 auto; }
+
+/* ── Inspector:选中档案 + 实体构成 + 关系类型 + 枢纽列表 ── */
+.cj-graph .g-insp-scroll {
+  flex: 1 1 auto;
+  padding: 14px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cj-graph .g-insp-scroll > .card,
+.cj-graph .g-insp-scroll > .cj-foldcard { margin: 0; }
+
+/* —— 选中实体真相档案 —— */
+.cj-graph .g-entity { padding: 13px 14px; animation: cj-fade-in var(--motion-base) var(--ease-soft); }
+.cj-graph .g-entity-head { display: flex; align-items: center; gap: 10px; }
+.cj-graph .g-entity-head > svg,
+.cj-graph .g-entity-head > .g-entity-ico,
+.cj-graph .g-entity-head > [aria-label] { flex: 0 0 auto; }
+.cj-graph .g-entity-ico {
+  display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto;
+  border-radius: var(--r-md); background: var(--bg-sunken); color: var(--ink-500);
+}
+.cj-graph .g-entity-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
+.cj-graph .g-entity-name { font-size: 14.5px; font-weight: 700; color: var(--ink-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cj-graph .g-entity-tags { display: inline-flex; align-items: center; gap: 6px; }
+.cj-graph .g-entity-deg { display: inline-flex; align-items: center; gap: 2px; font-family: var(--font-num); font-size: 10.5px; font-weight: 700; color: var(--ink-400); }
+.cj-graph .g-entity-deg svg { opacity: 0.7; }
+.cj-graph .g-entity-go {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 3px;
+  height: 26px; padding: 0 10px;
+  font-size: 12px; font-weight: 600; color: var(--brand-600);
+  background: var(--brand-50); border: 1px solid transparent; border-radius: var(--r-md);
+  cursor: pointer; transition: all var(--motion-fast) var(--ease-soft);
+}
+.cj-graph .g-entity-go:hover { background: var(--brand-100, var(--brand-50)); border-color: var(--brand-200); }
+.cj-graph .g-entity-go:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-graph .g-entity-sum { margin: 10px 0 0; font-size: 12.5px; line-height: 1.65; color: var(--ink-600); }
+.cj-graph .g-entity-meta {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+  margin-top: 9px; font-size: 11.5px; color: var(--ink-500);
+}
+.cj-graph .g-entity-meta .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ink-700); }
+.cj-graph .g-entity-span { display: inline-flex; align-items: baseline; gap: 4px; }
+.cj-graph .g-entity-span svg,
+.cj-graph .g-entity-alias svg { flex: 0 0 auto; color: var(--ink-400); align-self: center; }
+.cj-graph .g-entity-alias { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; color: var(--ink-400); }
+.cj-graph .g-entity-alias-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 现状(state):谓词 + 值,左侧品牌竖条 */
+.cj-graph .g-entity-states { margin-top: 11px; display: flex; flex-direction: column; gap: 6px; }
+.cj-graph .g-state {
+  position: relative; padding: 7px 10px 7px 11px;
+  background: var(--bg-sunken); border-radius: var(--r-md);
+  border-left: 2px solid color-mix(in srgb, var(--brand-500) 45%, transparent);
+}
+.cj-graph .g-state-k { display: block; font-size: 10.5px; font-weight: 700; color: var(--brand-600); letter-spacing: 0.02em; margin-bottom: 2px; }
+.cj-graph .g-state-v { display: block; font-size: 12px; line-height: 1.55; color: var(--ink-700); }
+
+/* 关系列表(从 edges 派生) */
+.cj-graph .g-entity-rels { margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--line-1); }
+.cj-graph .g-entity-rels-h { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: var(--ink-700); margin-bottom: 7px; }
+.cj-graph .g-entity-rels-h svg { color: var(--brand-500); }
+.cj-graph .g-entity-rels-h .num { margin-left: 2px; color: var(--ink-400); }
+.cj-graph .g-rel-list { display: flex; flex-direction: column; gap: 3px; }
+.cj-graph .g-rel { display: flex; align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
+.cj-graph .g-rel-pred { flex: 0 0 auto; font-weight: 600; color: var(--ink-500); }
+.cj-graph .g-rel-arrow { flex: 0 0 auto; color: var(--brand-400, var(--brand-300)); font-weight: 700; }
+.cj-graph .g-rel-other { min-width: 0; font-weight: 600; color: var(--ink-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cj-graph .g-rel-since { flex: 0 0 auto; margin-left: auto; font-family: var(--font-num); font-size: 10.5px; color: var(--ink-400); white-space: nowrap; }
+
+/* —— 实体构成 / 关系类型(FoldCard 内)—— */
+.cj-graph .g-donut { position: relative; margin: 2px 0 10px; }
+.cj-graph .g-donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.cj-graph .g-donut-center b { font-family: var(--font-num); font-size: 21px; font-weight: 800; color: var(--ink-900); line-height: 1; }
+.cj-graph .g-donut-center span { font-size: 10px; color: var(--ink-500); margin-top: 2px; letter-spacing: 0.04em; }
+.cj-graph .g-dist-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.cj-graph .g-dl { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-600); }
+.cj-graph .g-dl i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; flex: 0 0 auto; }
+.cj-graph .g-dl svg { color: var(--ink-400); flex: 0 0 auto; }
+.cj-graph .g-dl b { font-family: var(--font-num); color: var(--ink-900); font-weight: 700; }
+
+/* —— 枢纽实体列表 —— */
+.cj-graph .g-hub-empty { display: flex; align-items: center; gap: 7px; font-size: 12.5px; line-height: 1.6; color: var(--ink-500); padding: 4px 2px 6px; }
+.cj-graph .g-hub-empty svg { flex: 0 0 auto; color: var(--ink-300); }
+.cj-graph .g-rail-list { display: flex; flex-direction: column; gap: 2px; padding-top: 2px; }
+.cj-graph .g-ent {
+  position: relative; display: flex; align-items: center; gap: 9px; text-align: left;
+  padding: 7px 10px; border: 1px solid transparent; border-radius: var(--r-md);
+  background: transparent; cursor: pointer; overflow: hidden;
+  transition: background var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-graph .g-ent:hover { background: var(--bg-sunken); border-color: var(--line-1); }
+.cj-graph .g-ent:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-graph .g-ent.active { background: color-mix(in srgb, var(--brand-500) 7%, var(--bg-card)); border-color: color-mix(in srgb, var(--brand-500) 30%, var(--line-1)); }
+.cj-graph .g-ent-rank {
+  flex-shrink: 0; width: 18px; height: 18px; display: grid; place-items: center;
+  font-family: var(--font-num); font-size: 10.5px; font-weight: 700; line-height: 1;
+  color: var(--ink-400); background: var(--bg-sunken); border-radius: var(--r-sm);
+}
+.cj-graph .g-ent:hover .g-ent-rank { background: var(--bg-card); }
+.cj-graph .g-ent-rank.top { color: var(--brand-600); background: var(--brand-50); }
+.cj-graph .g-ent-ico {
+  flex: 0 0 auto; display: grid; place-items: center; width: 22px; height: 22px;
+  border-radius: var(--r-sm); background: var(--bg-sunken); color: var(--ink-500);
+}
+.cj-graph .g-ent-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.cj-graph .g-ent-name { font-size: var(--text-body); font-weight: 600; color: var(--ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cj-graph .g-ent-meta { display: flex; align-items: center; gap: 6px; }
+.cj-graph .g-deg { font-size: 10.5px; color: var(--ink-400); font-family: var(--font-num); }
+/* 连接度底纹条:克制的品牌色,藏在行底,排序一眼可见 */
+.cj-graph .g-ent-bar {
+  position: absolute; left: 0; bottom: 0; height: 2px; max-width: 100%;
+  background: color-mix(in srgb, var(--brand-500) 32%, transparent);
+  border-radius: 0 var(--r-pill) 0 0; pointer-events: none;
+  transition: background var(--motion-fast) var(--ease-soft);
+}
+.cj-graph .g-ent:hover .g-ent-bar,
+.cj-graph .g-ent.active .g-ent-bar { background: var(--brand-500); }
+
+/* ── 响应式 ── */
+@media (max-width: 1100px) {
+  .cj-graph .g-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .cj-graph .g-headline { flex-wrap: wrap; gap: 12px; }
+  .cj-graph .g-sub { white-space: normal; }
+  .cj-graph .g-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .cj-graph .g-head { padding: 12px 14px; }
+  .cj-graph .g-hero-pixel { width: 40px; height: 40px; }
+  .cj-graph .g-warn { margin: 10px 14px 0; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   以下为 StoryGraphView 组件 + 实体类型芯片样式(被本页与实体页共用)
+   —— 渲染逻辑不变,样式保持原样 ——
+   ════════════════════════════════════════════════════════════ */
+
+/* entity type chips (shared look, used here + entity page) */
+.g-type, .e-type { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: var(--r-pill); background: var(--bg-sunken); color: var(--ink-500); }
+.t-person { background: color-mix(in srgb, var(--brand-500) 14%, transparent); color: var(--brand-600, var(--brand-500)); }
+.t-item { background: #FBEDDF; color: #C66E2F; }
+.t-place { background: #E3F6ED; color: #1F9D63; }
+.t-org { background: #F2EAFB; color: #B173E8; }
+.t-concept { background: #E7EEFE; color: #3B6CEA; }
+
+/* —— force-directed graph component —— */
+.sg-wrap { position: relative; }
+.sg-toolbar { position: absolute; top: 10px; left: 12px; right: 12px; z-index: 2; display: flex; align-items: center; gap: 6px; pointer-events: none; }
+.sg-toolbar > * { pointer-events: auto; }
+.sg-stat {
+  font-size: var(--text-micro); font-weight: 500; color: var(--ink-600);
+  background: color-mix(in srgb, var(--bg-card) 86%, transparent);
+  border: 1px solid var(--line-1); border-radius: var(--r-pill); padding: 3px 11px;
+  backdrop-filter: blur(6px); box-shadow: var(--sh-1);
+}
+.sg-focus-pill {
+  font-size: var(--text-micro); font-weight: 600;
+  color: var(--brand-600);
+  background: var(--brand-50);
+  border: 1px solid var(--brand-200);
+  border-radius: var(--r-pill);
+  padding: 3px 11px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  animation: sg-focus-pulse 1.8s ease-in-out infinite;
+}
+.sg-focus-pill:hover { background: var(--brand-100, var(--brand-50)); }
+@keyframes sg-focus-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand-500) 22%, transparent); }
+  50%      { box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-500) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) { .sg-focus-pill { animation: none; } }
+.sg-sp { flex: 1; }
+.sg-sep { width: 1px; height: 14px; background: var(--line-2); display: inline-block; }
+.sg-leg-title { font-size: 10.5px; font-weight: 700; color: var(--ink-600); letter-spacing: 0.06em; margin-right: 2px; }
+.sg-btn {
+  width: 27px; height: 27px; border: 1px solid var(--line-1);
+  background: color-mix(in srgb, var(--bg-card) 86%, transparent);
+  border-radius: var(--r-sm); cursor: pointer; font-size: var(--text-cap); color: var(--ink-600);
+  display: inline-flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(6px); box-shadow: var(--sh-1);
+  transition: background var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.sg-btn:hover { background: var(--bg-card); color: var(--brand-600); border-color: color-mix(in srgb, var(--brand-500) 40%, var(--line-1)); }
+.sg-btn:focus-visible { outline: none; box-shadow: var(--ring); }
+.sg-svg { display: block; width: 100%; height: auto; touch-action: none; cursor: grab; background: radial-gradient(circle at 50% 42%, var(--bg-sunken) 0%, transparent 68%); }
+.sg-svg:active { cursor: grabbing; }
+.sg-node { cursor: pointer; transition: opacity .15s; }
+.sg-node:focus-visible { outline: none; }
+.sg-node:focus-visible circle:nth-of-type(2) { stroke: var(--brand-700, var(--brand-600)); stroke-width: 4px; }
+/* 节点 / 边标签 — 不再用大色块描边(会出现"白/黑框"),改用半透明描边作为可读性背景 */
+.sg-node-label {
+  font-size: var(--text-cap); fill: var(--ink-800); font-family: var(--font-sans); font-weight: 500;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: var(--bg-canvas, transparent);
+  stroke-width: 2.2px;
+  stroke-linejoin: round;
+  stroke-opacity: 0.6;
+}
+:where(html.dark) .sg-node-label { fill: #DFDFEA; stroke: #0F0F18; stroke-opacity: 0.55; }
+.sg-edge-label {
+  font-size: 10px; fill: var(--ink-600); font-family: var(--font-sans); font-weight: 600;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: var(--bg-canvas, transparent);
+  stroke-width: 2px;
+  stroke-opacity: 0.7;
+}
+:where(html.dark) .sg-edge-label { fill: #C5C5D2; stroke: #0F0F18; stroke-opacity: 0.7; }
+.sg-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 13px; padding: 10px 14px; border-top: 1px solid var(--line-1); background: var(--bg-sunken); font-size: var(--text-micro); color: var(--ink-500); }
+.sg-leg { display: inline-flex; align-items: center; gap: 5px; }
+.sg-leg i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.sg-hint { margin-left: auto; color: var(--ink-400); }
+
+/* —— 空数据态:像素节点小图,呼应「随写作生长的图谱」—— */
+.sg-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 440px; text-align: center; padding: 40px; }
+.sg-empty-ill {
+  position: relative; width: 96px; height: 72px;
+  background:
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--brand-500) 9%, transparent), transparent 70%);
+}
+/* 三个像素方块节点 + 连线,crispEdges 像素感 */
+.sg-empty-ill::before,
+.sg-empty-ill::after {
+  content: ""; position: absolute; border-radius: 2px;
+}
+/* 连线层 */
+.sg-empty-ill::before {
+  inset: 0;
+  background:
+    linear-gradient(to right, color-mix(in srgb, var(--brand-500) 32%, transparent) 0 100%) no-repeat 22px 30px / 30px 3px,
+    linear-gradient(to right, color-mix(in srgb, var(--ink-400) 40%, transparent) 0 100%) no-repeat 44px 32px / 26px 3px;
+  transform: rotate(-9deg);
+}
+/* 三个节点 */
+.sg-empty-ill::after {
+  inset: 0;
+  background:
+    linear-gradient(var(--brand-500), var(--brand-600)) no-repeat 14px 22px / 16px 16px,
+    linear-gradient(#C66E2F, #A85724) no-repeat 40px 8px / 13px 13px,
+    linear-gradient(#2BB97A, #1A8E5C) no-repeat 64px 38px / 15px 15px;
+  border-radius: 0;
+}
+.sg-empty-t { font-size: 15px; font-weight: 600; color: var(--ink-700); margin: 18px 0 6px; }
+.sg-empty-s { font-size: 12.5px; color: var(--ink-500); max-width: 400px; line-height: 1.7; margin: 0; }
+.sg-empty-actions { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 18px; }

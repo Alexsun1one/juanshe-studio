@@ -1,0 +1,10 @@
+packages:
+  - "packages/*"
+allowBuilds:
+  electron: true
+  esbuild: set this to true or false
+  msw: set this to true or false
+  protobufjs: set this to true or false
+  sharp: set this to true or false
+minimumReleaseAgeExclude:
+  - '@ai-sdk/anthropic@3.0.81'

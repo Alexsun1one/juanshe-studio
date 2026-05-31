@@ -1,0 +1,534 @@
+/* 多平台创作 · 内容工坊 · 工作站化:一屏不下拉,滚动只在 pane 内 (scoped .cj-compose) */
+
+/* ════════════════════════════════════════════════════════════
+   顶部工作条:像素 + 标题 + 一行密集 KPI(非大卡平铺)
+   ════════════════════════════════════════════════════════════ */
+.cj-compose.cj-screen { }
+.cj-compose .cmp-head {
+  padding: 12px 20px 12px;
+  border-bottom: 1px solid var(--line-1);
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in srgb, var(--brand-500) 6%, transparent), transparent 58%),
+    var(--bg-app);
+}
+.cj-compose .cmp-headline {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+.cj-compose .cmp-hero-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--brand-600) 22%, transparent));
+  transition: transform 240ms var(--ease-soft);
+}
+.cj-compose .cmp-head:hover .cmp-hero-pixel {
+  transform: translateY(-2px) rotate(-3deg);
+}
+.cj-compose .cmp-headline-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.cj-compose .cmp-headline-text .page-title-row {
+  margin: 0;
+}
+.cj-compose .cmp-headline-text .page-sub {
+  margin-top: 3px;
+  max-width: 660px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cj-compose .cmp-head-cta {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+  white-space: nowrap;
+}
+.cj-compose .cmp-spin {
+  animation: cmp-spin 0.8s linear infinite;
+}
+@keyframes cmp-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 一行 KPI:密集而不乱,横向铺满 */
+.cj-compose .cmp-kpis {
+  margin-top: 11px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+
+/* ════════════════════════════════════════════════════════════
+   主体:创作主区(pane 内滚)+ 成品库 Inspector
+   ════════════════════════════════════════════════════════════ */
+.cj-compose .cmp-mainpane {
+  padding: 0;
+}
+.cj-compose .cmp-pane-scroll {
+  flex: 1 1 auto;
+  padding: 14px 20px 18px;
+}
+
+/* 下一步引导:把「现在最该做的一步」说清楚,降低创作焦虑 */
+.cj-compose .cmp-next {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  margin-bottom: 16px; padding: 10px 13px; text-align: left;
+  border: 1px dashed color-mix(in oklab, var(--brand-500) 32%, var(--line-2)); border-radius: var(--r-lg);
+  background: color-mix(in oklab, var(--brand-500) 4%, var(--bg-card));
+  cursor: pointer; font: inherit;
+  transition: border-color var(--motion-fast) var(--ease-soft), background var(--motion-fast) var(--ease-soft), transform var(--motion-fast) var(--ease-soft);
+}
+.cj-compose .cmp-next:hover:not(:disabled) { border-color: var(--brand-400, var(--brand-500)); background: color-mix(in oklab, var(--brand-500) 7%, var(--bg-card)); transform: translateY(-1px); }
+.cj-compose .cmp-next:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-compose .cmp-next:disabled { opacity: 0.55; cursor: default; }
+.cj-compose .cmp-next-pin { flex: 0 0 auto; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: var(--r-md); background: var(--brand-50); color: var(--brand-600); }
+.cj-compose .cmp-next-text { flex: 1; min-width: 0; font-size: var(--text-body); color: var(--ink-700); }
+.cj-compose .cmp-next-cta { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-ui); font-weight: 600; color: var(--brand-600); }
+.cj-compose .cmp-next:hover:not(:disabled) .cmp-next-cta svg { transform: translateX(2px); transition: transform var(--motion-fast) var(--ease-soft); }
+
+/* 轻量区块标题(无重框,靠标题 + 留白组织) */
+.cj-compose .cmp-sec { font-size: var(--text-cap); font-weight: 700; color: var(--ink-700); text-transform: uppercase; letter-spacing: 0.1em; padding-bottom: 9px; margin: 0 0 12px; border-bottom: 1px solid var(--line-1); display: flex; align-items: center; gap: 7px; }
+.cj-compose .cmp-sec-ico { color: var(--brand-600); }
+.cj-compose .cmp-sec .hint { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--ink-400); font-size: var(--text-micro); }
+
+/* 平台体裁:错落不对称网格 —— 当前选中的体裁占宽(宽长卡),其余窄竖条 */
+.cj-compose .plat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 22px; align-items: stretch; }
+.cj-compose .plat { grid-column: span 2; display: flex; flex-direction: column; width: 100%; border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--bg-card); padding: 12px 13px; cursor: pointer; transition: border-color var(--motion-fast) var(--ease-soft), box-shadow var(--motion-fast) var(--ease-soft), transform var(--motion-instant) var(--ease-soft); position: relative; font: inherit; text-align: left; color: inherit; }
+/* 选中的体裁横跨更宽,形成大小错落;说明文完整展开 */
+.cj-compose .plat.sel { grid-column: span 3; border-color: var(--brand-500); box-shadow: 0 0 0 3px var(--brand-50); }
+.cj-compose .plat:hover { border-color: var(--brand-300); transform: translateY(-2px); box-shadow: var(--sh-2); }
+.cj-compose .plat:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-compose .plat[draggable="true"] { cursor: grab; }
+.cj-compose .plat.dragging { opacity: 0.4; cursor: grabbing; box-shadow: var(--sh-3, 0 10px 30px rgba(0,0,0,0.18)); }
+.cj-compose .plat .pt { display: flex; align-items: center; gap: 10px; }
+.cj-compose .plat .logo { width: 34px; height: 34px; border-radius: var(--r-md); display: grid; place-items: center; color: #fff; font-weight: 800; font-size: var(--text-title); flex: 0 0 34px; }
+.cj-compose .plat .pt-text { min-width: 0; }
+.cj-compose .plat .pn { font-size: var(--text-title); font-weight: 700; color: var(--ink-900); }
+.cj-compose .plat .plen { display: inline-flex; align-items: center; gap: 3px; font-size: var(--text-micro); color: var(--ink-400); margin-top: 1px; font-family: var(--font-num); }
+.cj-compose .plat .plen svg { opacity: 0.7; }
+/* 每个平台已沉淀篇数小角标(只读真实成品数,克制) */
+.cj-compose .plat .pcount { flex: 0 0 auto; margin-left: auto; display: inline-flex; align-items: center; gap: 2px; font-size: var(--text-micro); font-weight: 700; font-family: var(--font-num); color: var(--ok-600, var(--ok-500)); background: color-mix(in oklab, var(--ok-500) 12%, transparent); padding: 1px 7px; border-radius: var(--r-pill); }
+.cj-compose .plat .pcount svg { opacity: 0.8; }
+.cj-compose .plat .pd { display: block; font-size: var(--text-cap); color: var(--ink-500); margin-top: 8px; line-height: 1.5; }
+/* 选中态:用一个小角标点亮「当前正在产出这个平台」 */
+.cj-compose .plat.sel::after { content: "当前"; position: absolute; top: 10px; right: 10px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; color: var(--brand-600); background: var(--brand-50); padding: 1px 7px; border-radius: var(--r-pill); }
+/* 选中态有角标时,篇数角标让位(避免与「当前」重叠) */
+.cj-compose .plat.sel .pcount { margin-right: 34px; }
+
+/* 创作区:表单(左,sticky)+ 预览(右) */
+.cj-compose .work { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+.cj-compose .form-col { position: sticky; top: 0; }
+.cj-compose .fld { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
+.cj-compose .fld label { font-size: var(--text-cap); color: var(--ink-600); font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.cj-compose .fld label svg { color: var(--ink-400); }
+.cj-compose .fld-req { color: var(--err-500); font-weight: 700; }
+.cj-compose .fld textarea, .cj-compose .fld input { border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--bg-card); color: var(--ink-900); font-size: var(--text-body); padding: 10px 12px; font-family: var(--font-sans-cj); transition: border-color var(--motion-fast) var(--ease-soft), box-shadow var(--motion-fast) var(--ease-soft); }
+.cj-compose .fld textarea { min-height: 116px; resize: vertical; line-height: 1.6; }
+.cj-compose .fld textarea:focus-visible, .cj-compose .fld input:focus-visible { outline: none; border-color: var(--brand-300); box-shadow: var(--ring); }
+.cj-compose .opts { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; font-size: var(--text-cap); color: var(--ink-600); }
+.cj-compose .opts-text { display: inline-flex; align-items: center; gap: 5px; }
+.cj-compose .opts-text svg { color: var(--ink-400); }
+.cj-compose .toggle { width: 34px; height: 20px; border-radius: var(--r-pill); background: var(--bg-sunken); position: relative; cursor: pointer; flex: 0 0 34px; transition: background var(--motion-fast) var(--ease-soft); border: 0; padding: 0; }
+.cj-compose .toggle.on { background: var(--brand-500); }
+.cj-compose .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform var(--motion-base) var(--ease-spring-cj); }
+.cj-compose .toggle.on::after { transform: translateX(14px); }
+.cj-compose .toggle:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-compose .gen-btn { width: 100%; height: 46px; justify-content: center; font-size: var(--text-ui); }
+
+/* 结果 */
+.cj-compose .result { border: 1px solid var(--line-1); border-radius: var(--r-xl); background: var(--bg-card); min-height: 440px; display: flex; flex-direction: column; overflow: hidden; }
+.cj-compose .result-head { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-bottom: 1px solid var(--line-1); }
+.cj-compose .result-head .rt { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-body); font-weight: 600; color: var(--ink-900); }
+.cj-compose .result-head .rt svg { color: var(--brand-600); }
+.cj-compose .result-head .ra { margin-left: auto; display: flex; gap: 8px; }
+.cj-compose .result-body { flex: 1; overflow-y: auto; padding: 22px 26px; }
+.cj-compose .prose { font-family: var(--font-serif); color: var(--ink-800); font-size: 15.5px; line-height: 1.9; }
+.cj-compose .prose h1 { font-size: 22px; font-weight: 800; color: var(--ink-900); margin: 0 0 14px; line-height: 1.3; }
+.cj-compose .prose h2 { font-size: 17px; font-weight: 700; color: var(--ink-900); margin: 22px 0 10px; }
+.cj-compose .prose p { margin: 0 0 13px; }
+.cj-compose .prose blockquote { margin: 0 0 13px; padding: 8px 14px; border-left: 3px solid var(--brand-300); background: var(--brand-50); color: var(--ink-700); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.cj-compose .prose li { margin: 0 0 6px 18px; }
+/* 空状态:像素编辑 + 温柔指引,指向「产出后复制取走」(不留粗糙空框) */
+.cj-compose .gen-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 40px 28px; }
+.cj-compose .gen-empty-pix { filter: drop-shadow(0 2px 6px color-mix(in oklab, var(--brand-500) 22%, transparent)); margin-bottom: 4px; opacity: 0.95; }
+.cj-compose .gen-empty-t { font-size: var(--text-body); font-weight: 600; color: var(--ink-700); }
+.cj-compose .gen-empty-s { font-size: var(--text-cap); color: var(--ink-400); line-height: 1.6; max-width: 32ch; }
+.cj-compose .gen-loading { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--ink-600); font-size: var(--text-body); }
+.cj-compose .gen-loading-pix { opacity: 0.9; }
+.cj-compose .gen-loading .spin { width: 30px; height: 30px; border: 3px solid var(--line-2); border-top-color: var(--brand-500); border-radius: 50%; animation: cj-spin 0.8s linear infinite; }
+.cj-compose .crit { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line-1); background: var(--bg-sunken); font-size: var(--text-cap); color: var(--ink-600); }
+.cj-compose .crit-score { display: inline-flex; align-items: baseline; gap: 7px; }
+.cj-compose .crit .sc { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: var(--text-h2); font-weight: 700; line-height: 1; }
+.cj-compose .crit-score-label { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-500); }
+.cj-compose .crit-score-label svg { color: var(--ink-400); }
+.cj-compose .crit-chars { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; color: var(--ink-400); }
+.cj-compose .crit-chars .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ink-600); }
+
+/* ════════════════════════════════════════════════════════════
+   Inspector · 成品库(覆盖进度 + 平台清单 + 当前平台成品 + 全部成品)
+   ════════════════════════════════════════════════════════════ */
+.cj-compose .cmp-insp-scroll {
+  padding: 14px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cj-compose .cmp-insp-scroll > .card,
+.cj-compose .cmp-insp-scroll > .cj-foldcard { margin: 0; }
+
+.cj-compose .cmp-overview .cmp-overview-tag {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--ok-600, var(--ok-500));
+  background: color-mix(in oklab, var(--ok-500) 12%, transparent);
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+  font-size: var(--text-micro);
+}
+.cj-compose .cmp-overview .cmp-overview-tag svg { opacity: 0.85; }
+
+/* 概览计量条 + 行内读数 */
+.cj-compose .cmp-meters {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.cj-compose .cmp-meters .cj-meter + .cmp-meter-cap { margin-top: -3px; }
+.cj-compose .cmp-meter-cap {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--ink-500);
+}
+.cj-compose .cmp-meter-cap .num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--ink-800);
+}
+.cj-compose .cmp-meter-of { color: var(--ink-400); }
+.cj-compose .cmp-meter-pct {
+  margin-left: auto;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--brand-600);
+}
+
+/* 状态三连(已生成 / 已覆盖 / 待开张) */
+.cj-compose .cmp-statgrid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.cj-compose .cmp-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  background: var(--bg-sunken);
+}
+.cj-compose .cmp-stat b {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ink-800);
+}
+.cj-compose .cmp-stat i {
+  font-style: normal;
+  font-size: var(--text-micro);
+  font-weight: 600;
+  color: var(--ink-400);
+}
+.cj-compose .cmp-stat[data-tone="ok"] b { color: var(--ok-600, var(--ok-500)); }
+.cj-compose .cmp-stat[data-tone="info"] b { color: var(--brand-600); }
+.cj-compose .cmp-stat[data-tone="warn"] b { color: var(--warn-600, var(--warn-500)); }
+
+/* Inspector 平台清单(可点切换当前平台) */
+.cj-compose .cmp-plat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+}
+.cj-compose .cmp-plat-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-compose .cmp-plat-row:hover {
+  background: var(--bg-card);
+  border-color: var(--line-2);
+}
+.cj-compose .cmp-plat-row.active {
+  background: color-mix(in srgb, var(--brand-500) 5%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--brand-500) 26%, var(--line-1));
+}
+.cj-compose .cmp-plat-row:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-compose .cmp-plat-logo {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 12px;
+}
+.cj-compose .cmp-plat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.cj-compose .cmp-plat-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cj-compose .cmp-plat-len {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-family: var(--font-num);
+  color: var(--ink-400);
+}
+.cj-compose .cmp-plat-len svg { opacity: 0.7; }
+.cj-compose .cmp-plat-cur {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--brand-600);
+  background: var(--brand-50);
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+}
+.cj-compose .cmp-plat-row .pill { flex: 0 0 auto; }
+
+/* Inspector 成品迷你列表(可点 → 上方预览) */
+.cj-compose .cmp-draft-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+}
+.cj-compose .cmp-draft-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-compose .cmp-draft-row:hover {
+  background: var(--bg-card);
+  border-color: var(--line-2);
+}
+.cj-compose .cmp-draft-row:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-compose .cmp-draft-plat {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--brand-600);
+  background: var(--brand-50);
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+}
+.cj-compose .cmp-draft-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.cj-compose .cmp-draft-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cj-compose .cmp-draft-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--ink-400);
+}
+.cj-compose .cmp-draft-meta .num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--ink-600);
+}
+.cj-compose .cmp-draft-meta em { font-style: normal; }
+.cj-compose .cmp-dot {
+  flex: 0 0 auto;
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--ink-300);
+}
+.cj-compose .cmp-draft-sc {
+  flex: 0 0 auto;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: var(--text-title);
+}
+
+/* Inspector 空态(成品库为空) */
+.cj-compose .cmp-insp-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 14px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-lg);
+  background: var(--bg-sunken);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-500);
+}
+.cj-compose .cmp-insp-empty svg { flex: 0 0 auto; margin-top: 1px; color: var(--ink-400); }
+
+/* ════════════════════════════════════════════════════════════
+   响应式
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 1180px) {
+  .cj-compose .work { grid-template-columns: 1fr; }
+  .cj-compose .form-col { position: static; }
+}
+@media (max-width: 1100px) {
+  .cj-compose .cmp-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cj-compose .cmp-kpis > .cj-kpi:nth-child(4),
+  .cj-compose .cmp-kpis > .cj-kpi:nth-child(5) { grid-column: span 1; }
+  /* 平台体裁:中屏改 4 列,选中跨 2,仍保留大小错落 */
+  .cj-compose .plat-grid { grid-template-columns: repeat(4, 1fr); }
+  .cj-compose .plat { grid-column: span 2; }
+  .cj-compose .plat.sel { grid-column: span 2; }
+}
+@media (max-width: 860px) {
+  .cj-compose .cmp-headline { flex-wrap: wrap; gap: 12px; }
+  .cj-compose .cmp-headline-text .page-sub { white-space: normal; }
+  .cj-compose .cmp-head-cta { margin-left: 0; }
+  .cj-compose .cmp-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .cj-compose .cmp-head { padding: 12px 14px; }
+  .cj-compose .cmp-hero-pixel { width: 40px; height: 40px; }
+  .cj-compose .cmp-pane-scroll { padding: 12px 12px 14px; }
+  .cj-compose .cmp-next { flex-wrap: wrap; }
+  .cj-compose .cmp-next-text { flex: 1 1 100%; order: 3; }
+  /* 平台体裁:窄屏 2 列,所有体裁等宽(空间有限,优先可点) */
+  .cj-compose .plat-grid { grid-template-columns: repeat(2, 1fr); }
+  .cj-compose .plat, .cj-compose .plat.sel { grid-column: span 1; }
+}
+
+/* —— 所见即所得平台预览(设备级精排,公众号/小红书等用平台真实浅色,不随主题变)—— */
+.cj-compose .result-body { background: var(--bg-sunken); }
+.pp { display: flex; justify-content: center; padding: 6px 0 16px; }
+.pp-phone { width: 390px; max-width: 100%; background: #fff; border-radius: 26px; box-shadow: 0 14px 44px rgba(0,0,0,.14), 0 0 0 1px rgba(0,0,0,.06); overflow: hidden; }
+
+/* 公众号 */
+.ppw-bar { display: flex; align-items: center; justify-content: space-between; padding: 11px 16px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+.ppw-acct { font-weight: 600; color: #1a1a1a; }
+.ppw-back, .ppw-more { color: #999; font-size: 17px; }
+.ppw-scroll { max-height: 620px; overflow-y: auto; padding: 22px 22px 26px; }
+.ppw-title { font-size: 21px; font-weight: 800; line-height: 1.45; color: #1a1a1a; margin: 0 0 14px; }
+.ppw-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+.ppw-av { width: 24px; height: 24px; border-radius: 50%; background: #07C160; color: #fff; font-size: 11px; display: flex; align-items: center; justify-content: center; }
+.ppw-name { font-size: 13px; color: #576b95; }
+.ppw-date { font-size: 12px; color: #b2b2b2; }
+.ppw-body { font-size: 16px; line-height: 1.85; color: #3a3a3a; font-family: var(--font-serif); }
+.ppw-body h1 { font-size: 19px; font-weight: 700; margin: 22px 0 12px; color: #1a1a1a; }
+.ppw-body h2 { font-size: 17px; font-weight: 700; margin: 22px 0 10px; color: #1a1a1a; padding-left: 10px; border-left: 3px solid #07C160; }
+.ppw-body p { margin: 0 0 16px; }
+.ppw-body strong { color: #1a1a1a; }
+.ppw-body blockquote { margin: 0 0 16px; padding: 10px 14px; background: #f7f7f7; border-left: 3px solid #dcdcdc; color: #666; font-size: 15px; }
+.ppw-body ul { margin: 0 0 16px; padding-left: 20px; }
+.ppw-body li { margin: 0 0 8px; }
+.ppw-foot { margin-top: 22px; padding-top: 14px; border-top: 1px solid #f0f0f0; font-size: 12px; color: #b2b2b2; text-align: center; }
+
+/* 小红书 */
+.pp-phone.xhs { width: 360px; }
+.ppx-cover { height: 196px; background: linear-gradient(135deg, #FF2442, #FF6E8A); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.ppx-cover-t { color: #fff; font-size: 25px; font-weight: 800; line-height: 1.3; text-align: center; text-shadow: 0 2px 14px rgba(0,0,0,.2); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.ppx-scroll { padding: 16px 16px 6px; max-height: 420px; overflow-y: auto; }
+.ppx-title { font-size: 17px; font-weight: 700; color: #333; margin: 0 0 10px; line-height: 1.45; }
+.ppx-body { font-size: 14.5px; line-height: 1.78; color: #333; }
+.ppx-body p { margin: 0 0 12px; }
+.ppx-body h2 { font-size: 15px; font-weight: 700; margin: 14px 0 8px; color: #222; }
+.ppx-body strong { color: #FF2442; }
+.ppx-body blockquote { margin: 0 0 12px; padding: 8px 12px; background: #fff0f2; border-radius: 8px; color: #88404c; font-size: 13.5px; }
+.ppx-body ul.compact { margin: 0 0 12px; padding-left: 0; list-style: none; }
+.ppx-body ul.compact li { margin: 0 0 8px; }
+.ppx-tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+.ppx-tag { font-size: 13.5px; color: #13386c; font-weight: 500; }
+.ppx-actions { display: flex; gap: 18px; padding: 12px 16px; border-top: 1px solid #f0f0f0; font-size: 13px; color: #666; }
+.ppx-actions span { display: inline-flex; align-items: center; gap: 4px; }
+
+/* X 推文串 */
+.pp-x { display: flex; flex-direction: column; max-width: 540px; margin: 0 auto; width: 100%; }
+.ppt { display: flex; gap: 12px; padding: 14px 6px; border-bottom: 1px solid var(--line-1); }
+.ppt-av { width: 40px; height: 40px; border-radius: 50%; background: var(--ink-900); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; flex: none; }
+.ppt-main { flex: 1; min-width: 0; }
+.ppt-head { font-size: 14px; color: var(--ink-900); }
+.ppt-handle { color: var(--ink-400); font-weight: 400; font-size: 13px; }
+.ppt-text { font-size: 14.5px; line-height: 1.6; color: var(--ink-800); margin: 3px 0 10px; }
+.ppt-text p { margin: 0 0 6px; }
+.ppt-acts { display: flex; gap: 40px; color: var(--ink-400); }
+
+/* 知乎 / Newsletter 文章版 */
+.pp-article { max-width: 640px; margin: 0 auto; width: 100%; }
+.ppa-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+.ppa-av { width: 32px; height: 32px; border-radius: 50%; background: var(--brand-500); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+.pp-article.zhihu .ppa-av { background: #0084FF; }
+.ppa-name { font-weight: 600; color: var(--ink-900); font-size: 14px; }
+.ppa-sub { font-size: 12px; color: var(--ink-400); }
+.ppa-body { font-family: var(--font-serif); font-size: 16px; line-height: 1.85; color: var(--ink-800); }
+.ppa-body h1 { font-size: 22px; font-weight: 800; margin: 0 0 14px; color: var(--ink-900); }
+.ppa-body h2 { font-size: 18px; font-weight: 700; margin: 24px 0 10px; color: var(--ink-900); }
+.ppa-body p { margin: 0 0 15px; }
+.ppa-body blockquote { margin: 0 0 15px; padding: 10px 16px; border-left: 3px solid var(--brand-300); background: var(--brand-50); color: var(--ink-700); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.ppa-body ul { padding-left: 20px; margin: 0 0 15px; }
+.ppa-body li { margin: 0 0 8px; }

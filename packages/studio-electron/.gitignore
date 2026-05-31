@@ -1,0 +1,6 @@
+# 构建产物 + 发行包（体积大，由 package:mac 脚本生成）
+dist/
+release/
+.electron-resources/
+node_modules/
+*.tsbuildinfo

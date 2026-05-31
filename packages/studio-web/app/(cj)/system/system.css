@@ -1,0 +1,406 @@
+/* 系统 · 编辑部 — 工作站化:一屏不下拉,滚动只在 pane 内 (scoped .cj-system) */
+
+/* ── 顶部工作条:像素 + 标题 + 一行密集 KPI ───────────────────────────── */
+.cj-system .sys-head {
+  padding: 12px 20px 12px;
+  border-bottom: 1px solid var(--line-1);
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in oklab, var(--brand-500) 6%, transparent), transparent 58%),
+    var(--bg-app);
+}
+.cj-system.cj-system .sys-head.warn {
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in oklab, var(--warn-500) 7%, transparent), transparent 58%),
+    var(--bg-app);
+}
+.cj-system .sys-headline {
+  display: flex; align-items: center; gap: 13px; min-width: 0;
+}
+.cj-system .sys-hero-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 5px color-mix(in oklab, var(--brand-600) 24%, transparent));
+  transition: transform var(--motion-base) var(--ease-soft);
+}
+.cj-system .sys-head:hover .sys-hero-pixel { transform: translateY(-2px) rotate(-3deg); }
+.cj-system .sys-headline-text { min-width: 0; flex: 1 1 auto; }
+.cj-system .sys-headline-text .page-title-row { margin: 0; display: flex; align-items: center; gap: 10px; }
+.cj-system .sys-headline-text .page-sub {
+  margin-top: 3px; max-width: 680px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* 集群健康 pill:走 .pill[data-state] 语义底色,叠一点边框让它在工作条右上更"硬核" */
+.cj-system .sys-health-pill {
+  flex: 0 0 auto; margin-left: auto; align-self: center;
+  gap: 6px; padding: 5px 12px;
+  border: 1px solid transparent;
+}
+.cj-system .sys-health-pill.ok   { border-color: color-mix(in oklab, var(--ok-500) 26%, transparent); }
+.cj-system .sys-health-pill.warn { border-color: color-mix(in oklab, var(--warn-500) 26%, transparent); }
+.cj-system .sys-health-pill.err  { border-color: color-mix(in oklab, var(--err-500) 26%, transparent); }
+.cj-system .sys-health-pill svg { opacity: 0.9; }
+
+/* 一行 KPI:密集铺满(对齐 books 标杆) */
+.cj-system .sys-kpis {
+  margin-top: 11px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+
+/* ── 主体两栏 ───────────────────────────────────────────────────────── */
+.cj-system .sys-mainpane { padding: 0; }
+.cj-system .sys-pane-scroll {
+  flex: 1 1 auto;
+  padding: 16px 18px 20px;
+  display: flex; flex-direction: column; gap: 22px;
+}
+
+/* ── 区段标题 ───────────────────────────────────────────────────────── */
+.cj-system .sys-section { min-width: 0; }
+.cj-system .sys-sh {
+  font-size: var(--text-cap); font-weight: 700;
+  color: var(--ink-700);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  padding-bottom: 9px; margin: 0 0 14px;
+  border-bottom: 1px solid var(--line-1);
+  display: flex; align-items: center; gap: 8px;
+}
+.cj-system .sys-sh-ic { color: var(--brand-500); flex: 0 0 auto; }
+.cj-system .sys-sh-c {
+  font-family: var(--font-num); color: var(--ink-400);
+  font-weight: 600; letter-spacing: 0; text-transform: none;
+}
+.cj-system .sys-sh-act {
+  margin-left: auto;
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: var(--text-cap); font-weight: 500;
+  letter-spacing: 0; text-transform: none;
+  color: var(--ink-600);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-pill);
+  padding: 4px 10px; line-height: 1; cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-soft),
+    background var(--motion-fast) var(--ease-soft),
+    border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-system .sys-sh-act:hover {
+  color: var(--brand-600); background: var(--brand-50); border-color: var(--brand-200);
+}
+.cj-system .sys-sh-act svg { flex: 0 0 auto; }
+
+/* ── 编辑部 · 按部门(像素角色卡分组,错落 12 列) ───────────────────── */
+.cj-system .sys-depts {
+  display: grid; grid-template-columns: repeat(12, 1fr);
+  gap: 16px 22px; align-items: start;
+}
+.cj-system .sys-dept { grid-column: span 6; display: flex; flex-direction: column; gap: 8px; position: relative; }
+.cj-system .sys-dept:nth-child(1) { grid-column: span 7; }
+.cj-system .sys-dept:nth-child(2) { grid-column: span 5; }
+.cj-system .sys-dept:nth-child(3) { grid-column: span 5; }
+.cj-system .sys-dept:nth-child(4) { grid-column: span 7; }
+.cj-system .sys-dept-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: var(--text-micro); color: var(--ink-500); letter-spacing: 0.04em;
+}
+.cj-system .sys-dept-label { font-weight: 700; color: var(--ink-700); line-height: 1; }
+.cj-system .sys-dept-count {
+  font-family: var(--font-num); font-size: var(--text-micro); color: var(--ink-400); line-height: 1;
+  padding: 1px 6px; background: var(--bg-sunken); border-radius: 999px;
+}
+.cj-system .sys-dept-hint {
+  font-size: var(--text-micro); color: var(--ink-400); font-weight: 400;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+}
+.cj-system .sys-dept.has-running .sys-dept-label { color: var(--brand-600); }
+.cj-system .sys-dept.has-running .sys-dept-count { background: var(--brand-50); color: var(--brand-600); }
+.cj-system .sys-dept-live { color: var(--brand-500); flex: 0 0 auto; animation: sys-pulse 1.4s ease-in-out infinite; }
+.cj-system .sys-dept.has-running::before {
+  content: ""; position: absolute;
+  left: -10px; top: 2px; bottom: 2px;
+  width: 2px; border-radius: 999px;
+  background: linear-gradient(180deg, var(--brand-500), color-mix(in oklab, var(--brand-500) 55%, white));
+  opacity: .7;
+}
+.cj-system .sys-dept-row { display: flex; flex-direction: column; gap: 6px; }
+/* roster 首帧加载:角色卡骨架(高度对齐 .sys-agent-card) */
+.cj-system .sys-agent-skel { height: 48px; border-radius: var(--r-lg); }
+
+/* 像素角色卡:头像 + 名 + 角色 + 状态 pill(对齐 kit AgentCard 气质,本页作用域) */
+.cj-system .sys-agent-card {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 7px 10px 7px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  text-align: left; cursor: pointer; min-width: 0;
+  transition: border-color var(--motion-fast) var(--ease-soft),
+    background var(--motion-fast) var(--ease-soft),
+    box-shadow var(--motion-fast) var(--ease-soft),
+    transform var(--motion-fast) var(--ease-soft);
+}
+.cj-system .sys-agent-pixel { flex: 0 0 auto; transition: transform var(--motion-fast) var(--ease-soft); }
+.cj-system .sys-agent-card:hover {
+  border-color: var(--brand-200); background: var(--bg-card);
+  box-shadow: var(--sh-1); transform: translateY(-1px);
+}
+.cj-system .sys-agent-card:hover .sys-agent-pixel { transform: translateY(-1px) rotate(-2deg); }
+.cj-system .sys-agent-card:focus-visible { outline: none; border-color: var(--brand-500); box-shadow: var(--ring); }
+.cj-system .sys-agent-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+.cj-system .sys-agent-name { font-size: 13px; font-weight: 600; color: var(--ink-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cj-system .sys-agent-role { font-size: 11px; color: var(--ink-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cj-system .sys-agent-state { flex: 0 0 auto; }
+.cj-system .sys-agent-card.sel {
+  border-color: var(--brand-500);
+  background: color-mix(in srgb, var(--brand-500) 6%, var(--bg-card));
+  box-shadow: 0 0 0 3px var(--brand-50);
+}
+.cj-system .sys-agent-card.running {
+  border-color: var(--brand-300);
+  background: color-mix(in srgb, var(--brand-500) 4%, var(--bg-card));
+}
+.cj-system .sys-agent-card.running .sys-agent-pixel { animation: sys-breathe 1.8s var(--ease-soft) infinite; }
+@keyframes sys-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+@keyframes sys-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+/* ── 接力时间线 swim lane(保留原视觉,作用域不变) ───────────────────── */
+.cj-system .swim {
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--bg-canvas);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  padding: 12px 16px;
+}
+.cj-system .swim-axis {
+  display: grid;
+  grid-template-columns: 138px repeat(3, 1fr) auto;
+  font-size: var(--text-micro);
+  color: var(--ink-400);
+  font-family: var(--font-num);
+  letter-spacing: 0.04em;
+  padding-bottom: 6px; margin-bottom: 6px;
+  border-bottom: 1px dashed var(--line-2);
+}
+.cj-system .swim-axis > span:first-child { color: transparent; pointer-events: none; }
+.cj-system .swim-axis > span { text-align: left; }
+.cj-system .swim-axis > span:last-child { text-align: right; }
+
+.cj-system .swim-lane {
+  display: grid;
+  grid-template-columns: 138px 1fr;
+  gap: 12px; align-items: center;
+  padding: 4px 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-soft), opacity var(--motion-fast) var(--ease-soft);
+}
+.cj-system .swim-lane:hover { background: var(--bg-hover); }
+.cj-system .swim-lane:focus-visible { outline: none; background: var(--bg-hover); box-shadow: var(--ring); }
+.cj-system .swim-lane.sel  { background: var(--brand-50); box-shadow: inset 2px 0 0 var(--brand-500); padding-left: 4px; }
+.cj-system .swim-lane.faded { opacity: 0.32; }
+.cj-system .swim-lane.running .lane-name { color: var(--brand-600); font-weight: 600; }
+
+/* 时间线首帧加载:泳道骨架(尺寸对齐 lane-label 像素/名 + lane-track) */
+.cj-system .swim-lane-skel { cursor: default; }
+.cj-system .swim-lane-skel:hover { background: transparent; }
+.cj-system .lane-skel-pixel { width: 20px; height: 20px; border-radius: 999px; flex: 0 0 auto; }
+.cj-system .lane-skel-name  { height: 10px; width: 64px; border-radius: var(--r-sm); }
+.cj-system .lane-skel-track { height: 18px; border-radius: var(--r-sm); }
+
+.cj-system .lane-label { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.cj-system .lane-label > svg { flex: 0 0 20px; border-radius: 999px; }
+.cj-system .lane-name {
+  font-size: var(--text-cap); color: var(--ink-700);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.cj-system .lane-track {
+  position: relative; height: 18px;
+  border-radius: var(--r-sm);
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+.cj-system .lane-track-grid {
+  position: absolute; inset: 0;
+  background: linear-gradient(to right, var(--line-2) 1px, transparent 1px) 0 0 / calc(100% / 6) 100%;
+  opacity: 0.5; pointer-events: none;
+}
+.cj-system .lane-empty {
+  position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+  font-size: var(--text-micro); color: var(--ink-300);
+}
+.cj-system .lane-tick {
+  position: absolute; top: 4px;
+  width: 3px; height: 10px; border-radius: 1.5px;
+  transform: translateX(-1.5px);
+  box-shadow: 0 0 0 1px var(--bg-canvas);
+  transition: transform var(--motion-fast) var(--ease-soft);
+}
+.cj-system .lane-tick:hover { transform: translateX(-1.5px) scaleY(1.4); }
+.cj-system .lane-tick.t-token { width: 2px; opacity: 0.7; }
+.cj-system .lane-tick.t-verdict {
+  width: 6px; height: 12px; top: 3px; border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--bg-canvas), 0 0 6px color-mix(in oklab, var(--ok-500) 50%, transparent);
+}
+.cj-system .swim-lane.running .lane-track {
+  background:
+    linear-gradient(to right, color-mix(in oklab, var(--brand-500) 10%, transparent), color-mix(in oklab, var(--brand-500) 4%, transparent) 70%, transparent),
+    var(--bg-sunken);
+}
+
+/* ── 选中角色:浮层式详情(贴在时间线下方,不弹窗) ───────────────────── */
+.cj-system .agent-inline {
+  display: flex; align-items: center; gap: 13px; flex-wrap: wrap;
+  background: var(--bg-card);
+  border: 1px solid var(--brand-200);
+  border-radius: var(--r-xl);
+  padding: 12px 16px;
+  box-shadow: 0 4px 14px -8px color-mix(in oklab, var(--brand-500) 30%, transparent);
+}
+.cj-system .ai-pixel { flex: 0 0 auto; }
+.cj-system .ai-text { min-width: 0; flex: 1 1 auto; }
+.cj-system .ai-name {
+  font-size: var(--text-title); font-weight: 700; color: var(--ink-900);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.cj-system .ai-name .muted { color: var(--ink-400); font-weight: 400; font-size: var(--text-body); }
+.cj-system .ai-name .pill { font-size: 11px; }
+.cj-system .ai-desc {
+  font-size: var(--text-cap); color: var(--ink-500); margin-top: 2px;
+  max-width: 540px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cj-system .ai-meta { display: flex; gap: 16px; margin-left: auto; font-size: var(--text-cap); color: var(--ink-700); }
+.cj-system .ai-meta > span { display: flex; flex-direction: column; gap: 2px; }
+.cj-system .ai-meta > span > b {
+  font-size: var(--text-micro); font-weight: 700; color: var(--ink-400);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.cj-system .ai-meta code { font-family: var(--font-mono); font-size: var(--text-micro); color: var(--ink-700); }
+.cj-system .ai-cta {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 30px; padding: 0 12px;
+  font-size: 12.5px; font-weight: 600;
+  color: var(--ink-inv); background: var(--brand-500);
+  border-radius: var(--r-md);
+  transition: background var(--motion-fast) var(--ease-soft), transform var(--motion-fast) var(--ease-soft);
+}
+.cj-system .ai-cta:hover { background: var(--brand-600); transform: translateY(-1px); }
+.cj-system .ai-close {
+  flex: 0 0 auto;
+  display: grid; place-items: center;
+  width: 28px; height: 28px;
+  background: none; border: none; cursor: pointer;
+  color: var(--ink-400); border-radius: var(--r-sm);
+  transition: background var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft);
+}
+.cj-system .ai-close:hover { background: var(--bg-active); color: var(--ink-700); }
+
+/* ── Inspector:系统证据 + Doctor 计量 + 事件流 ─────────────────────── */
+.cj-system .sys-insp-scroll {
+  padding: 14px 14px 18px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.cj-system .sys-insp-scroll > .card,
+.cj-system .sys-insp-scroll > .cj-foldcard { margin: 0; }
+
+.cj-system .card-title { display: inline-flex; align-items: center; gap: 7px; }
+.cj-system .sys-card-ic { color: var(--brand-600); flex: 0 0 auto; }
+.cj-system .sys-evid-card .card-head .pill { gap: 5px; }
+.cj-system .sys-evid-card .card-head .pill.ok   { }
+.cj-system .sys-evid-card .card-head .pill.warn { }
+.cj-system .sys-evid-card .card-head .pill.err  { }
+
+/* Doctor:计量条 + 一行 StatLine(可量化健康) */
+.cj-system .sys-doctor {
+  display: flex; flex-direction: column; gap: 9px;
+  padding-bottom: 12px; margin-bottom: 4px;
+  border-bottom: 1px dashed var(--line-1);
+}
+.cj-system .sys-doctor-stat { margin-top: 1px; }
+
+/* 证据行:图标 + 标签 + 状态 pill(语义只走 pill) */
+.cj-system .sys-evid { display: flex; flex-direction: column; }
+.cj-system .sys-ev-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--line-1);
+  font-size: var(--text-cap); color: var(--ink-700);
+}
+.cj-system .sys-ev-row:last-child { border-bottom: none; }
+.cj-system .sys-ev-ic {
+  display: grid; place-items: center;
+  width: 26px; height: 26px; flex: 0 0 auto;
+  border-radius: var(--r-sm);
+  background: var(--bg-sunken);
+  color: var(--ink-400);
+  transition: color var(--motion-fast) var(--ease-soft), background var(--motion-fast) var(--ease-soft);
+}
+.cj-system .sys-ev-row[data-state="success"] .sys-ev-ic { color: var(--ok-500); background: var(--ok-50); }
+.cj-system .sys-ev-row[data-state="warn"] .sys-ev-ic { color: var(--warn-500); background: var(--warn-50); }
+.cj-system .sys-ev-row[data-state="error"] .sys-ev-ic { color: var(--err-500); background: var(--err-50); }
+.cj-system .sys-ev-label { flex: 1 1 auto; min-width: 0; font-weight: 500; }
+.cj-system .sys-ev-sub {
+  flex: 0 0 auto; font-family: var(--font-num);
+  font-size: var(--text-micro); color: var(--ink-400);
+}
+.cj-system .sys-ev-row .pill { flex: 0 0 auto; gap: 4px; }
+.cj-system .sys-ev-row .pill svg { flex: 0 0 auto; }
+
+/* 实时事件流:等宽日志,卡内滚 */
+.cj-system .sys-log {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: 1.7;
+  display: flex; flex-direction: column; gap: 1px;
+  padding-top: 2px;
+}
+.cj-system .sys-log .ln { display: flex; gap: 8px; align-items: center; }
+.cj-system .sys-log .ln .t { color: var(--ink-400); flex: 0 0 auto; }
+.cj-system .sys-log .ln .lv { font-weight: 700; flex: 0 0 auto; }
+.cj-system .sys-log .ln .lv.info { color: var(--ink-500); }
+.cj-system .sys-log .ln .lv.ok   { color: var(--ok-500); }
+.cj-system .sys-log .ln .lv.warn { color: var(--warn-500); }
+.cj-system .sys-log .ln .lv.err  { color: var(--err-500); }
+.cj-system .sys-log .ln .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.cj-system .sys-log .ln .msg {
+  color: var(--ink-700);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 1 1 auto; min-width: 0;
+}
+.cj-system .sys-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 26px 12px;
+  color: var(--ink-400); font-family: var(--font-sans); font-size: var(--text-cap);
+  text-align: center;
+}
+.cj-system .sys-empty svg { color: var(--ink-300); }
+
+/* ── 响应式 ──────────────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .cj-system .sys-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cj-system .sys-kpis > .cj-kpi:nth-child(4),
+  .cj-system .sys-kpis > .cj-kpi:nth-child(5) { grid-column: span 1; }
+}
+@media (max-width: 1100px) {
+  .cj-system .sys-depts { grid-template-columns: 1fr; }
+  .cj-system .sys-dept,
+  .cj-system .sys-dept:nth-child(1),
+  .cj-system .sys-dept:nth-child(2),
+  .cj-system .sys-dept:nth-child(3),
+  .cj-system .sys-dept:nth-child(4) { grid-column: 1 / -1; }
+  .cj-system .swim-lane { grid-template-columns: 110px 1fr; gap: 8px; }
+  .cj-system .swim-axis { grid-template-columns: 110px repeat(3, 1fr) auto; }
+}
+@media (max-width: 860px) {
+  .cj-system .sys-headline { flex-wrap: wrap; gap: 12px; }
+  .cj-system .sys-headline-text .page-sub { white-space: normal; }
+  .cj-system .sys-health-pill { margin-left: 0; }
+  .cj-system .sys-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cj-system .ai-meta { width: 100%; margin-left: 0; }
+}
+@media (max-width: 720px) {
+  .cj-system .sys-head { padding: 12px 14px; }
+  .cj-system .sys-hero-pixel { width: 40px; height: 40px; }
+  .cj-system .sys-pane-scroll { padding: 14px 12px 16px; }
+}

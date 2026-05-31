@@ -1,0 +1,133 @@
+/* 导入台 · (scoped .cj-import) — 工作条 + 图标化能力链路
+   说明:本页正文是共享的 <CapabilityWorkbench>(不在本页改,自带表单/结果/历史、整体较高),
+   故沿用 .page 文档流(与同样内嵌 Workbench 的检测台一致);这里把页头升级到 books 标杆
+   workhead 的密度与颜值:像素 + 标题 + 一行密集 KPI,再用一行图标化能力轨替代裸文字流程。
+   视觉只用既有 token / kit;色彩一律走 CSS 变量。 */
+.cj-import { display: flex; flex-direction: column; gap: 0; padding: 0; }
+
+/* ── 顶部工作条:像素 + 标题 + 一行 KPI(对齐 .cj-books .bk-head)── */
+.cj-import .imp-head {
+  padding: 14px 4px 16px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--line-1);
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in oklab, var(--brand-500) 6%, transparent), transparent 58%),
+    transparent;
+}
+.cj-import .imp-headline {
+  display: flex; align-items: center; gap: 13px; min-width: 0;
+}
+.cj-import .imp-head-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 5px color-mix(in oklab, var(--brand-600) 22%, transparent));
+  transition: transform 240ms var(--ease-soft);
+}
+.cj-import .imp-head:hover .imp-head-pixel { transform: translateY(-2px) rotate(-3deg); }
+.cj-import .imp-headline-text { min-width: 0; flex: 1 1 auto; }
+.cj-import .imp-headline-text .page-title-row { margin: 0; }
+.cj-import .imp-headline-text .page-sub {
+  margin-top: 3px; max-width: 760px;
+  line-height: 1.55;
+}
+
+/* 右上「走通 Studio API」标——沿用 brand 软底 pill 语气,克制 */
+.cj-import .imp-head-meta {
+  flex: 0 0 auto; margin-left: auto; align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-num); font-variant-numeric: tabular-nums;
+  font-size: 11.5px; font-weight: 600;
+  color: var(--brand-600); padding: 4px 11px;
+  border-radius: var(--r-pill); background: var(--brand-50);
+  white-space: nowrap;
+}
+.cj-import .imp-head-meta-ico { width: 13px; height: 13px; }
+
+/* 一行 KPI:密集而不乱,横向铺满(对齐 .cj-books .bk-kpis) */
+.cj-import .imp-kpis {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+
+/* ── 焦点带:像素「风格指纹官」+ 能力链路图标化一行排开 ── */
+.cj-import .imp-hero {
+  display: flex; align-items: center; gap: 15px;
+  padding: 14px 16px; margin-bottom: 20px;
+  border: 1px solid var(--line-1); border-radius: var(--r-xl);
+  background:
+    radial-gradient(120% 160% at 0% 0%, color-mix(in oklab, var(--brand-500) 8%, transparent), transparent 60%),
+    var(--bg-card);
+  box-shadow: var(--sh-1);
+  transition: box-shadow var(--motion-fast) var(--ease-soft);
+}
+.cj-import .imp-hero:hover { box-shadow: var(--sh-2); }
+.cj-import .imp-hero-pix {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 6px color-mix(in oklab, var(--brand-500) 26%, transparent));
+  transition: transform var(--motion-fast) var(--ease-soft);
+}
+.cj-import .imp-hero:hover .imp-hero-pix { transform: translateY(-2px) rotate(-3deg); }
+.cj-import .imp-hero-body { flex: 1 1 auto; min-width: 0; }
+/* 眉标 + 就绪度 pill 同一行:眉标贴左,就绪 pill 收口贴右(对齐检测台 det-hero) */
+.cj-import .imp-hero-top {
+  display: flex; align-items: center; gap: 10px;
+}
+.cj-import .imp-hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+  font-size: var(--text-micro); font-weight: 600; color: var(--ink-400);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.cj-import .imp-hero-eyebrow-ico { width: 13px; height: 13px; flex: 0 0 auto; }
+/* 就绪度只走 .pill[data-state](语义色随状态,不另造杂色) */
+.cj-import .imp-verdict { flex: 0 0 auto; margin-left: auto; }
+
+/* 能力轨:每条 = 图标 + 名称 + 副词,细描边 chip;箭头分隔阶段,克制不抢色 */
+.cj-import .imp-lanes {
+  margin-top: 9px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 7px 8px;
+}
+.cj-import .imp-lane {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 11px 6px 9px; border-radius: var(--r-pill);
+  border: 1px solid var(--line-1); background: var(--bg-card);
+  transition: border-color var(--motion-fast) var(--ease-soft),
+              background var(--motion-fast) var(--ease-soft);
+}
+.cj-import .imp-lane:hover { border-color: var(--line-2); background: var(--bg-hover); }
+.cj-import .imp-lane-ico {
+  width: 15px; height: 15px; flex: 0 0 auto; color: var(--brand-500);
+}
+.cj-import .imp-lane-text { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
+.cj-import .imp-lane-name { font-size: 12.5px; font-weight: 600; color: var(--ink-800); }
+.cj-import .imp-lane-hint { font-style: normal; font-size: 11px; color: var(--ink-400); white-space: nowrap; }
+.cj-import .imp-lane-arrow { width: 14px; height: 14px; flex: 0 0 auto; color: var(--ink-300); }
+
+/* 链路落点 = 变现去向:轻 brand 着色,作为「素材→创作→变现」的暖心终点 */
+.cj-import .imp-lane.is-goal {
+  border-color: color-mix(in oklab, var(--brand-500) 26%, transparent);
+  background: var(--brand-50);
+}
+.cj-import .imp-lane.is-goal .imp-lane-ico { color: var(--brand-600); }
+.cj-import .imp-lane.is-goal .imp-lane-name { color: var(--brand-700, var(--brand-600)); }
+.cj-import .imp-lane.is-goal .imp-lane-hint { color: var(--brand-600); }
+
+/* ── 响应式:KPI 与能力轨自适应,Workbench 自身随窗收拢 ── */
+@media (max-width: 1080px) {
+  .cj-import .imp-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .cj-import .imp-headline { flex-wrap: wrap; }
+  .cj-import .imp-head-meta { margin-left: 0; }
+  .cj-import .imp-headline-text .page-sub { white-space: normal; }
+  .cj-import .imp-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cj-import .imp-hero { gap: 12px; padding: 13px; }
+  .cj-import .imp-hero-pix { width: 38px; height: 38px; }
+  .cj-import .imp-lane-arrow { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cj-import .imp-head:hover .imp-head-pixel,
+  .cj-import .imp-hero:hover .imp-hero-pix { transform: none; }
+  .cj-import .imp-hero { transition: none; }
+}

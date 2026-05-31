@@ -1,0 +1,277 @@
+/* ───────────────────────────────────────────────────────────
+   BuildStatusIndicator —— 侧栏底部常驻「在建/在写」胶囊 + 弹出列表
+   只用 design.css 既有 token(--ink/--brand/--bg/--line/语义色/半径/动效)。
+   不改 app/design.css;样式全部自带、收敛在 .bsi 作用域内。
+   ─────────────────────────────────────────────────────────── */
+
+.bsi {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* ── 胶囊本体 ─────────────────────────────────────────────── */
+.bsi-pill {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-pill);
+  background: var(--bg-card);
+  color: var(--ink-700);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  transition:
+    background var(--motion-fast) var(--ease-soft),
+    border-color var(--motion-fast) var(--ease-soft),
+    color var(--motion-fast) var(--ease-soft);
+}
+.bsi-pill:hover {
+  background: var(--bg-hover);
+  border-color: color-mix(in oklab, var(--brand-500) 30%, var(--line-1));
+  color: var(--ink-900);
+}
+.bsi-pill.open {
+  background: var(--bg-hover);
+  border-color: color-mix(in oklab, var(--brand-500) 45%, var(--line-1));
+}
+
+/* 像素点睛:一个像素小图标 + 呼吸火花。只在"有在跑"时点亮品牌色火花。 */
+.bsi-pixel {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+.bsi-pixel svg {
+  display: block;
+  image-rendering: pixelated;
+}
+.bsi-spark {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--brand-500);
+  box-shadow: 0 0 0 2px var(--bg-card);
+  animation: bsi-breathe 1.8s var(--ease-soft) infinite;
+}
+
+.bsi-text {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 卡住时主文案走语义红(全块唯一强调切换),其余走品牌紫 */
+.bsi[data-tone="active"] .bsi-text { color: var(--brand-600); }
+.bsi[data-tone="stuck"] .bsi-text { color: var(--err-500); }
+
+.bsi-sub {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-400);
+  font-variant-numeric: tabular-nums;
+}
+.bsi-caret {
+  flex: 0 0 auto;
+  color: var(--ink-400);
+  transition: transform var(--motion-fast) var(--ease-soft);
+}
+.bsi-pill.open .bsi-caret { transform: rotate(90deg); }
+
+/* 折叠态用的小圆点(替代文字),默认品牌、卡住转红 */
+.bsi-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--brand-500);
+  animation: bsi-breathe 1.8s var(--ease-soft) infinite;
+}
+.bsi-dot.stuck { background: var(--err-500); }
+
+/* ── 弹出列表(对齐 design.css 的 .settings-menu 浮层规范) ──── */
+.bsi-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: var(--z-popover, 60);
+  background: var(--bg-card);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg, 12px);
+  box-shadow: var(--shadow-pop, 0 12px 32px rgba(0, 0, 0, 0.16));
+  padding: 6px;
+  animation: bsi-menu-in 160ms var(--ease-soft, ease-out);
+}
+@keyframes bsi-menu-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.bsi-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 8px;
+}
+.bsi-menu-head > span:first-child {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink-400);
+}
+.bsi-menu-counts {
+  margin-left: auto;
+  display: flex;
+  gap: 5px;
+}
+.bsi-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.bsi-chip.building {
+  color: var(--ink-600);
+  background: var(--bg-sunken);
+}
+.bsi-chip.writing {
+  color: var(--brand-600);
+  background: var(--brand-50);
+}
+.bsi-chip.stuck {
+  color: var(--err-500);
+  background: color-mix(in oklab, var(--err-500) 14%, transparent);
+}
+
+.bsi-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.bsi-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 8px;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink-700);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-soft),
+    color var(--motion-fast) var(--ease-soft);
+}
+.bsi-row:hover { background: var(--bg-hover); color: var(--ink-900); }
+
+.bsi-row-pixel {
+  flex: 0 0 26px;
+  border-radius: var(--r-sm);
+}
+
+.bsi-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.bsi-row-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bsi-row-stage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ink-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bsi-row-state-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  flex: 0 0 6px;
+}
+/* 状态点:在建灰、写作中品牌(呼吸)、卡住红 */
+.bsi-row-state-dot.bsi-building { background: var(--ink-300); }
+.bsi-row-state-dot.bsi-writing {
+  background: var(--brand-500);
+  animation: bsi-breathe 1.8s var(--ease-soft) infinite;
+}
+.bsi-row-state-dot.bsi-stuck { background: var(--err-500); }
+
+.bsi-row-go {
+  flex: 0 0 auto;
+  color: var(--ink-300);
+  opacity: 0;
+  transform: translateX(-2px);
+  transition:
+    opacity var(--motion-fast) var(--ease-soft),
+    transform var(--motion-fast) var(--ease-soft);
+}
+.bsi-row:hover .bsi-row-go {
+  opacity: 1;
+  transform: translateX(0);
+  color: var(--ink-500);
+}
+
+.bsi-menu-foot {
+  padding: 8px 8px 4px;
+  margin-top: 2px;
+  border-top: 1px solid var(--line-1);
+  font-size: 10.5px;
+  color: var(--ink-400);
+}
+
+/* ── 折叠态:胶囊只剩像素 + 小圆点,菜单从右侧浮出 ──────────── */
+.app.sidebar-collapsed .bsi-pill {
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 0;
+}
+.app.sidebar-collapsed .bsi-menu {
+  left: calc(100% + 8px);
+  right: auto;
+  bottom: 0;
+  min-width: 240px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bsi-spark,
+  .bsi-dot,
+  .bsi-row-state-dot.bsi-writing {
+    animation: none;
+  }
+}
+
+@keyframes bsi-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.82); }
+}

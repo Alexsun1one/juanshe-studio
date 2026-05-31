@@ -1,0 +1,214 @@
+/* 登录页 · 全屏(scoped .cj-login),复用设计令牌 + 暗夜模式 */
+
+.cj-login {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;  /* 故事栏更宽,右侧登录卡收窄,腾出位置 */
+  font-family: var(--font-pixel-ui);  /* 登录页 UI 默认像素 */
+  background: var(--bg-app);
+  color: var(--ink-800);
+}
+/* 长叙事文案保宋体(像读一段书卷开场),文本输入保 sans 可读;激活码(.mono)走 --font-num 像素 */
+.cj-login .story p, .cj-login .story .promise { font-family: var(--font-serif-prose); }
+.cj-login .card .inp { font-family: var(--font-sans-ui); }
+
+/* 左侧品牌 hero */
+.cj-login .aside {
+  position: relative;
+  overflow: hidden;
+  padding: 56px 56px 48px;
+  display: flex; flex-direction: column;
+  background: linear-gradient(160deg, var(--bg-canvas) 0%, var(--bg-app) 100%);
+  color: var(--ink-800);
+  border-right: 1px solid var(--line-1);
+}
+.cj-login .aside::before,
+.cj-login .aside::after {
+  content: ""; position: absolute; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, color-mix(in oklab, var(--brand-500) 12%, transparent), transparent 70%);
+  filter: blur(8px);
+}
+.cj-login .aside::before { width: 420px; height: 420px; right: -120px; top: -100px; animation: cj-orb1 14s var(--ease-soft) infinite alternate; }
+.cj-login .aside::after { width: 320px; height: 320px; left: -80px; bottom: -80px; background: radial-gradient(circle, color-mix(in oklab, var(--accent-warm, #E8965A) 14%, transparent), transparent 70%); animation: cj-orb2 18s var(--ease-soft) infinite alternate; }
+@keyframes cj-orb1 { to { transform: translate(-40px, 50px) scale(1.15); } }
+@keyframes cj-orb2 { to { transform: translate(50px, -30px) scale(1.1); } }
+
+.cj-login .aside-brand { display: flex; align-items: center; gap: 12px; position: relative; z-index: 1; }
+.cj-login .aside-brand .mk { width: 40px; height: 40px; border-radius: 11px; background: var(--brand-50); color: var(--brand-600); display: grid; place-items: center; border: 1px solid var(--line-1); }
+.cj-login .aside-brand .nm { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
+.cj-login .aside-hero { margin-top: auto; position: relative; z-index: 1; }
+.cj-login .aside-hero h1 { font-size: 38px; line-height: 1.25; font-weight: 800; margin: 0 0 16px; letter-spacing: -0.01em; }
+.cj-login .aside-hero h1 .grad { background: linear-gradient(90deg, #C8BDFF, #fff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.cj-login .aside-hero p { font-size: 14.5px; line-height: 1.7; color: rgba(255,255,255,0.72); max-width: 420px; margin: 0; }
+.cj-login .feat { margin-top: 28px; display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 1; }
+.cj-login .feat .fi { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: rgba(255,255,255,0.86); }
+.cj-login .feat .fi .ic { width: 26px; height: 26px; border-radius: 8px; background: rgba(255,255,255,0.12); display: grid; place-items: center; flex: 0 0 26px; color: #C8BDFF; }
+.cj-login .aside-foot { margin-top: 36px; font-size: 12px; color: rgba(255,255,255,0.5); position: relative; z-index: 1; }
+
+/* 右侧表单 */
+.cj-login .main { display: flex; align-items: center; justify-content: center; padding: 40px; }
+.cj-login .form-wrap { width: 100%; max-width: 380px; animation: cj-fade-in var(--motion-slow) var(--ease-out-cj); }
+.cj-login .welcome { font-size: 26px; font-weight: 800; color: var(--ink-900); letter-spacing: -0.01em; }
+.cj-login .welcome-sub { font-size: 13.5px; color: var(--ink-500); margin-top: 8px; }
+.cj-login .form { margin-top: 28px; display: flex; flex-direction: column; gap: 16px; }
+.cj-login .field { display: flex; flex-direction: column; gap: 7px; }
+.cj-login .field label { font-size: 12.5px; color: var(--ink-600); font-weight: 500; }
+.cj-login .input-wrap { position: relative; display: flex; align-items: center; }
+.cj-login .input-wrap .lead { position: absolute; left: 12px; color: var(--ink-400); display: grid; place-items: center; }
+.cj-login .input-wrap input {
+  width: 100%; height: 44px; padding: 0 12px 0 38px;
+  border: 1px solid var(--line-2); border-radius: var(--r-md);
+  background: var(--bg-card); color: var(--ink-900); font-size: 14px;
+  transition: border-color var(--motion-fast) var(--ease-soft), box-shadow var(--motion-fast) var(--ease-soft);
+}
+.cj-login .input-wrap input::placeholder { color: var(--ink-300); }
+.cj-login .input-wrap input:focus-visible { outline: none; border-color: var(--brand-400, var(--brand-300)); box-shadow: var(--ring); }
+.cj-login .input-wrap .eye { position: absolute; right: 8px; width: 30px; height: 30px; display: grid; place-items: center; color: var(--ink-400); border-radius: var(--r-sm); cursor: pointer; }
+.cj-login .input-wrap .eye:hover { background: var(--bg-hover); color: var(--brand-600); }
+.cj-login .row-between { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; }
+.cj-login .remember { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-600); cursor: pointer; user-select: none; }
+.cj-login .remember .box { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--line-3); display: grid; place-items: center; transition: all var(--motion-fast) var(--ease-soft); }
+.cj-login .remember .box.on { background: var(--brand-500); border-color: var(--brand-500); color: #fff; }
+.cj-login .link { color: var(--brand-600); cursor: pointer; }
+.cj-login .link:hover { text-decoration: underline; }
+.cj-login .submit { width: 100%; justify-content: center; height: 46px; font-size: 14px; margin-top: 4px; }
+.cj-login .divider-or { display: flex; align-items: center; gap: 12px; color: var(--ink-400); font-size: 12px; margin: 6px 0; }
+.cj-login .divider-or::before, .cj-login .divider-or::after { content: ""; flex: 1; height: 1px; background: var(--line-1); }
+.cj-login .ghost-enter { width: 100%; justify-content: center; height: 44px; }
+.cj-login .login-foot { margin-top: 26px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-500); }
+.cj-login .login-foot .env-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok-500); box-shadow: 0 0 0 3px rgba(29,185,122,0.18); }
+
+/* ════ v2:背景故事 + 团队 + 进入卡(作者名 + 激活码)════ */
+.cj-login .aside { padding: 44px 48px; }
+.cj-login .story { margin-top: 24px; position: relative; z-index: 1; max-width: 500px; }
+.cj-login .story h1 { font-size: 29px; line-height: 1.4; font-weight: 800; margin: 0 0 16px; letter-spacing: -0.01em; color: var(--ink-900); }
+.cj-login .story h1 .grad { background: linear-gradient(90deg, var(--brand-500), var(--brand-700)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.cj-login .story p { font-size: 13.5px; line-height: 1.85; color: var(--ink-600); margin: 0 0 11px; }
+.cj-login .story p b { color: var(--ink-900); font-weight: 700; }
+.cj-login .story .slogan { font-size: 19px; font-weight: 800; letter-spacing: 0.06em; color: var(--accent-warm-deep); margin: 15px 0; text-shadow: none; }
+
+/* 硅基小镇背景 —— 「by the way」式旁白,顶部虚线分隔,略小略淡 */
+.cj-login .story .lore {
+  margin-top: 16px; padding-top: 14px;
+  border-top: 1px dashed var(--line-2, var(--line-1));
+  font-size: 12.5px; line-height: 1.85; color: var(--ink-500);
+}
+/* 硅基小镇 —— 通往另一座宇宙的入口:品牌渐变 + 像素体 */
+.cj-login .silicon {
+  font-family: var(--font-pixel-ui); font-weight: 700; letter-spacing: 0.02em;
+  background: linear-gradient(90deg, var(--brand-500), var(--brand-700));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.cj-login .silicoville-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-left: 7px;
+  padding: 2px 9px 3px;
+  color: var(--brand-700);
+  font-family: var(--font-pixel-ui);
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  vertical-align: baseline;
+  border: 1px solid color-mix(in oklab, var(--brand-500) 22%, var(--line-1));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--brand-500) 7%, var(--bg-card));
+  box-shadow: 0 2px 0 color-mix(in oklab, var(--brand-500) 10%, transparent);
+  transition: transform .16s var(--ease-spring-cj, ease), border-color .16s ease, background .16s ease;
+}
+.cj-login .silicoville-link:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--brand-500) 36%, var(--line-1));
+  background: color-mix(in oklab, var(--brand-500) 11%, var(--bg-card));
+}
+
+/* 「卷」字 —— 品牌之魂:像素体 + 品牌紫 + 加大,从暖灰正文里跳出来 */
+.cj-login .juan {
+  font-family: var(--font-pixel-ui);
+  color: var(--brand-600);
+  font-weight: 700;
+  font-size: 1.16em;
+  letter-spacing: 0.02em;
+  display: inline-block;
+}
+/* 口号里的卷:更大一档 + 像素描边阴影 + 错峰轻跳(卷的劲) */
+.cj-login .slogan .juan {
+  font-size: calc(1.5em + var(--i, 0) * 0.09em);
+  line-height: 1;
+  margin: 0 0.012em;
+  text-shadow: 2px 2px 0 color-mix(in oklab, var(--brand-500) 22%, transparent);
+  animation: juan-bob 1.9s var(--ease-soft, ease-in-out) infinite;
+  animation-delay: calc(var(--i, 0) * 0.11s);
+}
+@keyframes juan-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-0.11em); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cj-login .slogan .juan { animation: none; }
+}
+.cj-login .story .promise { color: var(--ink-700); }
+.cj-login .team { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 8px; position: relative; z-index: 1; }
+.cj-login .team-m { width: 58px; height: 58px; border-radius: 13px; background: var(--bg-card); border: 1px solid var(--line-1); display: grid; place-items: center; padding: 3px; box-shadow: var(--sh-1); transition: transform .18s var(--ease-spring-cj, ease), box-shadow .18s, border-color .18s; animation: cj-team-in .5s var(--ease-spring-cj, ease) both; animation-delay: var(--d, 0s); }
+.cj-login .team-m:hover { transform: translateY(-3px) rotate(-3deg); box-shadow: var(--sh-2); border-color: var(--brand-200); }
+@keyframes cj-team-in { from { opacity: 0; transform: translateY(8px) scale(0.82); } to { opacity: 1; transform: none; } }
+
+.cj-login .panel { display: flex; align-items: center; justify-content: center; padding: 40px; }
+.cj-login .card { width: 100%; max-width: 384px; background: var(--bg-card); border: 1px solid var(--line-1); border-radius: var(--r-2xl); padding: 30px 28px; box-shadow: var(--sh-3); animation: cj-fade-in var(--motion-slow, .36s) var(--ease-out-cj, ease); }
+.cj-login .card-emblem { width: 44px; height: 44px; border-radius: 12px; background: var(--brand-50); color: var(--brand-600); display: grid; place-items: center; margin-bottom: 14px; }
+.cj-login .card h2 { font-size: 22px; font-weight: 800; color: var(--ink-900); margin: 0; }
+.cj-login .card-sub { font-size: 13px; color: var(--ink-500); margin: 6px 0 22px; line-height: 1.6; }
+.cj-login .card .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.cj-login .card .lab { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--ink-700); }
+.cj-login .card .inp { height: 42px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--bg-canvas); padding: 0 13px; font-size: 14px; color: var(--ink-900); transition: border-color .15s, box-shadow .15s; }
+.cj-login .card .inp.mono { font-family: var(--font-num); letter-spacing: 0.08em; }
+.cj-login .card .inp::placeholder { color: var(--ink-300); }
+.cj-login .card .inp:focus-visible { outline: none; border-color: var(--brand-400, var(--brand-500)); box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand-500) 18%, transparent); }
+.cj-login .card .hint { font-size: 11px; color: var(--ink-400); line-height: 1.5; }
+.cj-login .card .enter { width: 100%; height: 46px; margin-top: 6px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 14.5px; font-weight: 700; color: #fff; background: linear-gradient(180deg, var(--brand-500), var(--brand-600)); border: none; border-radius: var(--r-lg); cursor: pointer; transition: transform .15s, box-shadow .15s, opacity .15s; box-shadow: 0 6px 18px rgba(110, 91, 250, 0.28); }
+.cj-login .card .enter:hover { transform: translateY(-1.5px); box-shadow: 0 10px 24px rgba(110, 91, 250, 0.34); }
+.cj-login .card .enter:active { transform: translateY(0) scale(0.98); }
+.cj-login .card .enter:disabled { opacity: .6; cursor: default; }
+.cj-login .card .foot-note { font-size: 11px; color: var(--ink-400); text-align: center; margin: 16px 0 0; }
+.cj-login .login-err {
+  display: flex; align-items: center; gap: 7px;
+  margin: 0 0 12px; padding: 9px 12px;
+  font-size: 12.5px; line-height: 1.45; font-weight: 500;
+  color: var(--rose-700, #b4233a);
+  background: var(--rose-50, color-mix(in oklab, #e5484d 9%, var(--bg-card)));
+  border: 1px solid var(--rose-200, color-mix(in oklab, #e5484d 26%, var(--line-1)));
+  border-radius: var(--r-md);
+  animation: cj-fade-in var(--motion-fast, .15s) var(--ease-out-cj, ease);
+}
+.cj-login .login-err svg { flex: 0 0 auto; }
+
+/* 公众号领码引导:没填激活码时出现,微信搜一搜/扫码横条 + 引导文案 */
+.cj-login .code-claim {
+  display: flex; flex-direction: column; gap: 10px;
+  margin: 0 0 16px; padding: 13px;
+  background: color-mix(in oklab, var(--brand-500) 5%, var(--bg-canvas));
+  border: 1px solid color-mix(in oklab, var(--brand-500) 18%, var(--line-1));
+  border-radius: var(--r-lg);
+  animation: cj-fade-in var(--motion, .2s) var(--ease-out-cj, ease);
+}
+.cj-login .cc-title { font-size: 12.5px; font-weight: 700; color: var(--brand-700, var(--brand-600)); }
+.cj-login .cc-banner { display: block; width: 100%; height: auto; border-radius: var(--r-md); background: #fff; border: 1px solid var(--line-1); }
+.cj-login .cc-banner-fallback {
+  display: grid; place-items: center; gap: 3px; width: 100%; min-height: 92px; padding: 14px;
+  font-size: 12.5px; font-weight: 700; color: var(--ink-400); text-align: center; line-height: 1.3;
+  border-radius: var(--r-md);
+  background: repeating-linear-gradient(45deg, var(--bg-sunken), var(--bg-sunken) 7px, transparent 7px, transparent 14px);
+}
+.cj-login .cc-banner-fallback span { font-size: 10.5px; color: var(--ink-300); font-weight: 500; }
+.cj-login .cc-hint { font-size: 12px; line-height: 1.6; color: var(--ink-600); margin: 0; }
+.cj-login .cc-hint b { color: var(--ink-900); font-weight: 700; }
+
+@media (max-width: 880px) {
+  .cj-login { grid-template-columns: 1fr; }
+  .cj-login .aside { padding: 30px 26px; }
+  .cj-login .story h1 { font-size: 23px; }
+  .cj-login .panel { padding: 28px; }
+}
+@media (prefers-reduced-motion: reduce) { .cj-login .team-m { animation: none; } }

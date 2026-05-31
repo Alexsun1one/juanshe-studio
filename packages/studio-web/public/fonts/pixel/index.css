@@ -1,0 +1,9 @@
+/* Zpix(最像素)— 开源中文像素字体,自托管。给 UI 文字(标题/标签/数字/导航)用,
+   营造温暖、童话、可爱的像素工坊感。书的正文仍用衬线(可读)。 */
+@font-face {
+  font-family: 'Zpix';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(./zpix.woff2) format('woff2');
+}

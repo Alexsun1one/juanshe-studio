@@ -1,0 +1,205 @@
+/* ════════════════════════════════════════════════════════════════
+   卷舍 · 多主题色系统 (Theme Palettes)
+   ----------------------------------------------------------------
+   设计契约:换主题只换「主色调性格」,不换灵魂。
+   - 只覆盖 brand/primary/accent/ring/sidebar-primary 这些「主色」色族。
+   - 暖纸奶油底 / 暖棕墨阶 / 像素色板 / 语义状态色(success·warn·danger·info)
+     全部保持不变 —— 任何主题下都还是「卷舍」那张暖纸像素工坊的脸。
+   机制:
+   - html[data-cj-theme="<name>"]        覆盖日间(:root)
+   - html.dark[data-cj-theme="<name>"]   覆盖夜间(.dark)
+   - 默认(无 data-cj-theme 或 ="violet")= 卷舍柔紫,沿用 design.css/globals.css
+     原值,无需在此重复定义。
+   加载顺序:globals.css → design.css → themes.css(本表最后,确保覆盖)。
+   ════════════════════════════════════════════════════════════════ */
+
+/* ───────────────────────── 墨青 Jade ───────────────────────── */
+html[data-cj-theme="jade"] {
+  --brand-500: #1C8C77; --brand-600: #146E5D; --brand-700: #0D5446;
+  --brand-400: #40A691; --brand-300: #6FBFAC; --brand-200: #A6DBCF;
+  --brand-100: #CCEAE2; --brand-50: #E8F5F1;
+  --primary: #1C8C77; --ring: 0 0 0 3px rgba(28, 140, 119, 0.22);
+  --brand: #1C8C77; --brand-soft: #E8F5F1;
+  --accent: #E8F5F1; --accent-foreground: #0D5446;
+  --bg-active: #E8F5F1;
+  --sidebar-primary: #1C8C77; --sidebar-accent: #E8F5F1;
+  --sidebar-accent-foreground: #0D5446; --sidebar-ring: #1C8C77;
+}
+html.dark[data-cj-theme="jade"] {
+  --brand-500: #43C2AE; --brand-600: #6AD3C2; --brand-700: #93E1D5;
+  --brand-400: #4FB9A4; --brand-300: #2F8472; --brand-200: #1E5749;
+  --brand-100: #16423A; --brand-50: #10332E;
+  --primary: #43C2AE; --ring: 0 0 0 3px rgba(67, 194, 174, 0.32);
+  --brand: #43C2AE; --brand-soft: #10332E;
+  --accent: #10332E; --accent-foreground: #93E1D5;
+  --bg-active: #10332E;
+  --sidebar-primary: #43C2AE; --sidebar-accent: #10332E;
+  --sidebar-accent-foreground: #93E1D5; --sidebar-ring: #43C2AE;
+}
+
+/* ──────────────────────── 孔雀蓝 Peacock ──────────────────────── */
+html[data-cj-theme="peacock"] {
+  --brand-500: #0F84A4; --brand-600: #0B6783; --brand-700: #084E64;
+  --brand-400: #37A0BC; --brand-300: #64BAD1; --brand-200: #9FD6E4;
+  --brand-100: #C7E8EF; --brand-50: #E5F3F8;
+  --primary: #0F84A4; --ring: 0 0 0 3px rgba(15, 132, 164, 0.22);
+  --brand: #0F84A4; --brand-soft: #E5F3F8;
+  --accent: #E5F3F8; --accent-foreground: #084E64;
+  --bg-active: #E5F3F8;
+  --sidebar-primary: #0F84A4; --sidebar-accent: #E5F3F8;
+  --sidebar-accent-foreground: #084E64; --sidebar-ring: #0F84A4;
+}
+html.dark[data-cj-theme="peacock"] {
+  --brand-500: #36B2D0; --brand-600: #5FC7E0; --brand-700: #8CDAEC;
+  --brand-400: #45A8C2; --brand-300: #277E96; --brand-200: #19505F;
+  --brand-100: #123C49; --brand-50: #0E2E38;
+  --primary: #36B2D0; --ring: 0 0 0 3px rgba(54, 178, 208, 0.32);
+  --brand: #36B2D0; --brand-soft: #0E2E38;
+  --accent: #0E2E38; --accent-foreground: #8CDAEC;
+  --bg-active: #0E2E38;
+  --sidebar-primary: #36B2D0; --sidebar-accent: #0E2E38;
+  --sidebar-accent-foreground: #8CDAEC; --sidebar-ring: #36B2D0;
+}
+
+/* ─────────────────────── 月白薄荷 Mint ─────────────────────── */
+html[data-cj-theme="mint"] {
+  --brand-500: #20A37C; --brand-600: #178362; --brand-700: #0F6349;
+  --brand-400: #4DBE98; --brand-300: #7BD3B5; --brand-200: #ADE6D1;
+  --brand-100: #D0F1E5; --brand-50: #E9F8F1;
+  --primary: #20A37C; --ring: 0 0 0 3px rgba(32, 163, 124, 0.22);
+  --brand: #20A37C; --brand-soft: #E9F8F1;
+  --accent: #E9F8F1; --accent-foreground: #0F6349;
+  --bg-active: #E9F8F1;
+  --sidebar-primary: #20A37C; --sidebar-accent: #E9F8F1;
+  --sidebar-accent-foreground: #0F6349; --sidebar-ring: #20A37C;
+}
+html.dark[data-cj-theme="mint"] {
+  --brand-500: #3FC8A4; --brand-600: #66D8BC; --brand-700: #92E5D0;
+  --brand-400: #4BBE9A; --brand-300: #2B8068; --brand-200: #1B5446;
+  --brand-100: #143E34; --brand-50: #0F2F28;
+  --primary: #3FC8A4; --ring: 0 0 0 3px rgba(63, 200, 164, 0.32);
+  --brand: #3FC8A4; --brand-soft: #0F2F28;
+  --accent: #0F2F28; --accent-foreground: #92E5D0;
+  --bg-active: #0F2F28;
+  --sidebar-primary: #3FC8A4; --sidebar-accent: #0F2F28;
+  --sidebar-accent-foreground: #92E5D0; --sidebar-ring: #3FC8A4;
+}
+
+/* ─────────────────────── 相思红 Rouge ─────────────────────── */
+html[data-cj-theme="rouge"] {
+  --brand-500: #C04766; --brand-600: #A23552; --brand-700: #82273F;
+  --brand-400: #CF6B85; --brand-300: #DC95A9; --brand-200: #ECC1CD;
+  --brand-100: #F5DBE2; --brand-50: #FBECF0;
+  --primary: #C04766; --ring: 0 0 0 3px rgba(192, 71, 102, 0.22);
+  --brand: #C04766; --brand-soft: #FBECF0;
+  --accent: #FBECF0; --accent-foreground: #82273F;
+  --bg-active: #FBECF0;
+  --sidebar-primary: #C04766; --sidebar-accent: #FBECF0;
+  --sidebar-accent-foreground: #82273F; --sidebar-ring: #C04766;
+}
+html.dark[data-cj-theme="rouge"] {
+  --brand-500: #DE6F8C; --brand-600: #E794AB; --brand-700: #EFB6C6;
+  --brand-400: #C76A85; --brand-300: #8A4055; --brand-200: #5A2A38;
+  --brand-100: #431E28; --brand-50: #34161E;
+  --primary: #DE6F8C; --ring: 0 0 0 3px rgba(222, 111, 140, 0.32);
+  --brand: #DE6F8C; --brand-soft: #34161E;
+  --accent: #34161E; --accent-foreground: #EFB6C6;
+  --bg-active: #34161E;
+  --sidebar-primary: #DE6F8C; --sidebar-accent: #34161E;
+  --sidebar-accent-foreground: #EFB6C6; --sidebar-ring: #DE6F8C;
+}
+
+/* ──────────────────────── 莓红 Berry ──────────────────────── */
+html[data-cj-theme="berry"] {
+  --brand-500: #AE3A68; --brand-600: #8F2C53; --brand-700: #6F2040;
+  --brand-400: #C26389; --brand-300: #D490AD; --brand-200: #E8BFD0;
+  --brand-100: #F2DBE6; --brand-50: #FAECF2;
+  --primary: #AE3A68; --ring: 0 0 0 3px rgba(174, 58, 104, 0.22);
+  --brand: #AE3A68; --brand-soft: #FAECF2;
+  --accent: #FAECF2; --accent-foreground: #6F2040;
+  --bg-active: #FAECF2;
+  --sidebar-primary: #AE3A68; --sidebar-accent: #FAECF2;
+  --sidebar-accent-foreground: #6F2040; --sidebar-ring: #AE3A68;
+}
+html.dark[data-cj-theme="berry"] {
+  --brand-500: #D05F89; --brand-600: #DD87A6; --brand-700: #E8AFC4;
+  --brand-400: #C26189; --brand-300: #843C5A; --brand-200: #57263A;
+  --brand-100: #401B2A; --brand-50: #311420;
+  --primary: #D05F89; --ring: 0 0 0 3px rgba(208, 95, 137, 0.32);
+  --brand: #D05F89; --brand-soft: #311420;
+  --accent: #311420; --accent-foreground: #E8AFC4;
+  --bg-active: #311420;
+  --sidebar-primary: #D05F89; --sidebar-accent: #311420;
+  --sidebar-accent-foreground: #E8AFC4; --sidebar-ring: #D05F89;
+}
+
+/* ──────────────────────── 古铜 Brass ──────────────────────── */
+html[data-cj-theme="brass"] {
+  --brand-500: #A9762E; --brand-600: #895E20; --brand-700: #684716;
+  --brand-400: #BF9550; --brand-300: #D2B47E; --brand-200: #E5D2AC;
+  --brand-100: #F1E5CD; --brand-50: #F8F0E1;
+  --primary: #A9762E; --ring: 0 0 0 3px rgba(169, 118, 46, 0.22);
+  --brand: #A9762E; --brand-soft: #F8F0E1;
+  --accent: #F8F0E1; --accent-foreground: #684716;
+  --bg-active: #F8F0E1;
+  --sidebar-primary: #A9762E; --sidebar-accent: #F8F0E1;
+  --sidebar-accent-foreground: #684716; --sidebar-ring: #A9762E;
+}
+html.dark[data-cj-theme="brass"] {
+  --brand-500: #D0A053; --brand-600: #DDB778; --brand-700: #E8CEA0;
+  --brand-400: #BE944E; --brand-300: #79612D; --brand-200: #4E3E1D;
+  --brand-100: #3A2E15; --brand-50: #2C2310;
+  --primary: #D0A053; --ring: 0 0 0 3px rgba(208, 160, 83, 0.32);
+  --brand: #D0A053; --brand-soft: #2C2310;
+  --accent: #2C2310; --accent-foreground: #E8CEA0;
+  --bg-active: #2C2310;
+  --sidebar-primary: #D0A053; --sidebar-accent: #2C2310;
+  --sidebar-accent-foreground: #E8CEA0; --sidebar-ring: #D0A053;
+}
+
+/* ════════════════════ 主题配色切换器(顶栏 UI)════════════════════ */
+.theme-color-picker { position: relative; }
+.theme-color-trigger {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 32px; padding: 0 9px;
+  border-radius: var(--r-md, 9px);
+  color: var(--ink-600); background: transparent;
+  border: 1px solid transparent;
+  transition: background var(--motion-fast) var(--ease-soft),
+              color var(--motion-fast) var(--ease-soft),
+              border-color var(--motion-fast) var(--ease-soft);
+}
+.theme-color-trigger:hover { background: var(--bg-hover); color: var(--ink-800); }
+.theme-color-trigger:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 1px; }
+.theme-color-dot {
+  width: 12px; height: 12px; border-radius: 999px; flex: none;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.5), 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+.theme-color-menu {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: var(--z-overlay, 50);
+  width: 236px;
+  background: var(--bg-card); border: 1px solid var(--line-1);
+  border-radius: var(--r-lg, 12px); box-shadow: var(--sh-pop);
+  padding: 10px;
+  animation: cj-fade-in var(--motion-fast) var(--ease-soft);
+}
+.theme-color-menu-h {
+  font-size: 11px; font-weight: 700; color: var(--ink-400);
+  letter-spacing: 0.08em; padding: 2px 4px 8px;
+}
+.theme-color-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.theme-color-chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px; border-radius: var(--r-md, 9px);
+  background: transparent; border: 1px solid transparent;
+  color: var(--ink-700); font-size: 12.5px; cursor: pointer; text-align: left;
+  transition: background var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.theme-color-chip:hover { background: var(--bg-hover); }
+.theme-color-chip.active { background: var(--bg-active); color: var(--brand-700); font-weight: 600; }
+.theme-color-swatch {
+  width: 20px; height: 20px; border-radius: 7px; flex: none;
+  display: grid; place-items: center; color: #fff;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.4), 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.theme-color-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

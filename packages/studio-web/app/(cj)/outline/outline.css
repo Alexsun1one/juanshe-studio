@@ -1,0 +1,313 @@
+/* 大纲与规划 · 工作站化:一屏不下拉,滚动只在 pane 内 (scoped .cj-outline)
+   设计原则:暖纸卡 + 柔紫强调(随主题切换),数据密集走 kit,图表/网格才画框。 */
+
+/* ── 顶部工作条:像素 + 标题 + 操作 + 一行密集 KPI(非大卡平铺)── */
+.cj-outline .ol-head {
+  padding: 12px 20px 12px;
+  border-bottom: 1px solid var(--line-1);
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in srgb, var(--brand-500) 6%, transparent), transparent 58%),
+    var(--bg-app);
+}
+.cj-outline .ol-headline { display: flex; align-items: center; gap: 13px; min-width: 0; }
+.cj-outline .ol-hero-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--brand-500) 26%, transparent));
+  transition: transform var(--motion-base) var(--ease-soft);
+}
+.cj-outline .ol-head:hover .ol-hero-pixel { transform: translateY(-2px) rotate(-3deg); }
+.cj-outline .ol-headline-text { min-width: 0; flex: 1 1 auto; }
+.cj-outline .ol-headline-text .page-title-row { margin: 0; }
+.cj-outline .ol-headline-text .page-sub {
+  margin-top: 3px; max-width: 640px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cj-outline .ol-actions { flex: 0 0 auto; margin-left: auto; align-self: center; }
+
+/* 阶段标签(标题行 + Inspector 焦点卡共用):暖纸 + 柔紫,语义化 */
+.cj-outline .ol-phase {
+  flex: 0 0 auto; display: inline-flex; align-items: center;
+  font-size: var(--text-cap); font-weight: 700;
+  padding: 2px 10px; border-radius: var(--r-pill);
+}
+.cj-outline .ol-phase.brand { background: var(--brand-50); color: var(--brand-600); }
+.cj-outline .ol-phase.ok { background: var(--ok-50); color: var(--ok-600, var(--ok-500)); }
+.cj-outline .ol-phase.muted { background: var(--bg-sunken); color: var(--ink-400); }
+
+/* 一行 KPI:密集而不乱,横向铺满 6 列 */
+.cj-outline .ol-kpis {
+  margin-top: 11px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 9px;
+}
+
+/* ── 主体:主区 + Inspector ── */
+.cj-outline .ol-mainpane { padding: 0; }
+.cj-outline .ol-pane-scroll {
+  flex: 1 1 auto;
+  padding: 16px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* 轻量区块标题:不画框,靠小号大写标签 + 计数组织层级 */
+.cj-outline .ol-sh {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 -8px;
+  font-size: var(--text-cap); line-height: 1; font-weight: 700;
+  color: var(--ink-700); text-transform: uppercase; letter-spacing: 0.1em;
+}
+.cj-outline .ol-sh svg { color: var(--ink-400); }
+.cj-outline .ol-sh .c {
+  font-family: var(--font-num); font-weight: 600; letter-spacing: 0;
+  text-transform: none; color: var(--ink-400);
+}
+
+/* ── 张力曲线:图表区,保留卡框 ── */
+.cj-outline .arc-curve { padding: 0; overflow: hidden; }
+.cj-outline .curve-head { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-bottom: 1px solid var(--line-1); }
+.cj-outline .curve-head h4 { margin: 0; display: inline-flex; align-items: center; gap: 7px; font-size: var(--text-title); font-weight: 600; color: var(--ink-900); }
+.cj-outline .curve-head h4 svg { color: var(--brand-600); }
+.cj-outline .curve-head .muted { font-size: var(--text-cap); color: var(--ink-500); margin-left: 6px; font-weight: 400; }
+.cj-outline .curve-head .ctrls { margin-left: auto; display: flex; gap: 6px; }
+.cj-outline .curve-head .ctrls .ch { font-size: var(--text-micro); padding: 4px 10px; border-radius: var(--r-pill); background: var(--bg-sunken); color: var(--ink-700); cursor: pointer; }
+.cj-outline .curve-head .ctrls .ch.active { background: var(--brand-500); color: white; }
+
+.cj-outline .curve-stage { position: relative; height: 210px; background: var(--bg-canvas); padding: 16px 24px 26px; }
+.cj-outline .curve-stage svg.curve { width: 100%; height: 100%; }
+.cj-outline .curve-stage .grid line { stroke: var(--line-1); stroke-dasharray: 2 4; }
+.cj-outline .curve-stage .axis-y { position: absolute; left: 4px; top: 14px; bottom: 26px; display: flex; flex-direction: column; justify-content: space-between; font-size: var(--text-micro); color: var(--ink-400); font-family: var(--font-num); }
+.cj-outline .curve-stage .axis-x { position: absolute; left: 24px; right: 24px; bottom: 6px; display: flex; justify-content: space-between; font-size: var(--text-micro); color: var(--ink-400); font-family: var(--font-num); }
+.cj-outline .curve-stage .act-band { position: absolute; top: 14px; bottom: 26px; border-left: 1px dashed var(--line-3); }
+.cj-outline .curve-stage .act-label { position: absolute; top: 8px; font-size: var(--text-micro); color: var(--ink-500); font-weight: 600; padding: 2px 8px; background: var(--bg-card); border-radius: var(--r-sm); border: 1px solid var(--line-2); white-space: nowrap; }
+.cj-outline .curve-stage .peak-label { position: absolute; font-size: var(--text-micro); color: var(--brand-600); background: var(--bg-card); padding: 1px 6px; border-radius: var(--r-sm); border: 1px solid var(--brand-200); white-space: nowrap; transform: translateX(-50%); }
+.cj-outline .curve-stage .now { position: absolute; top: 14px; bottom: 26px; width: 2px; background: var(--brand-500); }
+.cj-outline .curve-stage .now::before { content: attr(data-label); position: absolute; top: -10px; left: 50%; transform: translateX(-50%); font-size: var(--text-micro); color: white; background: var(--brand-500); padding: 2px 6px; border-radius: var(--r-sm); white-space: nowrap; }
+
+/* ── 章节节奏热力图(数据可视化网格,保留轻框) ── */
+.cj-outline .chapter-heat {
+  padding: 13px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-xl);
+}
+.cj-outline .ch-head {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+  padding-bottom: 11px;
+  margin-bottom: 12px;
+  border-bottom: 1px dashed var(--line-2);
+}
+.cj-outline .ch-head h4 { margin: 0; display: inline-flex; align-items: center; gap: 7px; font-size: var(--text-title); font-weight: 600; color: var(--ink-900); }
+.cj-outline .ch-head h4 svg { color: var(--brand-600); }
+.cj-outline .ch-head h4 .muted { font-weight: 400; color: var(--ink-400); font-size: var(--text-cap); margin-left: 6px; }
+.cj-outline .ch-legend { display: flex; gap: 12px; font-size: var(--text-micro); color: var(--ink-500); flex-wrap: wrap; }
+.cj-outline .ch-legend > span { display: inline-flex; align-items: center; gap: 5px; }
+.cj-outline .ch-legend .hc { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.cj-outline .ch-cur { font-weight: 600; color: var(--brand-600); }
+.cj-outline .hc-low   { background: #FFD3C2; }
+.cj-outline .hc-ok    { background: #9FE6BE; }
+.cj-outline .hc-high  { background: #FFC8C8; }
+.cj-outline .hc-empty { background: var(--bg-sunken); border: 1px dashed var(--line-2); }
+.cj-outline .hc-cur   { background: var(--brand-500); }
+
+.cj-outline .ch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(26px, 1fr));
+  gap: 4px;
+}
+.cj-outline .hc-cell {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  font-family: var(--font-num);
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.55);
+  display: grid; place-items: center;
+  cursor: default;
+  position: relative;
+  transition: transform var(--motion-fast) var(--ease-soft), box-shadow var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft);
+  image-rendering: pixelated;
+}
+.cj-outline .hc-cell .hc-num { line-height: 1; }
+.cj-outline .hc-cell:hover {
+  transform: translateY(-2px) scale(1.18);
+  box-shadow: 0 6px 14px -4px rgba(0, 0, 0, 0.25);
+  z-index: 2;
+  color: rgba(0, 0, 0, 0.85);
+}
+.cj-outline .hc-low   { background: linear-gradient(135deg, #FFD3C2, #FFB69A); }
+.cj-outline .hc-ok    { background: linear-gradient(135deg, #B7EECF, #6FCC9C); }
+.cj-outline .hc-high  { background: linear-gradient(135deg, #FFC8C8, #F08A8A); color: rgba(255,255,255,0.95); }
+.cj-outline .hc-empty {
+  background: var(--bg-sunken);
+  color: var(--ink-300);
+  border: 1px dashed var(--line-2);
+}
+.cj-outline .hc-cur-cell {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-500) 18%, transparent);
+  animation: hc-cur-pulse 1.5s var(--ease-soft) infinite;
+}
+@keyframes hc-cur-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-500) 18%, transparent); }
+  50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--brand-500) 30%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cj-outline .hc-cur-cell { animation: none; }
+}
+
+/* ── 分卷一览:去卡。无外框分卷块 + 轻量章节行,12 列错落(大卷 span 2,小卷 span 1) ── */
+.cj-outline .vols { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px 26px; align-items: start; }
+.cj-outline .vol { min-width: 0; }
+.cj-outline .vol.wide { grid-column: span 2; }
+.cj-outline .vol-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 9px; border-bottom: 1px solid var(--line-1); }
+.cj-outline .vol-head .vmark { width: 24px; height: 24px; border-radius: var(--r-sm); background: var(--brand-50); color: var(--brand-600); font-family: var(--font-num); font-weight: 700; font-size: var(--text-cap); display: grid; place-items: center; flex: 0 0 24px; }
+.cj-outline .vol-head .vmark.done { background: var(--ok-50); color: var(--ok-500); }
+.cj-outline .vol-head .vmark.future { background: var(--bg-sunken); color: var(--ink-400); }
+.cj-outline .vol-head .vt { flex: 1; min-width: 0; line-height: 1.2; }
+.cj-outline .vol-head .vt-name { display: flex; align-items: center; gap: 6px; font-size: var(--text-title); font-weight: 700; color: var(--ink-900); min-width: 0; }
+.cj-outline .vol-head .vt-name svg { color: var(--brand-500); flex: 0 0 auto; }
+.cj-outline .vol-head .vt .sub { font-size: var(--text-micro); color: var(--ink-500); font-weight: 400; display: block; margin-top: 2px; font-family: var(--font-num); }
+.cj-outline .vol-head .pill { flex: 0 0 auto; }
+
+/* 宽卷内部章节再分两列,窄卷单列 — 进一步错落 */
+.cj-outline .chap-rows { display: flex; flex-direction: column; }
+.cj-outline .chap-rows.two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+
+/* 轻量章节行:无独立卡框,靠 hover 背景 + 细分隔线区分,不堆卡 */
+.cj-outline .chap-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 8px; margin: 0 -8px;
+  border-radius: var(--r-md);
+  border-bottom: 1px solid var(--line-1);
+  text-decoration: none; color: inherit;
+  transition: background var(--motion-fast) var(--ease-soft);
+}
+.cj-outline .chap-row:hover { background: var(--bg-hover); }
+.cj-outline .chap-row:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-outline .chap-row.active { background: var(--brand-50); }
+.cj-outline .chap-row .cr-num { font-family: var(--font-num); font-size: var(--text-cap); color: var(--ink-400); flex: 0 0 auto; }
+.cj-outline .chap-row .cr-title { font-size: var(--text-body); font-weight: 600; color: var(--ink-900); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cj-outline .chap-row .beats { display: inline-flex; gap: 2px; flex: 0 0 auto; }
+.cj-outline .chap-row .beats i { width: 5px; height: 4px; border-radius: 1px; background: var(--bg-sunken); }
+.cj-outline .chap-row .beats i.x { background: var(--brand-300); }
+.cj-outline .chap-row .cr-words { font-family: var(--font-num); font-size: var(--text-micro); color: var(--ink-400); flex: 0 0 auto; min-width: 34px; text-align: right; }
+.cj-outline .chap-row .cr-tag { flex: 0 0 auto; }
+
+/* ════════════════════════════════════════════════════════════
+   Inspector · 焦点(结构架构师 + 阶段 + 进度) / 里程碑 / 分卷推进
+   ════════════════════════════════════════════════════════════ */
+.cj-outline .ol-insp-scroll {
+  padding: 14px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cj-outline .ol-insp-scroll > .card,
+.cj-outline .ol-insp-scroll > .cj-foldcard { margin: 0; }
+
+/* 焦点卡:像素「结构架构师」+ 阶段 + 进度计量条 + 三连读数 */
+.cj-outline .ol-focus {
+  background:
+    radial-gradient(120% 160% at 0% 0%, color-mix(in oklab, var(--brand-500) 9%, transparent), transparent 60%),
+    var(--bg-card);
+}
+.cj-outline .ol-focus-top { display: flex; align-items: center; gap: 11px; }
+.cj-outline .ol-focus-pix {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 6px color-mix(in oklab, var(--brand-500) 28%, transparent));
+  transition: transform var(--motion-fast) var(--ease-soft);
+}
+.cj-outline .ol-focus:hover .ol-focus-pix { transform: translateY(-2px) rotate(-3deg); }
+.cj-outline .ol-focus-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.cj-outline .ol-focus-role { font-size: 13.5px; font-weight: 700; color: var(--ink-900); }
+.cj-outline .ol-focus-book { font-size: var(--text-cap); color: var(--ink-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cj-outline .ol-focus-top .ol-phase { align-self: flex-start; }
+
+.cj-outline .ol-focus-meter { margin-top: 13px; }
+.cj-outline .ol-focus-cap { display: flex; align-items: baseline; gap: 5px; margin-top: 5px; font-size: 11.5px; color: var(--ink-500); }
+.cj-outline .ol-focus-cap .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ink-800); }
+.cj-outline .ol-focus-of { color: var(--ink-400); }
+.cj-outline .ol-focus-pct { margin-left: auto; font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 700; color: var(--brand-600); }
+
+.cj-outline .ol-focus-stats { margin-top: 13px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cj-outline .ol-fstat {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 6px;
+  border: 1px solid var(--line-1); border-radius: var(--r-lg);
+  background: var(--bg-sunken);
+}
+.cj-outline .ol-fstat b { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 800; line-height: 1; color: var(--ink-800); }
+.cj-outline .ol-fstat i { font-style: normal; font-size: var(--text-micro); font-weight: 600; color: var(--ink-400); }
+.cj-outline .ol-fstat[data-tone="ok"] b { color: var(--ok-600, var(--ok-500)); }
+.cj-outline .ol-fstat[data-tone="brand"] b { color: var(--brand-600); }
+.cj-outline .ol-fstat[data-tone="amber"] b { color: var(--accent-warm-deep); }
+
+/* 里程碑(Inspector FoldCard 内) */
+.cj-outline .ol-beats { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; }
+.cj-outline .ol-beat {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 9px;
+  border: 1px solid var(--line-1); border-radius: var(--r-md);
+  background: var(--bg-card);
+  transition: background var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-outline .ol-beat:hover { background: var(--bg-hover); }
+.cj-outline .ol-beat.is-current { border-color: color-mix(in srgb, var(--brand-500) 28%, var(--line-1)); background: var(--brand-50); }
+.cj-outline .ol-beat-ico {
+  flex: 0 0 22px; width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--bg-sunken); color: var(--ink-400);
+  font-size: var(--text-micro); font-weight: 700;
+}
+.cj-outline .ol-beat.is-done .ol-beat-ico { background: var(--ok-50); color: var(--ok-600, var(--ok-500)); }
+.cj-outline .ol-beat.is-current .ol-beat-ico { background: var(--brand-100, var(--brand-50)); color: var(--brand-600); }
+.cj-outline .ol-beat-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+.cj-outline .ol-beat-name { font-size: 12.5px; font-weight: 600; color: var(--ink-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cj-outline .ol-beat.is-todo .ol-beat-name { color: var(--ink-500); }
+.cj-outline .ol-beat-ch { font-size: 11px; color: var(--ink-400); font-family: var(--font-num); }
+.cj-outline .ol-beat .pill { flex: 0 0 auto; }
+
+/* 分卷推进(Inspector FoldCard 内):每卷完成率进度条 */
+.cj-outline .ol-threads { display: flex; flex-direction: column; gap: 0; padding-top: 2px; }
+.cj-outline .ol-thread { padding: 9px 0; border-bottom: 1px dashed var(--line-1); }
+.cj-outline .ol-thread:last-child { border-bottom: none; }
+.cj-outline .ol-th-top { display: flex; align-items: center; gap: 8px; font-size: var(--text-cap); }
+.cj-outline .ol-th-mark { width: 4px; height: 14px; border-radius: 2px; background: var(--brand-500); flex: 0 0 4px; }
+.cj-outline .ol-th-name { font-weight: 600; color: var(--ink-800); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cj-outline .ol-th-pct { font-family: var(--font-num); font-size: var(--text-cap); font-weight: 700; color: var(--ink-700); }
+.cj-outline .ol-th-progress { margin-top: 6px; display: flex; height: 5px; border-radius: var(--r-pill); overflow: hidden; background: var(--bg-sunken); }
+.cj-outline .ol-th-progress i { height: 100%; background: var(--brand-500); }
+.cj-outline .ol-th-tags { margin-top: 4px; font-size: var(--text-micro); color: var(--ink-500); font-family: var(--font-num); }
+
+/* 下一卷推演卡 */
+.cj-outline .ol-next-head { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+.cj-outline .ol-next-head svg { color: var(--brand-600); }
+.cj-outline .ol-next-title { font-size: 13.5px; font-weight: 700; color: var(--ink-900); }
+.cj-outline .ol-next-desc { margin: 0 0 11px; font-size: var(--text-cap); line-height: 1.6; color: var(--ink-500); }
+.cj-outline .ol-next-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ── 响应式 ── */
+@media (max-width: 1100px) {
+  .cj-outline .ol-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cj-outline .vols { grid-template-columns: 1fr; }
+  .cj-outline .vol.wide { grid-column: auto; }
+  .cj-outline .chap-rows.two { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 860px) {
+  .cj-outline .ol-headline { flex-wrap: wrap; gap: 12px; }
+  .cj-outline .ol-headline-text .page-sub { white-space: normal; }
+  .cj-outline .ol-actions { margin-left: 0; }
+  .cj-outline .ol-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .cj-outline .ol-head { padding: 12px 14px; }
+  .cj-outline .ol-hero-pixel { width: 40px; height: 40px; }
+  .cj-outline .ol-pane-scroll { padding: 14px 12px 16px; }
+  .cj-outline .chap-rows.two { grid-template-columns: 1fr; }
+}

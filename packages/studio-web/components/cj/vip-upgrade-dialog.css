@@ -1,0 +1,51 @@
+/* 成为 VIP / 升级会员弹窗 —— 暖色三档,Pro 暖金 / Ultra 品牌紫渐变 */
+.vip-title { display: flex; align-items: center; gap: 8px; font-size: 16px; color: var(--ink-900); }
+.vip-title svg { color: #E0A93B; } /* 皇冠金 */
+
+.vip-tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin: 14px 0 4px; }
+.vip-tier {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 11px; border-radius: var(--r-lg);
+  background: var(--bg-sunken); border: 1px solid var(--line-1);
+}
+.vip-tier.current { border-color: var(--brand-400, var(--brand-500)); box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand-500) 18%, transparent); }
+.vip-tier-head { display: flex; align-items: center; gap: 6px; }
+.vip-tier-mode {
+  font-family: var(--font-pixel-ui); font-size: 14px; font-weight: 700;
+  width: 24px; height: 24px; display: grid; place-items: center; border-radius: 7px;
+  background: var(--bg-card); color: var(--ink-500); flex: 0 0 24px;
+}
+.vip-tier-name { font-size: 12px; font-weight: 700; color: var(--ink-900); min-width: 0; white-space: nowrap; }
+.vip-tier-now { margin-left: auto; font-size: 9px; font-weight: 700; color: var(--brand-600); background: var(--brand-50); padding: 1px 5px; border-radius: 999px; flex: 0 0 auto; }
+.vip-tier-tag { font-size: 10.5px; color: var(--ink-500); line-height: 1.4; margin: 0; min-height: 2.8em; }
+.vip-perks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.vip-perks li { display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--ink-700); }
+.vip-perks li svg { color: #1E8C63; flex: 0 0 auto; }
+.vip-tier-state { margin-top: 4px; font-size: 10px; font-weight: 600; color: var(--ink-400); }
+.vip-tier-state.owned { color: #1E8C63; }
+
+/* Pro = 暖金,Ultra = 品牌紫渐变 */
+.vip-pro .vip-tier-mode { background: linear-gradient(160deg, #F3D08A, #E0A93B); color: #6B4E12; }
+.vip-ultra .vip-tier-mode { background: linear-gradient(160deg, var(--brand-400, var(--brand-500)), var(--brand-600)); color: #fff; }
+.vip-ultra { background: linear-gradient(180deg, color-mix(in oklab, var(--brand-500) 7%, var(--bg-sunken)), var(--bg-sunken)); }
+
+.vip-how { margin: 12px 0 2px; padding: 11px 13px; border-radius: var(--r-md); background: color-mix(in oklab, var(--brand-500) 6%, var(--bg-sunken)); border: 1px solid var(--line-1); }
+.vip-how-h { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--brand-700, var(--brand-600)); }
+.vip-how-h svg { color: var(--brand-500); }
+.vip-how p { font-size: 12px; line-height: 1.6; color: var(--ink-600); margin: 5px 0 0; }
+.vip-how b { color: var(--ink-900); font-weight: 700; }
+
+.vip-cta {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 18px; border: none; border-radius: var(--r-lg);
+  background: linear-gradient(180deg, var(--brand-500), var(--brand-600)); color: #fff;
+  font-size: 13.5px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 6px 16px -6px color-mix(in oklab, var(--brand-500) 50%, transparent);
+  transition: transform .15s var(--ease-soft, ease), box-shadow .15s;
+}
+.vip-cta:hover { transform: translateY(-1px); box-shadow: 0 9px 22px -7px color-mix(in oklab, var(--brand-500) 55%, transparent); }
+
+@media (max-width: 480px) {
+  .vip-tiers { grid-template-columns: 1fr; }
+  .vip-tier-tag { min-height: 0; }
+}

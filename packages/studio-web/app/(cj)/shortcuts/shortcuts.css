@@ -1,0 +1,303 @@
+/* 快捷键自定义 · 工作站化(scoped .cj-shortcuts)
+   对齐 books 标杆:.cj-screen 一屏不下拉,滚动只在 pane 内。
+   顶部工作条(像素 + 标题 + 一行 KPI)→ 主区(工具条 + 分组清单)+ Inspector(速查)。 */
+
+/* ── 顶部工作条 ─────────────────────────────────────────── */
+.cj-shortcuts .sc-head {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line-1);
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in srgb, var(--brand-500) 6%, transparent), transparent 58%),
+    var(--bg-app);
+}
+.cj-shortcuts .sc-headline { display: flex; align-items: center; gap: 13px; min-width: 0; }
+.cj-shortcuts .sc-hero-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--brand-600) 22%, transparent));
+  transition: transform 240ms var(--ease-soft);
+}
+.cj-shortcuts .sc-head:hover .sc-hero-pixel { transform: translateY(-2px) rotate(-3deg); }
+.cj-shortcuts .sc-headline-text { min-width: 0; flex: 1 1 auto; }
+.cj-shortcuts .sc-headline-text .page-title-row { margin: 0; }
+.cj-shortcuts .sc-headline-text .page-sub {
+  margin-top: 3px; max-width: 640px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* 一行 KPI:密集而不乱 */
+.cj-shortcuts .sc-kpis {
+  margin-top: 11px;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px;
+}
+
+/* ── 主区 ──────────────────────────────────────────────── */
+.cj-shortcuts .sc-mainpane { padding: 0; }
+
+/* 工具条:搜索 + 范围筛选 + 实时计数 */
+.cj-shortcuts .sc-bar {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 11px 18px 11px 20px; border-bottom: 1px solid var(--line-1);
+}
+.cj-shortcuts .sc-search {
+  flex: 1 1 240px; max-width: 360px; display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px 7px 12px; background: var(--bg-card);
+  border: 1px solid var(--line-2); border-radius: var(--r-md); color: var(--ink-400);
+  transition: border-color var(--motion-fast) var(--ease-soft), box-shadow var(--motion-fast) var(--ease-soft);
+}
+.cj-shortcuts .sc-search:focus-within { border-color: var(--brand-300); box-shadow: var(--ring); color: var(--ink-600); }
+.cj-shortcuts .sc-search input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-size: 13px; color: var(--ink-900); }
+.cj-shortcuts .sc-search input::placeholder { color: var(--ink-400); }
+.cj-shortcuts .sc-clear { flex: 0 0 auto; display: grid; place-items: center; width: 20px; height: 20px; border-radius: var(--r-sm); color: var(--ink-400); cursor: pointer; }
+.cj-shortcuts .sc-clear:hover { background: var(--bg-hover); color: var(--ink-700); }
+.cj-shortcuts .sc-clear:focus-visible { outline: none; box-shadow: var(--ring); }
+
+.cj-shortcuts .sc-scopes { display: inline-flex; gap: 3px; padding: 3px; background: var(--bg-sunken); border: 1px solid var(--line-1); border-radius: var(--r-md); }
+.cj-shortcuts .sc-scopes .chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font: inherit; font-size: 12px; line-height: 1; padding: 6px 11px; border: 0; cursor: pointer;
+  background: transparent; color: var(--ink-600); border-radius: var(--r-sm);
+  transition: background var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft);
+}
+.cj-shortcuts .sc-scopes .chip svg { color: var(--ink-400); }
+.cj-shortcuts .sc-scopes .chip:hover { color: var(--ink-900); }
+.cj-shortcuts .sc-scopes .chip:hover svg { color: var(--ink-600); }
+.cj-shortcuts .sc-scopes .chip.active { background: var(--bg-card); color: var(--brand-600); font-weight: 600; box-shadow: 0 1px 2px color-mix(in srgb, var(--ink-900) 8%, transparent); }
+.cj-shortcuts .sc-scopes .chip.active svg { color: var(--brand-500); }
+.cj-shortcuts .sc-scopes .chip:focus-visible { outline: none; box-shadow: var(--ring); }
+
+.cj-shortcuts .sc-count { margin-left: auto; font-size: 12px; color: var(--ink-400); white-space: nowrap; }
+.cj-shortcuts .sc-count b { font-family: var(--font-num); font-weight: 700; color: var(--ink-700); font-variant-numeric: tabular-nums; }
+
+/* 冲突提示条(内联,非大卡) */
+.cj-shortcuts .sc-alert {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 10px; margin: 12px 18px 0 20px;
+  padding: 9px 12px 9px 14px; border-radius: var(--r-md);
+  background: var(--warn-50); color: var(--warn-500);
+  border: 1px solid color-mix(in srgb, var(--warn-500) 22%, transparent);
+  font-size: 12.5px;
+}
+.cj-shortcuts .sc-alert b { font-family: var(--font-num); font-weight: 800; }
+.cj-shortcuts .sc-alert > span { color: color-mix(in srgb, var(--warn-500) 88%, var(--ink-900)); }
+.cj-shortcuts .sc-alert-act {
+  margin-left: auto; flex: 0 0 auto; font: inherit; font-size: 12px; font-weight: 600;
+  padding: 4px 11px; border-radius: var(--r-pill); cursor: pointer;
+  background: var(--warn-500); color: #fff; border: none;
+  transition: filter var(--motion-fast) var(--ease-soft);
+}
+.cj-shortcuts .sc-alert-act:hover { filter: brightness(1.06); }
+.cj-shortcuts .sc-alert-act:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* 分组清单滚动容器(只在此处滚) */
+.cj-shortcuts .sc-pane-scroll { flex: 1 1 auto; padding: 6px 18px 16px 20px; }
+
+/* ── 分组清单:两栏,行式(非等大卡片网格) ──────────────────── */
+.cj-shortcuts .sc-groups {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 32px; align-items: start;
+}
+.cj-shortcuts .grp { min-width: 0; }
+.cj-shortcuts .grp h3 {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; font-weight: 700; color: var(--ink-500);
+  text-transform: uppercase; letter-spacing: 0.09em;
+  margin: 14px 0 4px; padding: 0 2px 8px; border-bottom: 1px solid var(--line-1);
+}
+.cj-shortcuts .grp h3 .gi { display: inline-flex; flex: 0 0 auto; color: var(--brand-600); }
+.cj-shortcuts .grp h3 .gn { color: var(--ink-700); }
+.cj-shortcuts .grp h3 .gc {
+  font-family: var(--font-num); font-size: 10.5px; font-weight: 700; letter-spacing: 0;
+  color: var(--ink-400); background: var(--bg-sunken);
+  min-width: 18px; height: 18px; padding: 0 6px; border-radius: var(--r-pill);
+  display: inline-flex; align-items: center; justify-content: center; margin-left: auto;
+}
+
+.cj-shortcuts .row {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 10px; border-radius: var(--r-md);
+  border: 1px solid transparent;
+  transition: background var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-shortcuts .grp-list .row + .row { box-shadow: 0 -1px 0 var(--line-1); }
+.cj-shortcuts .row:hover { background: var(--bg-hover); box-shadow: none; }
+.cj-shortcuts .row.changed { background: color-mix(in srgb, var(--c-memory-bg, var(--brand-50)) 55%, transparent); }
+.cj-shortcuts .row.conflict { background: color-mix(in srgb, var(--warn-50) 80%, transparent); border-color: color-mix(in srgb, var(--warn-500) 28%, transparent); }
+.cj-shortcuts .row.editing { background: var(--brand-50); border-color: color-mix(in srgb, var(--brand-500) 35%, transparent); animation: cj-pulse 1.2s infinite; }
+.cj-shortcuts .row.changed:hover, .cj-shortcuts .row.conflict:hover, .cj-shortcuts .row.editing:hover { box-shadow: none; }
+
+/* 行首动作图标 */
+.cj-shortcuts .row .ico {
+  flex: 0 0 auto; display: grid; place-items: center;
+  width: 28px; height: 28px; border-radius: var(--r-sm);
+  background: var(--bg-sunken); border: 1px solid var(--line-1); color: var(--ink-500);
+  transition: color var(--motion-fast) var(--ease-soft), background var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-shortcuts .row:hover .ico { color: var(--brand-600); background: var(--brand-50); border-color: color-mix(in srgb, var(--brand-500) 20%, transparent); }
+.cj-shortcuts .row.conflict .ico { color: var(--warn-500); background: var(--warn-50); border-color: color-mix(in srgb, var(--warn-500) 28%, transparent); }
+.cj-shortcuts .row.editing .ico { color: var(--brand-600); background: var(--bg-card); border-color: var(--brand-300); }
+
+.cj-shortcuts .row .info { flex: 1; min-width: 0; }
+.cj-shortcuts .row .info .ac { font-size: 13.5px; font-weight: 600; color: var(--ink-900); display: flex; align-items: center; gap: 6px; }
+.cj-shortcuts .row .info .hint { font-size: 11.5px; color: var(--ink-500); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 行内状态用既有 .pill[data-state],仅缩到行内尺寸 */
+.cj-shortcuts .row .info .ac .pill { flex: 0 0 auto; font-size: 9.5px; padding: 1px 7px 1px 6px; gap: 4px; }
+.cj-shortcuts .row .info .ac .pill .dot { width: 5px; height: 5px; }
+
+.cj-shortcuts .row .scope {
+  flex: 0 0 auto; font-size: 10.5px; padding: 2px 8px; border-radius: var(--r-pill);
+  background: var(--bg-sunken); color: var(--ink-500); font-weight: 600;
+}
+
+/* 键帽 */
+.cj-shortcuts .kbd-combo { flex: 0 0 auto; display: inline-flex; gap: 4px; }
+.cj-shortcuts .kbd {
+  font-family: var(--font-mono); font-size: 11.5px; font-variant-numeric: tabular-nums;
+  min-width: 22px; height: 24px; padding: 0 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-card); border: 1px solid var(--line-2); border-bottom-width: 2px;
+  border-radius: var(--r-sm); color: var(--ink-700);
+}
+.cj-shortcuts .row.conflict .kbd { border-color: color-mix(in srgb, var(--warn-500) 40%, var(--line-2)); color: var(--warn-500); }
+
+/* 录制态 */
+.cj-shortcuts .recording {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--brand-600);
+  padding: 4px 10px; border-radius: var(--r-sm);
+  background: var(--bg-card); border: 1px dashed var(--brand-300);
+}
+.cj-shortcuts .recording i { font-style: normal; font-family: var(--font-sans); font-size: 10.5px; font-weight: 500; color: var(--ink-400); }
+
+/* 行内操作 */
+.cj-shortcuts .row .acts { flex: 0 0 auto; display: flex; gap: 2px; opacity: 0; transition: opacity var(--motion-fast) var(--ease-soft); }
+.cj-shortcuts .row:hover .acts, .cj-shortcuts .row.editing .acts { opacity: 1; }
+.cj-shortcuts .row .acts button { width: 26px; height: 26px; display: grid; place-items: center; border-radius: var(--r-sm); color: var(--ink-400); transition: background var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft); }
+.cj-shortcuts .row .acts button:hover { background: var(--bg-active); color: var(--brand-600); }
+.cj-shortcuts .row .acts button:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* 空态 · 温暖引导 */
+.cj-shortcuts .sc-empty {
+  grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 36px 20px 32px; margin-top: 8px; text-align: center;
+  border: 1px dashed var(--line-2); border-radius: var(--r-lg); background: var(--bg-sunken);
+}
+.cj-shortcuts .sc-empty-icon {
+  display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 2px;
+  border-radius: var(--r-lg); background: var(--brand-50); color: var(--brand-500);
+  border: 1px solid color-mix(in srgb, var(--brand-500) 16%, transparent);
+}
+.cj-shortcuts .sc-empty-title { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--ink-800); }
+.cj-shortcuts .sc-empty-title b { color: var(--brand-600); font-weight: 700; }
+.cj-shortcuts .sc-empty-sub { margin: 0; font-size: 12px; color: var(--ink-400); }
+.cj-shortcuts .sc-reset {
+  display: inline-flex; align-items: center; gap: 5px;
+  font: inherit; font-size: 12px; font-weight: 500; padding: 6px 11px; cursor: pointer;
+  background: var(--bg-card); color: var(--ink-600);
+  border: 1px solid var(--line-2); border-radius: var(--r-md);
+  transition: color var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-shortcuts .sc-reset:hover { color: var(--brand-600); border-color: var(--brand-300); }
+.cj-shortcuts .sc-reset:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-shortcuts .sc-empty-act { margin: 6px 0 0; }
+
+/* ════════════════════════════════════════════════════════════
+   Inspector · 速查(概览 + 模块分布 + 最常用 + 已自定义)
+   ════════════════════════════════════════════════════════════ */
+.cj-shortcuts .sc-insp-scroll {
+  padding: 14px 14px 18px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.cj-shortcuts .sc-insp-scroll > .card,
+.cj-shortcuts .sc-insp-scroll > .cj-foldcard { margin: 0; }
+
+.cj-shortcuts .sc-reset-link {
+  display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+  background: none; border: 0; cursor: pointer; font: inherit; font-size: 12.5px; color: var(--brand-600);
+}
+.cj-shortcuts .sc-reset-link:hover { color: var(--brand-700); }
+.cj-shortcuts .sc-reset-link:focus-visible { outline: none; box-shadow: var(--ring); border-radius: var(--r-sm); }
+
+/* 概览计量条 + 行内读数 */
+.cj-shortcuts .sc-meters { display: flex; flex-direction: column; gap: 9px; }
+.cj-shortcuts .sc-meters .cj-meter + .sc-meter-cap { margin-top: -3px; }
+.cj-shortcuts .sc-meter-cap { display: flex; align-items: baseline; gap: 5px; font-size: 11.5px; color: var(--ink-500); }
+.cj-shortcuts .sc-meter-cap .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ink-800); }
+.cj-shortcuts .sc-meter-of { color: var(--ink-400); }
+.cj-shortcuts .sc-meter-pct { margin-left: auto; font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 700; color: var(--c-memory, var(--brand-600)); }
+
+/* 状态三连(快捷键 / 已自定义 / 冲突) */
+.cj-shortcuts .sc-statgrid { margin-top: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cj-shortcuts .sc-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px; border: 1px solid var(--line-1); border-radius: var(--r-lg); background: var(--bg-sunken); }
+.cj-shortcuts .sc-stat b { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 800; line-height: 1; color: var(--ink-800); }
+.cj-shortcuts .sc-stat i { font-style: normal; font-size: var(--text-micro); font-weight: 600; color: var(--ink-400); }
+.cj-shortcuts .sc-stat[data-tone="brand"] b { color: var(--brand-600); }
+.cj-shortcuts .sc-stat[data-tone="info"] b { color: var(--c-memory, var(--brand-600)); }
+.cj-shortcuts .sc-stat[data-tone="warn"] b { color: var(--warn-600, var(--warn-500)); }
+.cj-shortcuts .sc-stat[data-tone="ok"] b { color: var(--ok-600, var(--ok-500)); }
+
+/* 模块分布:迷你条形 */
+.cj-shortcuts .sc-dist { display: flex; flex-direction: column; gap: 3px; padding-top: 4px; }
+.cj-shortcuts .sc-dist-row {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 6px 8px; border: 1px solid transparent; border-radius: var(--r-md);
+  background: transparent; text-align: left; cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-shortcuts .sc-dist-row:hover { background: var(--bg-card); border-color: var(--line-2); }
+.cj-shortcuts .sc-dist-row:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-shortcuts .sc-dist-ico { flex: 0 0 auto; display: inline-flex; color: var(--brand-600); }
+.cj-shortcuts .sc-dist-name { flex: 0 0 64px; font-size: 12.5px; font-weight: 600; color: var(--ink-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cj-shortcuts .sc-dist-bar { flex: 1 1 auto; height: 6px; border-radius: 999px; background: var(--bg-sunken); overflow: hidden; }
+.cj-shortcuts .sc-dist-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brand-500), color-mix(in srgb, var(--brand-500) 62%, white)); }
+.cj-shortcuts .sc-dist-n { flex: 0 0 auto; font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700; color: var(--ink-600); min-width: 14px; text-align: right; }
+
+/* 最常用 / 已自定义:小行 + 键帽 */
+.cj-shortcuts .sc-quick { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; }
+.cj-shortcuts .sc-quick-row { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: var(--r-md); }
+.cj-shortcuts .sc-quick-row:hover { background: var(--bg-card); }
+.cj-shortcuts .sc-quick-ico { flex: 0 0 auto; display: grid; place-items: center; width: 26px; height: 26px; border-radius: var(--r-sm); background: var(--bg-sunken); border: 1px solid var(--line-1); color: var(--ink-500); }
+.cj-shortcuts .sc-quick-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+.cj-shortcuts .sc-quick-name { font-size: 12.5px; font-weight: 600; color: var(--ink-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cj-shortcuts .sc-quick-hint { font-size: 11px; color: var(--ink-400); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cj-shortcuts .sc-quick .kbd-combo { flex: 0 0 auto; }
+.cj-shortcuts .sc-quick-reset { flex: 0 0 auto; display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-sm); color: var(--ink-400); cursor: pointer; transition: background var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft); }
+.cj-shortcuts .sc-quick-reset:hover { background: var(--bg-active); color: var(--brand-600); }
+.cj-shortcuts .sc-quick-reset:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* 底部提示 */
+.cj-shortcuts .sc-legend {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 12px; border-radius: var(--r-md);
+  background: var(--bg-sunken); border: 1px dashed var(--line-2);
+  font-size: 11.5px; line-height: 1.55; color: var(--ink-500);
+}
+.cj-shortcuts .sc-legend svg { flex: 0 0 auto; margin-top: 1px; color: var(--brand-500); }
+.cj-shortcuts .sc-legend .kbd {
+  min-width: 0; height: 18px; padding: 0 5px; font-size: 10px;
+  border-bottom-width: 1px; vertical-align: baseline;
+}
+
+/* ── 响应式 ─────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .cj-shortcuts .sc-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 1040px) {
+  .cj-shortcuts .sc-groups { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
+@media (max-width: 860px) {
+  .cj-shortcuts .sc-headline { flex-wrap: wrap; gap: 12px; }
+  .cj-shortcuts .sc-headline-text .page-sub { white-space: normal; }
+}
+@media (max-width: 760px) {
+  .cj-shortcuts .sc-head { padding: 12px 14px; }
+  .cj-shortcuts .sc-hero-pixel { width: 40px; height: 40px; }
+  .cj-shortcuts .sc-bar { gap: 8px; padding: 11px 14px; }
+  .cj-shortcuts .sc-search { flex: 1 1 100%; max-width: none; }
+  .cj-shortcuts .sc-count { margin-left: 0; }
+  .cj-shortcuts .sc-alert { margin: 12px 14px 0; }
+  .cj-shortcuts .sc-pane-scroll { padding: 6px 14px 14px; }
+  .cj-shortcuts .row { flex-wrap: wrap; gap: 8px 11px; }
+  .cj-shortcuts .row .info { flex: 1 1 calc(100% - 39px); }
+  .cj-shortcuts .row .acts { opacity: 1; margin-left: auto; }
+}

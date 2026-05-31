@@ -1,0 +1,52 @@
+/* 变现路径 stepper —— 一行轻量 wayfinding,克制不抢戏 */
+.earn-path {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 2px 0 14px;
+  font-size: var(--text-cap, 12px);
+}
+.ep-lead {
+  color: var(--ink-400, #8a8a99);
+  letter-spacing: 0.02em;
+  flex: none;
+}
+.ep-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ep-stage {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: var(--r-pill, 999px);
+  color: var(--ink-500, #6b6b7b);
+  text-decoration: none;
+  line-height: 1.5;
+  transition:
+    color 0.14s ease,
+    background 0.14s ease;
+}
+.ep-stage:hover {
+  color: var(--ink-800, #1c1c28);
+  background: var(--bg-sunken, rgba(0, 0, 0, 0.04));
+}
+.ep-stage.is-done {
+  color: var(--ink-600, #555566);
+}
+.ep-stage.is-cur {
+  color: #fff;
+  background: var(--brand, #6e5bfa);
+  font-weight: 600;
+}
+.ep-stage.is-cur:hover {
+  color: #fff;
+  background: var(--brand-600, var(--brand, #6e5bfa));
+}
+.ep-arrow {
+  color: var(--ink-300, #b6b6c2);
+  font-size: 12px;
+  user-select: none;
+}

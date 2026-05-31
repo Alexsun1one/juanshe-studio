@@ -1,0 +1,709 @@
+/* 平台导出 · 工作站化 (scoped .cj-platform-export)
+   一屏不下拉,滚动只在 pane 内:workhead(像素 + 标题 + 一行密集 KPI + 导出组)
+   → 主区(平台 tab + 左 Markdown 正文 / 右 平台即时预览)
+   → Inspector(导出准备度 / 全平台合身 / 当前平台规格)。
+   强调色克制(品牌紫只用在焦点像素 / 主操作 / 当前平台),语义色只走状态。 */
+
+/* ── 顶部工作条 ───────────────────────────────────────── */
+.cj-platform-export .pe-head {
+  padding: 12px 20px 12px;
+  border-bottom: 1px solid var(--line-1);
+  /* 极轻 brand 渐隐底:焦点区与下方中性工作区分层,但不喧宾夺主 */
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in oklab, var(--brand-500) 7%, transparent), transparent 58%),
+    var(--bg-app);
+}
+.cj-platform-export .pe-headline {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+.cj-platform-export .pe-hero-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 6px color-mix(in oklab, var(--brand-500) 24%, transparent));
+  transition: transform 240ms var(--ease-soft);
+}
+.cj-platform-export .pe-head:hover .pe-hero-pixel { transform: translateY(-2px) rotate(-3deg); }
+.cj-platform-export .pe-headline-text { min-width: 0; flex: 1 1 auto; }
+.cj-platform-export .pe-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+  flex-wrap: wrap;
+}
+/* 眉标:暖橙强调(设计语言的「点睛暖色」),小圆点 + 轻字距,克制不抢标题 */
+.cj-platform-export .pe-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--accent-warm-deep);
+}
+.cj-platform-export .pe-tag::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--accent-warm-deep);
+  opacity: 0.85;
+}
+.cj-platform-export .pe-sub {
+  margin-top: 3px;
+  max-width: 720px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 导出组:复制(主) + 存成文件(次),完成「预览→导出/复制」短路径 */
+.cj-platform-export .pe-export-group {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.cj-platform-export .pe-copy { height: 36px; }
+.cj-platform-export .pe-copy.is-copied {
+  background: var(--ok-50);
+  border-color: var(--ok-50);
+  color: var(--ok-600, var(--ok-500));
+}
+.cj-platform-export .pe-copy.is-copied:hover { background: var(--ok-50); border-color: var(--ok-50); }
+.cj-platform-export .pe-download { height: 36px; color: var(--ink-700); }
+.cj-platform-export .pe-download:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* 一行密集 KPI:横向铺满,随编辑原地变化 */
+.cj-platform-export .pe-kpis {
+  margin-top: 11px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+.cj-platform-export .pe-kpi-plat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+}
+.cj-platform-export .pe-kpi-plat svg { color: var(--brand-600); }
+.cj-platform-export .pe-kpi-fmt {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 主区:平台 tab + 编辑/预览 split ───────────────────── */
+.cj-platform-export .pe-mainpane { min-width: 0; }
+
+/* 平台选择条:带语义图标的 tab,一眼可辨 + 合身小圆点 */
+.cj-platform-export .pe-platbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--line-1);
+}
+.cj-platform-export .pe-plat-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  background: var(--bg-card);
+  color: var(--ink-600);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--motion-fast) var(--ease-soft),
+              color var(--motion-fast) var(--ease-soft),
+              border-color var(--motion-fast) var(--ease-soft),
+              box-shadow var(--motion-fast) var(--ease-soft);
+}
+.cj-platform-export .pe-plat-tab .pe-plat-ico { color: var(--ink-400); transition: color var(--motion-fast) var(--ease-soft); }
+.cj-platform-export .pe-plat-tab:hover { color: var(--ink-900); border-color: var(--brand-300); }
+.cj-platform-export .pe-plat-tab:hover .pe-plat-ico { color: var(--ink-600); }
+.cj-platform-export .pe-plat-tab[data-active] {
+  background: color-mix(in srgb, var(--brand-500) 8%, var(--bg-card));
+  color: var(--brand-700, var(--brand-600));
+  border-color: color-mix(in srgb, var(--brand-500) 40%, var(--line-2));
+  box-shadow: var(--sh-1);
+}
+.cj-platform-export .pe-plat-tab[data-active] .pe-plat-ico { color: var(--brand-600); }
+.cj-platform-export .pe-plat-tab:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* 合身小圆点:就绪=绿、偏短=品牌紫、偏长=warn、空=灰 */
+.cj-platform-export .pe-dot {
+  width: 7px; height: 7px; flex: 0 0 7px;
+  border-radius: 999px;
+  background: var(--ink-300);
+  transition: transform var(--motion-fast) var(--ease-soft);
+}
+.cj-platform-export .pe-dot-ready { background: var(--ok-500); }
+.cj-platform-export .pe-dot-short { background: var(--brand-500); }
+.cj-platform-export .pe-dot-long  { background: var(--warn-500); }
+.cj-platform-export .pe-dot-empty { background: var(--ink-300); }
+.cj-platform-export .pe-plat-tab[data-active] .pe-dot { transform: scale(1.15); }
+
+.cj-platform-export .pe-platbar-tpl { margin-left: auto; }
+
+/* 两栏编辑/预览(占满主区剩余高度) */
+.cj-platform-export .pe-split {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  /* 错落不对称:成品预览(右)是变现「成品资产」的主角,给它更宽;左侧编辑略窄。 */
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+}
+.cj-platform-export .pe-pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.cj-platform-export .pe-pane-edit { border-right: 1px solid var(--line-1); }
+.cj-platform-export .pe-pane-preview { background: var(--bg-sunken); }
+
+/* 工具行 */
+.cj-platform-export .pe-toolbar { flex: 0 0 auto; border-bottom: 1px solid var(--line-1); }
+.cj-platform-export .pe-tool-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 9px 16px;
+}
+.cj-platform-export .pe-tool-gen { border-top: 1px solid var(--line-1); }
+.cj-platform-export .pe-tool-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-400);
+  text-transform: uppercase;
+}
+.cj-platform-export .pe-tool-hint { font-size: 12px; color: var(--ink-500); }
+
+/* 表单元件:统一描边 / 焦点环,深浅色随变量 */
+.cj-platform-export .pe-field {
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--bg-card);
+  color: var(--ink-900);
+  font-size: 12.5px;
+  padding: 5px 9px;
+  font-family: var(--font-sans-cj);
+  transition: border-color var(--motion-fast) var(--ease-soft), box-shadow var(--motion-fast) var(--ease-soft);
+}
+.cj-platform-export .pe-field:focus-visible { outline: none; border-color: var(--brand-300); box-shadow: var(--ring); }
+.cj-platform-export .pe-select { max-width: 200px; }
+.cj-platform-export .pe-num { width: 56px; font-variant-numeric: tabular-nums; }
+
+/* 次级操作(载入):ghost 风,克制 */
+.cj-platform-export .pe-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--bg-card);
+  color: var(--ink-700);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-platform-export .pe-ghost:hover:not(:disabled) { background: var(--bg-hover); border-color: var(--line-3); }
+.cj-platform-export .pe-ghost:focus-visible { outline: none; border-color: var(--brand-300); box-shadow: var(--ring); }
+.cj-platform-export .pe-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* AI 生成行 */
+.cj-platform-export .pe-gen-icon { color: var(--brand-500); flex: 0 0 auto; }
+.cj-platform-export .pe-gen-input { flex: 1 1 12rem; min-width: 0; }
+.cj-platform-export .pe-gen-input::placeholder { color: var(--ink-400); }
+.cj-platform-export .pe-gen-btn { flex: 0 0 auto; }
+.cj-platform-export .pe-gen-err {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--err-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 40%;
+}
+
+/* ── 评审意见(可读排版,非一坨裸文字) ───────────────── */
+.cj-platform-export .pe-critique {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--line-1);
+  background: var(--bg-sunken);
+  padding: 9px 16px;
+}
+.cj-platform-export .pe-critique-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.cj-platform-export .pe-verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+}
+.cj-platform-export .pe-verdict.ok { color: var(--ok-600, var(--ok-500)); background: var(--ok-50); }
+.cj-platform-export .pe-verdict.muted { color: var(--ink-500); background: var(--bg-card); }
+.cj-platform-export .pe-critique-toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--brand-600);
+  font-weight: 600;
+  cursor: pointer;
+}
+.cj-platform-export .pe-critique-toggle:hover { text-decoration: underline; }
+.cj-platform-export .pe-critique-toggle:focus-visible { outline: none; border-radius: var(--r-sm); box-shadow: var(--ring); }
+.cj-platform-export .pe-warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--warn-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50%;
+}
+
+.cj-platform-export .pe-issues {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 168px;
+  overflow: auto;
+  padding-right: 2px;
+}
+.cj-platform-export .pe-issue {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.cj-platform-export .pe-sev {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: var(--r-sm);
+  text-transform: capitalize;
+}
+.cj-platform-export .pe-sev-crit { background: var(--err-50); color: var(--err-500); }
+.cj-platform-export .pe-sev-sig { background: var(--warn-50); color: var(--warn-500); }
+.cj-platform-export .pe-sev-minor { background: var(--bg-card); color: var(--ink-500); border: 1px solid var(--line-2); }
+.cj-platform-export .pe-issue-body { min-width: 0; color: var(--ink-700); }
+.cj-platform-export .pe-issue-where { color: var(--ink-900); font-weight: 700; margin-right: 5px; }
+.cj-platform-export .pe-issue-where::after { content: ":"; color: var(--ink-400); font-weight: 400; }
+.cj-platform-export .pe-issue-fix { color: var(--ink-500); margin-left: 5px; }
+
+/* ── Markdown 编辑区(等宽块 + 可读行高 + 标尺) ─────────── */
+.cj-platform-export .pe-editor-wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.cj-platform-export .pe-editor-rail {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--line-1);
+}
+.cj-platform-export .pe-editor-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+.cj-platform-export .pe-editor-label svg { color: var(--ink-300); }
+.cj-platform-export .pe-editor-meta {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--ink-400);
+  font-variant-numeric: tabular-nums;
+}
+.cj-platform-export .pe-editor {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink-800);
+  padding: 18px 20px;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  line-height: 1.75;
+  tab-size: 2;
+}
+.cj-platform-export .pe-editor::placeholder { color: var(--ink-400); }
+
+/* ── 预览区 ───────────────────────────────────────── */
+.cj-platform-export .pe-preview-rail {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-bottom: 1px solid var(--line-1);
+  font-size: 12px;
+  color: var(--ink-500);
+}
+.cj-platform-export .pe-preview-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  color: var(--ink-700);
+}
+.cj-platform-export .pe-preview-title svg { color: var(--brand-500); }
+.cj-platform-export .pe-preview-spin { color: var(--brand-500); }
+.cj-platform-export .pe-preview-err {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--err-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cj-platform-export .pe-preview-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ink-400);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 50%;
+}
+.cj-platform-export .pe-preview-stage { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 24px; }
+.cj-platform-export .pe-device {
+  margin: 0 auto;
+  max-width: 460px;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: #fff;
+  box-shadow: var(--sh-pop);
+  border: 1px solid var(--line-2);
+}
+.cj-platform-export .pe-device-frame { display: block; width: 100%; height: 100%; min-height: 560px; border: 0; }
+
+/* 预览空态:正文清空时,温和引导回到两个真实入口(章节载入 / AI 生成),不是一块空白纸 */
+.cj-platform-export .pe-preview-empty {
+  margin: 0 auto;
+  max-width: 360px;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  padding: 40px 24px;
+  color: var(--ink-500);
+}
+.cj-platform-export .pe-preview-empty-ico {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 6px;
+  border-radius: var(--r-lg);
+  background: var(--bg-card);
+  border: 1px solid var(--line-2);
+  color: var(--brand-500);
+  box-shadow: var(--sh-1);
+}
+.cj-platform-export .pe-preview-empty-title {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink-800);
+}
+.cj-platform-export .pe-preview-empty-desc {
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink-500);
+}
+.cj-platform-export .pe-preview-empty-desc svg {
+  display: inline;
+  vertical-align: -2px;
+  margin: 0 1px;
+  color: var(--brand-500);
+}
+
+/* 预览首渲骨架:套同一台「设备」轮廓,内排骨架文档行,过渡不突兀 */
+.cj-platform-export .pe-device-skel {
+  padding: 26px 22px;
+  background: #fff;
+}
+.cj-platform-export .pe-skel-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+.cj-platform-export .pe-skel-line {
+  height: 11px;
+  border-radius: var(--r-pill);
+  width: 100%;
+}
+.cj-platform-export .pe-skel-line.pe-skel-h { height: 20px; width: 64%; margin-bottom: 6px; }
+.cj-platform-export .pe-skel-line.w-90 { width: 90%; }
+.cj-platform-export .pe-skel-line.w-92 { width: 92%; }
+.cj-platform-export .pe-skel-line.w-96 { width: 96%; }
+.cj-platform-export .pe-skel-line.w-80 { width: 80%; }
+.cj-platform-export .pe-skel-line.w-72 { width: 72%; }
+.cj-platform-export .pe-skel-line.w-60 { width: 60%; }
+
+/* ════════════════════════════════════════════════════════════
+   Inspector · 导出准备度 / 全平台合身 / 当前平台规格
+   ════════════════════════════════════════════════════════════ */
+.cj-platform-export .pe-insp-scroll {
+  flex: 1 1 auto;
+  padding: 14px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cj-platform-export .pe-insp-scroll > .card,
+.cj-platform-export .pe-insp-scroll > .cj-foldcard { margin: 0; }
+.cj-platform-export .pe-card-ico { color: var(--ink-400); vertical-align: -2px; margin-right: 2px; }
+.cj-platform-export .card-title { display: inline-flex; align-items: center; gap: 6px; }
+
+/* 导出准备度 */
+.cj-platform-export .pe-ready-pct {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--brand-600);
+  line-height: 1;
+}
+.cj-platform-export .pe-ready-pct[data-done] { color: var(--ok-600, var(--ok-500)); }
+.cj-platform-export .pe-ready .cj-meter { margin-bottom: 10px; }
+.cj-platform-export .pe-checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cj-platform-export .pe-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 6px 6px;
+  border-radius: var(--r-md);
+}
+.cj-platform-export .pe-check-mark {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  color: var(--ink-400);
+}
+.cj-platform-export .pe-check.is-ok .pe-check-mark {
+  background: var(--ok-50);
+  color: var(--ok-600, var(--ok-500));
+}
+.cj-platform-export .pe-check-empty {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  border: 1.5px solid var(--ink-300);
+}
+.cj-platform-export .pe-check-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.cj-platform-export .pe-check-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-600);
+}
+.cj-platform-export .pe-check.is-ok .pe-check-label { color: var(--ink-900); }
+.cj-platform-export .pe-check-hint {
+  font-size: 11px;
+  color: var(--ink-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 全平台合身(FoldCard 内) */
+.cj-platform-export .pe-fold-count { font-size: 11.5px; color: var(--ink-500); }
+.cj-platform-export .pe-fold-count b {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  color: var(--ok-600, var(--ok-500));
+}
+.cj-platform-export .pe-fit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 3px;
+}
+.cj-platform-export .pe-fit-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-platform-export .pe-fit-row:hover { background: var(--bg-card); border-color: var(--line-2); }
+.cj-platform-export .pe-fit-row:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-platform-export .pe-fit-row[data-active] {
+  background: color-mix(in srgb, var(--brand-500) 6%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--brand-500) 26%, var(--line-1));
+}
+.cj-platform-export .pe-fit-ico {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  color: var(--ink-500);
+}
+.cj-platform-export .pe-fit-row[data-active] .pe-fit-ico {
+  background: var(--brand-50);
+  color: var(--brand-600);
+}
+.cj-platform-export .pe-fit-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+.cj-platform-export .pe-fit-name { font-size: 12.5px; font-weight: 600; color: var(--ink-900); }
+.cj-platform-export .pe-fit-range {
+  font-size: 11px;
+  color: var(--ink-400);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cj-platform-export .pe-fit-row .pill { flex: 0 0 auto; }
+.cj-platform-export .pe-fit-gap {
+  font-style: normal;
+  margin-left: 4px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+/* 当前平台规格 */
+.cj-platform-export .pe-spec-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.cj-platform-export .pe-spec-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  background: var(--bg-sunken);
+  min-width: 0;
+}
+.cj-platform-export .pe-spec-wide { grid-column: span 2; }
+.cj-platform-export .pe-spec-k {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-400);
+}
+.cj-platform-export .pe-spec-k svg { color: var(--ink-300); }
+.cj-platform-export .pe-spec-v {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-800);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cj-platform-export .pe-spec-v.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.cj-platform-export .pe-spec-wide .pe-spec-v { font-size: 12.5px; font-weight: 600; color: var(--ink-700); white-space: normal; }
+.cj-platform-export .pe-spec-fit-ready { color: var(--ok-600, var(--ok-500)); }
+.cj-platform-export .pe-spec-fit-short { color: var(--brand-600); }
+.cj-platform-export .pe-spec-fit-long  { color: var(--warn-600, var(--warn-500)); }
+.cj-platform-export .pe-spec-ext {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--brand-600);
+  background: var(--brand-50);
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+}
+
+/* ── 响应式 ───────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .cj-platform-export .pe-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cj-platform-export .pe-kpis > .cj-kpi:nth-child(4),
+  .cj-platform-export .pe-kpis > .cj-kpi:nth-child(5) { grid-column: span 1; }
+}
+
+/* 窄屏:Inspector 折到主区下方(整页仍只在各 pane 内滚) */
+@media (max-width: 1024px) {
+  .cj-platform-export .pe-body { grid-template-columns: minmax(0, 1fr); }
+  .cj-platform-export .pe-inspector { display: none; }
+  .cj-platform-export .pe-split { grid-template-columns: 1fr; }
+  .cj-platform-export .pe-pane-edit { border-right: none; border-bottom: 1px solid var(--line-1); }
+  .cj-platform-export .pe-pane-edit .pe-editor { min-height: 300px; }
+  .cj-platform-export .pe-headline { flex-wrap: wrap; gap: 12px; }
+  .cj-platform-export .pe-sub { white-space: normal; }
+  .cj-platform-export .pe-export-group { margin-left: 0; }
+  .cj-platform-export .pe-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .cj-platform-export .pe-head { padding: 12px 14px; }
+  .cj-platform-export .pe-hero-pixel { width: 36px; height: 36px; }
+  .cj-platform-export .pe-platbar { padding: 8px 14px; gap: 5px; overflow-x: auto; }
+  .cj-platform-export .pe-platbar-tpl { margin-left: 0; }
+  .cj-platform-export .pe-tool-row { padding: 8px 14px; }
+  .cj-platform-export .pe-editor { padding: 14px; font-size: 13px; }
+  .cj-platform-export .pe-preview-stage { padding: 16px; }
+  .cj-platform-export .pe-export-group { width: 100%; }
+  .cj-platform-export .pe-copy { flex: 1; justify-content: center; }
+  /* 窄屏导出按钮收成图标,省横向空间 */
+  .cj-platform-export .pe-download-text { display: none; }
+  .cj-platform-export .pe-download { padding: 0 12px; }
+}

@@ -1,0 +1,373 @@
+/* 新建书向导 — 表单 → 实时进度 → 完成/失败 */
+
+.nb-dialog { max-width: 640px !important; }
+
+.nb-form { display: flex; flex-direction: column; gap: 16px; padding: 4px 2px 0; }
+.nb-row { display: flex; gap: 12px; align-items: stretch; }
+.nb-row > .nb-field { flex: 1; min-width: 0; }
+.nb-row > .nb-field.nb-field-wide { flex: 2; }
+
+.nb-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.nb-lab { font-size: 12px; font-weight: 600; color: var(--ink-600); }
+.nb-req { color: var(--err-500); font-style: normal; margin-left: 2px; }
+.nb-hint { font-size: 11.5px; color: var(--ink-400); line-height: 1.5; margin-top: 2px; }
+
+.nb-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--bg-card);
+  color: var(--ink-900);
+  font: inherit;
+  font-size: 13px;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.nb-input:focus { outline: none; border-color: var(--brand-500); box-shadow: 0 0 0 3px var(--brand-50); }
+.nb-input.nb-textarea { height: auto; padding: 10px 12px; line-height: 1.6; resize: vertical; min-height: 96px; }
+.nb-input.nb-num { font-family: var(--font-num); font-weight: 600; text-align: center; }
+/* select.nb-input:去掉原生箭头,换自绘 chevron(和全站下拉框统一) */
+select.nb-input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%238a8aa8' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  cursor: pointer;
+}
+
+.nb-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-2);
+  background: var(--bg-card);
+  color: var(--ink-700);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s, transform .15s;
+}
+.nb-btn.ghost { background: transparent; }
+.nb-btn:hover { background: var(--bg-hover); border-color: var(--line-1); }
+.nb-btn.primary {
+  background: linear-gradient(135deg, var(--brand-500), #9D8AFF);
+  border-color: var(--brand-500);
+  color: white;
+  box-shadow: 0 2px 8px -2px rgba(110, 91, 250, 0.5);
+}
+.nb-btn.primary:hover { box-shadow: 0 4px 12px -2px rgba(110, 91, 250, 0.6); transform: translateY(-1px); }
+.nb-btn:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+/* 删除半成品:平时安静(灰),确认态才转红;取消建书复用 quiet 风格,不抢主操作 */
+.nb-btn.danger-quiet { color: var(--ink-500); }
+.nb-btn.danger-quiet:hover:not(:disabled) {
+  color: var(--err-500);
+  border-color: color-mix(in oklab, var(--err-500) 35%, var(--line-2));
+  background: var(--err-50);
+}
+.nb-btn.danger {
+  color: var(--err-500);
+  border-color: color-mix(in oklab, var(--err-500) 45%, var(--line-2));
+  background: var(--err-50);
+}
+.nb-btn.danger:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--err-500) 14%, var(--bg-card));
+  border-color: var(--err-500);
+}
+
+/* ── 进行中:四步流程 ──────────────────────────────────────────── */
+.nb-progress { padding: 4px 2px 0; }
+.nb-title-row {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--ink-700);
+}
+.nb-title-row b { color: var(--ink-900); }
+.nb-spin { animation: nb-spin 1s linear infinite; color: var(--brand-500); }
+@keyframes nb-spin { to { transform: rotate(360deg); } }
+
+.nb-steps {
+  list-style: none;
+  padding: 0; margin: 0;
+  display: flex; flex-direction: column;
+  position: relative;
+}
+/* 步骤左侧的连线 */
+.nb-steps::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 16px; bottom: 16px;
+  width: 2px;
+  background: var(--line-2);
+  border-radius: 1px;
+}
+.nb-step {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  position: relative;
+}
+.nb-step-dot {
+  width: 22px; height: 22px;
+  border-radius: 999px;
+  background: var(--bg-card);
+  border: 2px solid var(--line-2);
+  position: relative;
+  z-index: 1;
+  transition: background .2s, border-color .2s, box-shadow .2s;
+}
+.nb-step.done .nb-step-dot {
+  background: var(--ok-500);
+  border-color: var(--ok-500);
+}
+.nb-step.done .nb-step-dot::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: grid; place-items: center;
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+}
+.nb-step.active .nb-step-dot {
+  background: var(--brand-50);
+  border-color: var(--brand-500);
+  animation: nb-pulse 1.4s ease-in-out infinite;
+}
+.nb-step.active .nb-step-dot::after {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 8px; height: 8px;
+  border-radius: 999px;
+  background: var(--brand-500);
+  transform: translate(-50%, -50%);
+}
+@keyframes nb-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(110, 91, 250, 0.35); }
+  50%      { box-shadow: 0 0 0 6px transparent; }
+}
+.nb-step-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nb-step-body b { font-size: 13px; font-weight: 600; color: var(--ink-900); }
+.nb-step.pending .nb-step-body b { color: var(--ink-500); }
+.nb-step-hint { font-size: 11.5px; color: var(--ink-500); }
+.nb-step-state {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-400);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+}
+.nb-step.done .nb-step-state { color: var(--ok-500); background: var(--ok-50); }
+.nb-step.active .nb-step-state { color: var(--brand-600); background: var(--brand-50); }
+
+.nb-active {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: var(--brand-50);
+  border: 1px solid var(--brand-200);
+  border-radius: var(--r-md);
+  font-size: 12.5px;
+  color: var(--brand-700, var(--brand-600));
+}
+.nb-active-dot {
+  width: 7px; height: 7px;
+  border-radius: 999px;
+  background: var(--brand-500);
+  box-shadow: 0 0 0 4px rgba(110, 91, 250, 0.18);
+  animation: nb-pulse 1.4s ease-in-out infinite;
+  flex: 0 0 7px;
+}
+.nb-active b { color: var(--brand-700, var(--brand-600)); font-weight: 700; }
+.nb-foot-note {
+  margin: 14px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-400);
+  line-height: 1.6;
+}
+.nb-foot-note b { color: var(--ink-600); font-weight: 600; }
+
+/* 进行中底部的两个出口:去作品列表看进度 / 取消建书 —— 「关掉不丢」的实体落点 */
+.nb-running-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-1);
+}
+.nb-running-actions .nb-btn { flex: 1; }
+
+/* ── 完成 ───────────────────────────────────────────────────── */
+.nb-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 12px 8px 4px;
+}
+.nb-done-mark {
+  width: 48px; height: 48px;
+  border-radius: 999px;
+  display: grid; place-items: center;
+  font-size: 24px;
+  font-weight: 800;
+  margin-bottom: 14px;
+  background: var(--ok-50); color: var(--ok-500); border: 2px solid var(--ok-500);
+}
+.nb-done h3 { margin: 0 0 6px; font-size: 16px; color: var(--ink-900); }
+.nb-done p { margin: 0 0 16px; font-size: 13px; color: var(--ink-500); line-height: 1.65; max-width: 420px; }
+/* 失败态的等宽报错块(由 .nb-outcome 容器收 margin) */
+.nb-err-msg {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  background: var(--err-50);
+  border: 1px solid rgba(239,68,68,.22);
+  border-radius: var(--r-md);
+  color: var(--err-500);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  text-align: left;
+  max-width: 100%;
+  max-height: 160px;
+  overflow: auto;
+}
+
+/* ── 补救面板:地基没过 / 轮询超时 / 失败 共用左对齐版式 ─────────── */
+.nb-outcome { padding: 6px 2px 0; display: flex; flex-direction: column; }
+.nb-outcome-head { display: flex; align-items: flex-start; gap: 12px; }
+.nb-outcome-mark {
+  width: 40px; height: 40px;
+  flex: 0 0 40px;
+  border-radius: var(--r-lg);
+  display: grid; place-items: center;
+}
+.nb-outcome-mark.warn { background: var(--warn-50); color: var(--warn-500); }
+.nb-outcome-mark.info { background: var(--info-50); color: var(--info-500); }
+.nb-outcome-mark.err  { background: var(--err-50);  color: var(--err-500); }
+/* info 态的 loader 在转,呼应"后台可能还在跑";已取消(stopped)不转,是个静止的叉 */
+.nb-outcome-mark.info svg { animation: nb-spin 1.4s linear infinite; }
+.nb-outcome-mark.info.stopped svg { animation: none; }
+.nb-outcome-title { min-width: 0; padding-top: 1px; }
+.nb-outcome-title h3 { margin: 0; font-size: 15px; color: var(--ink-900); }
+.nb-outcome-sub { margin: 3px 0 0; font-size: 12px; color: var(--ink-500); line-height: 1.5; }
+.nb-outcome-body {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--ink-700);
+  line-height: 1.65;
+}
+.nb-outcome-note {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  background: var(--bg-sunken);
+  border-radius: var(--r-md);
+  font-size: 12px;
+  color: var(--ink-500);
+  line-height: 1.6;
+}
+.nb-outcome-note b { color: var(--ink-700); font-weight: 600; }
+/* error 态保留等宽报错块,但放进 outcome 版式里时收一下上边距 */
+.nb-outcome .nb-err-msg { margin: 14px 0 0; }
+
+/* 补救按钮:次要(看进度/删除)左、主操作(返回/重试/补地基)右,窄屏堆叠 */
+.nb-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-1);
+}
+.nb-actions-secondary,
+.nb-actions-primary { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* ── 文件上传 ───────────────────────────────────────────────── */
+.nb-upload-row {
+  display: flex; align-items: center; gap: 12px;
+  flex-wrap: wrap;
+}
+.nb-upload-btn {
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  height: 32px;
+  font-size: 12px;
+}
+.nb-upload-hint {
+  flex: 1;
+  font-size: 11.5px;
+  color: var(--ink-400);
+  line-height: 1.5;
+}
+.nb-upload-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.nb-upload-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 6px 4px 8px;
+  font-size: 11.5px;
+  background: var(--brand-50);
+  border: 1px solid var(--brand-200);
+  border-radius: var(--r-md);
+  color: var(--ink-800);
+  max-width: 100%;
+}
+.nb-upload-icon { color: var(--brand-600); flex-shrink: 0; }
+.nb-upload-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+.nb-upload-size {
+  font-family: var(--font-num);
+  font-size: 10.5px;
+  color: var(--ink-500);
+}
+.nb-upload-rm {
+  display: inline-grid; place-items: center;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.04);
+  border: none;
+  color: var(--ink-500);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.nb-upload-rm:hover {
+  background: var(--err-50);
+  color: var(--err-500);
+}
+
+@media (max-width: 560px) {
+  .nb-row { flex-direction: column; gap: 12px; }
+  .nb-upload-row { flex-direction: column; align-items: stretch; }
+  /* 窄屏:进行中两出口竖排;补救面板次/主操作两组各自占满,按钮撑开好点 */
+  .nb-running-actions { flex-direction: column; }
+  .nb-actions { flex-direction: column; align-items: stretch; }
+  .nb-actions-secondary,
+  .nb-actions-primary { width: 100%; }
+  .nb-actions-secondary .nb-btn,
+  .nb-actions-primary .nb-btn { flex: 1; }
+}

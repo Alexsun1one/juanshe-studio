@@ -1,0 +1,156 @@
+/* 智能体详情 · 页面专属样式(scoped .cj-agent)
+   范式对齐 insights / characters / memory:焦点带 + 一行内联数据(数据原地变化,不堆配置卡),
+   主区是提示词编辑,侧栏是紧凑工具标签 + 版本时间线。底色中性,品牌紫克制,仅用 CSS 变量(深浅色自适应)。*/
+.cj-agent { display: flex; flex-direction: column; gap: 0; }
+
+.cj-agent .back { width: fit-content; padding: 0; border: 0; background: transparent; font: inherit; font-size: 12.5px; color: var(--ink-500); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 14px; transition: color var(--motion-fast) var(--ease-soft); }
+.cj-agent .back:hover { color: var(--brand-600); }
+.cj-agent .back:focus-visible { outline: none; box-shadow: var(--ring); border-radius: var(--r-sm); }
+
+/* ── 焦点带:像素角色(身份色) + 名称/阶段 + 操作 ───────────────────────── */
+.cj-agent .ag-hero {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 16px 20px; margin-bottom: 12px;
+  border: 1px solid var(--line-1); border-radius: var(--r-xl);
+  background:
+    radial-gradient(120% 160% at 0% 0%, color-mix(in oklab, var(--brand-500) 8%, transparent), transparent 60%),
+    var(--bg-card);
+}
+.cj-agent .ag-hero-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 3px 8px color-mix(in oklab, var(--brand-500) 22%, transparent));
+  transition: transform var(--motion-fast) var(--ease-soft);
+}
+.cj-agent .ag-hero:hover .ag-hero-pixel { transform: translateY(-2px) rotate(-3deg); }
+.cj-agent .ag-hero-body { flex: 1 1 auto; min-width: 0; }
+.cj-agent .ag-hero-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cj-agent .ag-name { margin: 0; font-size: 22px; font-weight: 750; color: var(--ink-900); line-height: 1.2; }
+.cj-agent .ag-state {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: var(--r-pill);
+}
+.cj-agent .ag-state.is-locked { color: var(--warn-500); background: var(--warn-50); }
+.cj-agent .ag-state.is-open { color: var(--ok-600, var(--ok-500)); background: var(--ok-50); }
+.cj-agent .ag-sub { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-500); }
+.cj-agent .ag-hero-actions { flex: 0 0 auto; display: flex; gap: 8px; }
+
+/* ── 内联数据行:取代右侧配置卡,数据原地变化 ─────────────────────────── */
+.cj-agent .ag-stats {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 4px;
+  padding: 11px 18px; margin-bottom: 24px;
+  background: var(--bg-sunken); border: 1px solid var(--line-2); border-radius: var(--r-lg);
+}
+.cj-agent .ag-stat { display: inline-flex; align-items: baseline; gap: 7px; padding: 0 4px; }
+.cj-agent .ag-stat .v {
+  font-family: var(--font-num); font-variant-numeric: tabular-nums;
+  font-size: 16px; font-weight: 700; color: var(--ink-900); line-height: 1;
+}
+.cj-agent .ag-stat .v.mono { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--ink-800); }
+.cj-agent .ag-stat .v.is-dirty { color: var(--warn-500); }
+.cj-agent .ag-stat .l { font-size: 11.5px; color: var(--ink-500); white-space: nowrap; }
+.cj-agent .ag-sep { width: 1px; height: 16px; background: var(--line-2); flex: 0 0 1px; margin: 0 8px; }
+
+/* ── 主区 + 侧栏 ─────────────────────────────────────────────────────── */
+.cj-agent .ag-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+
+.cj-agent .sh {
+  font-size: 12px; font-weight: 700; color: var(--ink-700);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  margin: 0 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line-1);
+  display: flex; align-items: center; gap: 8px;
+}
+.cj-agent .sh .c { font-family: var(--font-num); font-variant-numeric: tabular-nums; color: var(--ink-400); font-weight: 600; letter-spacing: 0; text-transform: none; }
+.cj-agent .sh .act {
+  margin-left: auto; padding: 0; border: 0; background: transparent; font: inherit;
+  font-size: 12px; color: var(--brand-600); cursor: pointer; text-transform: none; letter-spacing: 0; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 4px;
+  transition: color var(--motion-fast) var(--ease-soft), opacity var(--motion-fast) var(--ease-soft);
+}
+.cj-agent .sh .act:hover { color: var(--brand-700); }
+.cj-agent .sh .act:disabled { color: var(--ink-300); cursor: default; }
+.cj-agent .sh .act:focus-visible { outline: none; box-shadow: var(--ring); border-radius: var(--r-sm); }
+
+/* 提示词编辑器 */
+.cj-agent .prompt-box { border: 1px solid var(--line-2); border-radius: var(--r-lg); overflow: hidden; background: var(--bg-card); box-shadow: var(--sh-1); }
+.cj-agent .prompt-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px; border-bottom: 1px solid var(--line-1); background: var(--bg-canvas);
+  font-size: 11.5px; color: var(--ink-500); font-family: var(--font-mono);
+}
+.cj-agent .prompt-head .ph-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--brand-400, var(--brand-500)); flex: 0 0 7px; }
+.cj-agent .prompt-head .ph-sp { margin-left: auto; }
+.cj-agent .prompt-head .ph-count { font-variant-numeric: tabular-nums; color: var(--ink-400); }
+.cj-agent .prompt-box textarea {
+  width: 100%; min-height: 360px; border: none; outline: none; resize: vertical;
+  padding: 16px 18px; background: var(--bg-card); color: var(--ink-800);
+  font-family: var(--font-mono); font-size: 13px; line-height: 1.75; tab-size: 2;
+}
+.cj-agent .prompt-box textarea::placeholder { color: var(--ink-400); }
+.cj-agent .prompt-box textarea:disabled { background: var(--bg-sunken); color: var(--ink-500); cursor: not-allowed; }
+.cj-agent .prompt-foot { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line-1); background: var(--bg-canvas); }
+.cj-agent .prompt-foot .ph-sp { margin-left: auto; }
+.cj-agent .save-flag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+.cj-agent .save-flag.is-dirty { color: var(--warn-500); }
+.cj-agent .save-flag.is-synced { color: var(--ok-600, var(--ok-500)); }
+.cj-agent .save-flag .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+.cj-agent .test-res { margin-top: 12px; padding: 10px 14px; border-radius: var(--r-md); font-size: 12.5px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+.cj-agent .test-res.ok { background: var(--ok-50); color: var(--ok-600, var(--ok-500)); }
+.cj-agent .test-res.err { background: var(--err-50); color: var(--err-500); }
+
+/* 侧栏 */
+.cj-agent .ag-side { display: flex; flex-direction: column; gap: 26px; }
+.cj-agent .ag-side .tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.cj-agent .ag-side .side-empty { margin: 0; font-size: 12px; line-height: 1.6; color: var(--ink-500); }
+
+.cj-agent .ver-list { list-style: none; margin: 0; padding: 0; }
+.cj-agent .ver { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--line-1); font-size: 12.5px; }
+.cj-agent .ver:last-child { border-bottom: none; }
+.cj-agent .ver .vd { width: 8px; height: 8px; border-radius: 50%; background: var(--brand-400, var(--brand-500)); flex: 0 0 8px; }
+.cj-agent .ver .vt { flex: 1; min-width: 0; color: var(--ink-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cj-agent .ver .vm { font-size: 11px; color: var(--ink-400); font-family: var(--font-num); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+
+/* ── 加载 / 错误态 ───────────────────────────────────────────────────── */
+.cj-agent .agent-state { min-height: 430px; border: 1px solid var(--line-2); border-radius: var(--r-xl); background: var(--bg-card); padding: 24px; box-shadow: var(--sh-1); }
+.cj-agent .agent-state.is-error { border-color: color-mix(in srgb, var(--err-500) 32%, var(--line-2)); background: var(--err-50); }
+.cj-agent .state-head { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+.cj-agent .state-head .btn { margin-left: auto; }
+.cj-agent .spin { color: var(--brand-600); animation: agent-spin 900ms linear infinite; flex: 0 0 auto; }
+.cj-agent .state-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--err-500); flex: 0 0 12px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--err-500) 14%, transparent); }
+.cj-agent .state-title { font-size: 15px; font-weight: 750; color: var(--ink-900); }
+.cj-agent .state-copy { margin-top: 4px; font-size: 12.5px; line-height: 1.6; color: var(--ink-500); max-width: 720px; }
+.cj-agent .loading-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 28px; align-items: stretch; }
+.cj-agent .load-card { min-height: 250px; border: 1px solid var(--line-1); border-radius: var(--r-lg); background: var(--bg-canvas); padding: 18px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+.cj-agent .load-card.is-wide { min-height: 310px; }
+.cj-agent .load-line,
+.cj-agent .load-area { display: block; border-radius: var(--r-md); background: linear-gradient(90deg, var(--bg-sunken), var(--bg-card), var(--bg-sunken)); background-size: 220% 100%; animation: agent-pulse 1.4s ease-in-out infinite; }
+.cj-agent .load-line { width: 100%; height: 14px; }
+.cj-agent .load-line.is-strong { width: 54%; height: 18px; }
+.cj-agent .load-line.is-short { width: 68%; }
+.cj-agent .load-area { flex: 1; min-height: 170px; margin-top: 8px; }
+
+@keyframes agent-spin { to { transform: rotate(360deg); } }
+@keyframes agent-pulse { 0% { background-position: 100% 0; } 100% { background-position: -120% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .cj-agent .ag-hero:hover .ag-hero-pixel { transform: none; }
+  .cj-agent .spin { animation: none; }
+  .cj-agent .load-line,
+  .cj-agent .load-area { animation: none; }
+}
+
+/* ── 响应式 ──────────────────────────────────────────────────────────── */
+@media (max-width: 1000px) {
+  .cj-agent .ag-grid,
+  .cj-agent .loading-grid { grid-template-columns: 1fr; }
+  .cj-agent .ag-grid { gap: 24px; }
+  .cj-agent .ag-side { flex-direction: row; flex-wrap: wrap; gap: 24px 32px; }
+  .cj-agent .ag-side > section { flex: 1 1 240px; min-width: 0; }
+}
+@media (max-width: 620px) {
+  .cj-agent .ag-hero { gap: 12px; padding: 14px; }
+  .cj-agent .ag-hero-pixel { width: 44px; height: 44px; }
+  .cj-agent .ag-hero-actions { flex-basis: 100%; }
+  .cj-agent .ag-stats { gap: 8px 2px; padding: 11px 14px; }
+  .cj-agent .ag-sep { margin: 0 5px; }
+  .cj-agent .ag-side { flex-direction: column; gap: 24px; }
+}

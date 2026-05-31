@@ -1,0 +1,39 @@
+{
+  "name": "juanshe-studio",
+  "version": "1.3.10",
+  "private": true,
+  "description": "卷舍 · 本地 AI 小说写作工作台.",
+  "keywords": [
+    "ai-novel-writing",
+    "ai-writing-agent",
+    "novel-generator",
+    "autonomous-writing",
+    "litrpg",
+    "progression-fantasy",
+    "multi-agent",
+    "creative-writing-ai",
+    "editorial-workbench",
+    "source-available"
+  ],
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "package:mac": "node scripts/package-macos-app.mjs",
+    "verify:publish-manifests": "node scripts/verify-no-workspace-protocol.mjs packages/core packages/studio",
+    "release": "pnpm build && pnpm test"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@mariozechner/pi-ai": "0.67.1",
+      "@mariozechner/pi-agent-core": "0.67.1"
+    }
+  }
+}

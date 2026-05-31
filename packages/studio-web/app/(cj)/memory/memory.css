@@ -1,0 +1,351 @@
+/* 记忆长卷 · 工作站化:一屏不下拉,横向滚动只在长卷视口内,Inspector 在自己的 pane 内滚 (scoped .cj-memory)
+   要点:容器有界(overflow 受控);记忆文字默认收起,hover 浮现;颜色一律走 token,暗色/多主题不坏。 */
+
+/* ── 顶部工作条:像素 + 标题 + 泳道开关 + 一行密集 KPI(非大卡平铺)── */
+.cj-memory .mem-head {
+  padding: 12px 20px 12px;
+  border-bottom: 1px solid var(--line-1);
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in srgb, var(--brand-500) 6%, transparent), transparent 58%),
+    var(--bg-app);
+}
+.cj-memory .mem-headline {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+.cj-memory .mem-hero-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--brand-600) 22%, transparent));
+  transition: transform 240ms var(--ease-soft);
+}
+.cj-memory .mem-head:hover .mem-hero-pixel {
+  transform: translateY(-2px) rotate(-3deg);
+}
+.cj-memory .mem-headline-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.cj-memory .mem-headline-text .page-title-row {
+  margin: 0;
+  align-items: baseline;
+}
+.cj-memory .mem-hero-book {
+  font-size: var(--text-body);
+  font-weight: 600;
+  color: var(--ink-700);
+  white-space: nowrap;
+}
+.cj-memory .mem-headline-text .page-sub {
+  margin-top: 3px;
+  max-width: 680px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 泳道开关:沿用既有 lane-toggle 视觉,放到工作条右侧 */
+.cj-memory .mem-head-toggle {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+}
+.cj-memory .lane-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+}
+.cj-memory .lane-toggle .chip {
+  font: inherit;
+  font-size: var(--text-cap);
+  padding: 5px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-sm);
+  color: var(--ink-700);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: background var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft);
+}
+.cj-memory .lane-toggle .chip:hover { background: var(--bg-hover); }
+.cj-memory .lane-toggle .chip:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-memory .lane-toggle .chip.active { background: var(--brand-50); color: var(--brand-600); font-weight: 600; }
+.cj-memory .lane-toggle .chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+.cj-memory .lane-toggle .chip .num { color: var(--ink-400); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.cj-memory .lane-toggle .chip.active .num { color: var(--brand-600); }
+
+/* 一行 KPI:密集而不乱,横向铺满 */
+.cj-memory .mem-kpis {
+  margin-top: 11px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+
+/* ── 主体:主区(长卷)+ Inspector ── */
+.cj-memory .mem-mainpane {
+  padding: 0;
+}
+.cj-memory .mem-mainpane-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 11px 18px 9px 20px;
+  border-bottom: 1px solid var(--line-1);
+}
+.cj-memory .mem-mainpane-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-800);
+  letter-spacing: 0.01em;
+}
+.cj-memory .mem-mainpane-title svg { color: var(--brand-600); }
+.cj-memory .mem-mainpane-sub {
+  font-size: var(--text-cap);
+  color: var(--ink-500);
+}
+.cj-memory .mem-mainpane-hint {
+  margin-left: auto;
+  font-size: var(--text-cap);
+  color: var(--ink-400);
+  white-space: nowrap;
+}
+
+/* 有界视口:横向滚动,纵向不滚 —— flex:1 撑满主区剩余高度,页面整体不下拉 */
+.cj-memory .scroll-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background:
+    radial-gradient(circle at 20px 30px, color-mix(in oklab, var(--brand-500) 4%, transparent) 1px, transparent 1px) 0 0 / 60px 60px,
+    var(--bg-canvas);
+}
+.cj-memory .scroll-canvas { position: relative; padding-left: 150px; }
+
+/* 左侧 sticky 泳道标签栏 */
+.cj-memory .lane-rail {
+  position: sticky; left: 0; width: 150px; float: left; margin-left: -150px;
+  background: linear-gradient(90deg, var(--bg-canvas) 82%, transparent);
+  border-right: 1px solid var(--line-1); z-index: 6;
+}
+.cj-memory .lane-label { position: absolute; left: 16px; font-size: var(--text-cap); font-weight: 700; color: var(--ink-700); display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.cj-memory .lane-label .lane-ico { display: inline-flex; flex: 0 0 auto; }
+.cj-memory .lane-label .ct { font-size: var(--text-micro); color: var(--ink-400); font-weight: 600; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+/* 卷彩带 */
+.cj-memory .vol-band { position: absolute; height: 18px; display: flex; align-items: center; justify-content: center; border-radius: var(--r-xs); font-size: var(--text-micro); font-weight: 600; letter-spacing: 0.06em; overflow: hidden; }
+
+/* 里程碑气泡 */
+.cj-memory .beat-callout { position: absolute; transform: translateX(-50%); font-size: var(--text-micro); color: var(--ink-700); background: var(--bg-card); border: 1px solid var(--line-2); padding: 3px 8px; border-radius: var(--r-pill); white-space: nowrap; font-weight: 600; }
+.cj-memory .beat-callout.cur { background: var(--brand-500); color: white; border-color: var(--brand-500); }
+
+/* 章节轴 */
+.cj-memory .ch-axis { position: absolute; left: 0; right: 0; height: 24px; }
+.cj-memory .ch-tick { position: absolute; transform: translateX(-50%); text-align: center; font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: var(--text-micro); color: var(--ink-400); }
+.cj-memory .ch-tick.done { color: var(--ok-500); font-weight: 700; }
+.cj-memory .ch-tick.cur { color: white; background: var(--brand-500); border-radius: var(--r-sm); font-weight: 800; padding: 1px 5px; }
+
+/* 竖直网格线 + now 线 */
+.cj-memory .ch-grid { position: absolute; width: 1px; background: color-mix(in oklab, var(--ink-900) 4%, transparent); }
+.cj-memory .now-line { position: absolute; width: 2px; background: var(--brand-500); z-index: 3; }
+.cj-memory .now-line::before { content: "现在"; position: absolute; top: -4px; left: 50%; transform: translateX(-50%); font-size: var(--text-micro); color: white; background: var(--brand-500); padding: 1px 5px; border-radius: var(--r-sm); white-space: nowrap; }
+
+/* 泳道分隔 */
+.cj-memory .lane-sep { position: absolute; left: 0; right: 0; height: 1px; background: var(--line-1); }
+
+/* 记忆节点 chip:默认收起(圆点 + 短签),hover 浮现全文 */
+.cj-memory .mem-node {
+  position: absolute; transform: translate(-50%, -50%);
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 24px; padding: 0 10px 0 8px;
+  border-radius: var(--r-pill);
+  background: var(--bg-card); border: 1px solid var(--line-2);
+  font-size: var(--text-micro); color: var(--ink-700); cursor: pointer;
+  max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: transform var(--motion-fast) var(--ease-spring-cj), box-shadow var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft), max-width var(--motion-base) var(--ease-soft);
+  z-index: 2;
+}
+.cj-memory .mem-node .nd { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; }
+.cj-memory .mem-node:hover { transform: translate(-50%, -50%) scale(1.04); box-shadow: var(--sh-pop); border-color: var(--brand-300); z-index: 20; max-width: 280px; }
+/* hover 浮现全文气泡 */
+.cj-memory .mem-node .pop {
+  position: absolute; left: 0; top: calc(100% + 8px);
+  width: 240px; padding: 10px 12px;
+  background: var(--bg-card); border: 1px solid var(--line-2); border-radius: var(--r-md);
+  box-shadow: var(--sh-pop); color: var(--ink-700); font-size: var(--text-cap); line-height: 1.6;
+  white-space: normal; opacity: 0; pointer-events: none; transform: translateY(-4px);
+  transition: opacity var(--motion-fast) var(--ease-soft), transform var(--motion-fast) var(--ease-soft); z-index: 30;
+}
+.cj-memory .mem-node:hover .pop { opacity: 1; transform: translateY(0); }
+.cj-memory .mem-node .pop .ttl { font-weight: 700; color: var(--ink-900); margin-bottom: 4px; display: block; }
+.cj-memory .mem-node .pop .meta { font-size: var(--text-micro); color: var(--ink-400); margin-top: 6px; font-family: var(--font-num); }
+
+/* 长卷空状态:复用全局 .empty 的居中排版,仅在固定高度的画布里收一下高度与色调 */
+.cj-memory .scroll-canvas .empty {
+  min-height: 140px; padding: 24px;
+  font-size: var(--text-cap); color: var(--ink-400);
+}
+
+/* ════════════════════════════════════════════════════════════
+   Inspector · 记忆守护焦点 + 增长走势 + 泳道构成 + 节拍 + 最新记忆
+   ════════════════════════════════════════════════════════════ */
+.cj-memory .mem-insp-scroll {
+  padding: 14px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cj-memory .mem-insp-scroll > .card,
+.cj-memory .mem-insp-scroll > .cj-foldcard { margin: 0; }
+
+/* 焦点卡:像素「记忆守护」+ 记忆密度 + 推进进度 */
+.cj-memory .mem-focus {
+  padding: 14px;
+}
+.cj-memory .mem-focus-top { display: flex; align-items: center; gap: 11px; }
+.cj-memory .mem-focus-pix {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--brand-600) 20%, transparent));
+  transition: transform 240ms var(--ease-soft);
+}
+.cj-memory .mem-focus:hover .mem-focus-pix { transform: translateY(-2px) rotate(-3deg); }
+.cj-memory .mem-focus-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.cj-memory .mem-focus-role { font-size: 13.5px; font-weight: 700; color: var(--ink-900); }
+.cj-memory .mem-focus-book { font-size: var(--text-cap); color: var(--ink-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cj-memory .mem-focus-tag { flex: 0 0 auto; align-self: flex-start; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+.cj-memory .mem-focus-meter { margin-top: 13px; }
+.cj-memory .mem-focus-cap { display: flex; align-items: baseline; gap: 5px; margin-top: 5px; font-size: 11.5px; color: var(--ink-500); }
+.cj-memory .mem-focus-cap .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ink-800); }
+.cj-memory .mem-focus-of { color: var(--ink-400); }
+.cj-memory .mem-focus-pct { margin-left: auto; font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 700; color: var(--brand-600); }
+
+/* 记忆增长 sparkline — 柱+线复合;图表区,保留卡框 */
+.cj-memory .mem-spark {
+  padding: 12px 14px;
+}
+.cj-memory .mem-spark .ms-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-bottom: 6px; flex-wrap: wrap;
+}
+.cj-memory .mem-spark .ms-head h4 {
+  margin: 0; display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--text-title); font-weight: 700; color: var(--ink-900);
+}
+.cj-memory .mem-spark .ms-head h4 svg { color: var(--brand-600); }
+.cj-memory .mem-spark .ms-head .muted {
+  font-weight: 400; color: var(--ink-500); margin-left: 0; font-size: var(--text-cap);
+}
+.cj-memory .mem-spark .ms-legend {
+  display: inline-flex; align-items: center; gap: 12px;
+  font-size: var(--text-micro); color: var(--ink-500);
+}
+.cj-memory .mem-spark .ms-legend > span { display: inline-flex; align-items: center; gap: 5px; }
+.cj-memory .mem-spark .ms-bar  { width: 10px; height: 8px; background: var(--brand-400); opacity: 0.55; border-radius: 2px; display: inline-block; }
+.cj-memory .mem-spark .ms-line { width: 12px; height: 2px; background: var(--brand-500); border-radius: 1px; display: inline-block; }
+.cj-memory .mem-spark .ms-plot { position: relative; margin-top: 4px; min-height: 80px; display: flex; }
+.cj-memory .mem-spark .ms-svg {
+  display: block;
+  width: 100%;
+  height: 80px;
+}
+/* hover 微交互:柱与浮标点轻微提亮,提示可悬停 */
+.cj-memory .mem-spark .ms-rect { cursor: pointer; transition: opacity var(--motion-fast) var(--ease-soft); }
+.cj-memory .mem-spark .ms-rect:hover { opacity: 0.85; }
+.cj-memory .mem-spark .ms-now { cursor: pointer; transition: r var(--motion-fast) var(--ease-soft); }
+.cj-memory .mem-spark g:hover .ms-now { r: 4.5; }
+/* 自定义 tooltip:复用 .pop 的视觉语言(同卡底/描边/阴影/圆角),替代原生 SVG <title> */
+.cj-memory .mem-spark .ms-tip {
+  position: absolute; bottom: calc(100% + 6px); transform: translateX(-50%);
+  padding: 7px 10px; max-width: 200px;
+  background: var(--bg-card); border: 1px solid var(--line-2); border-radius: var(--r-md);
+  box-shadow: var(--sh-pop); color: var(--ink-700); font-size: var(--text-micro); line-height: 1.5;
+  white-space: nowrap; pointer-events: none; z-index: 30;
+}
+.cj-memory .mem-spark .ms-tip .ttl { display: block; font-weight: 700; color: var(--ink-900); margin-bottom: 2px; }
+
+/* 泳道构成:每类占比条 */
+.cj-memory .mem-lanes { display: flex; flex-direction: column; gap: 11px; padding-top: 4px; }
+.cj-memory .mem-lane-top { display: flex; align-items: center; gap: 7px; }
+.cj-memory .mem-lane-ico { display: inline-flex; flex: 0 0 auto; }
+.cj-memory .mem-lane-name { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600; color: var(--ink-800); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cj-memory .mem-lane-ct { display: inline-flex; align-items: baseline; gap: 5px; flex: 0 0 auto; }
+.cj-memory .mem-lane-ct b { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 800; color: var(--ink-800); line-height: 1; }
+.cj-memory .mem-lane-ct i { font-style: normal; font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: var(--text-micro); color: var(--ink-400); }
+.cj-memory .mem-lane-track { margin-top: 6px; display: flex; height: 5px; border-radius: var(--r-pill); overflow: hidden; background: var(--bg-sunken); }
+.cj-memory .mem-lane-track i { height: 100%; border-radius: var(--r-pill); transition: width var(--motion-base) var(--ease-soft); }
+
+/* 节拍 · 里程碑(对齐 outline 的 ol-beat 视觉) */
+.cj-memory .mem-beats { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+.cj-memory .mem-beat {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 9px; border: 1px solid var(--line-1); border-radius: var(--r-md);
+  background: var(--bg-card);
+  transition: background var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-memory .mem-beat:hover { background: var(--bg-hover); }
+.cj-memory .mem-beat.is-current { border-color: color-mix(in srgb, var(--brand-500) 28%, var(--line-1)); background: var(--brand-50); }
+.cj-memory .mem-beat-ico {
+  display: grid; place-items: center; flex: 0 0 auto;
+  width: 22px; height: 22px; border-radius: var(--r-sm);
+  background: var(--bg-sunken); color: var(--ink-500);
+}
+.cj-memory .mem-beat.is-done .mem-beat-ico { background: var(--ok-50); color: var(--ok-600, var(--ok-500)); }
+.cj-memory .mem-beat.is-current .mem-beat-ico { background: var(--brand-100, var(--brand-50)); color: var(--brand-600); }
+.cj-memory .mem-beat-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+.cj-memory .mem-beat-name { font-size: 12.5px; font-weight: 600; color: var(--ink-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cj-memory .mem-beat.is-todo .mem-beat-name { color: var(--ink-500); }
+.cj-memory .mem-beat-ch { font-size: 11px; color: var(--ink-400); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.cj-memory .mem-beat .pill { flex: 0 0 auto; }
+
+/* 最新记忆:轻量分隔行,类型图标 + 短签 + 章号 */
+.cj-memory .mem-recent { display: flex; flex-direction: column; gap: 0; padding-top: 2px; }
+.cj-memory .mem-rec {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 4px;
+  border-bottom: 1px dashed var(--line-1);
+}
+.cj-memory .mem-rec:last-child { border-bottom: none; }
+.cj-memory .mem-rec-ico { display: inline-flex; flex: 0 0 auto; }
+.cj-memory .mem-rec-text {
+  flex: 1 1 auto; min-width: 0;
+  font-size: 12px; color: var(--ink-700); line-height: 1.4;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cj-memory .mem-rec-ch {
+  flex: 0 0 auto;
+  font-size: var(--text-micro); font-weight: 600; color: var(--ink-400);
+  font-family: var(--font-num); font-variant-numeric: tabular-nums;
+  background: var(--bg-sunken); padding: 1px 7px; border-radius: var(--r-pill);
+  white-space: nowrap;
+}
+
+/* ── 响应式:窄屏把 KPI 收成 2/3 列;泳道开关换行到标题下 ── */
+@media (max-width: 1100px) {
+  .cj-memory .mem-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cj-memory .mem-kpis > .cj-kpi:nth-child(4),
+  .cj-memory .mem-kpis > .cj-kpi:nth-child(5) { grid-column: span 1; }
+}
+@media (max-width: 920px) {
+  .cj-memory .mem-headline { flex-wrap: wrap; gap: 12px; }
+  .cj-memory .mem-headline-text .page-sub { white-space: normal; }
+  .cj-memory .mem-head-toggle { margin-left: 0; flex-wrap: wrap; }
+}
+@media (max-width: 760px) {
+  .cj-memory .mem-head { padding: 12px 14px; }
+  .cj-memory .mem-hero-pixel { width: 40px; height: 40px; }
+  .cj-memory .mem-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cj-memory .mem-mainpane-hint { display: none; }
+}

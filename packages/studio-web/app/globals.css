@@ -1,0 +1,569 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* ================================================================
+   长卷写作台 · Scroll Studio — 设计系统 v2
+   ----------------------------------------------------------------
+   语言：浅色为主的精致 SaaS（淡薰衣草冷底 + 纯白卡片 + 靛蓝主色），
+   长时间写作不疲劳；夜间为深空靛蓝同构对照。
+   一切映射到 shadcn 变量契约 —— 57 个 UI 原语零改动继承。
+   含：语义色 / 运行状态机 / 动效与缓动令牌 / 海拔阴影 / 工具类。
+   ================================================================ */
+
+:root {
+  /* —— 表面 · 日间(暖色像素工坊:奶油纸)—— */
+  --background: #FCFAF5;
+  --foreground: #3B2E1B;
+
+  --card: #FFFDF8;
+  --card-foreground: #3B2E1B;
+
+  --popover: #FFFDF8;
+  --popover-foreground: #3B2E1B;
+
+  /* —— 主色 / 次级 / 弱化 —— */
+  --primary: #6E5BFA;
+  --primary-foreground: #FFFDF8;
+
+  --secondary: #F2EBDC;
+  --secondary-foreground: #4E4638;
+
+  --muted: #F2EBDC;
+  --muted-foreground: #7A6F5B;
+
+  --accent: #EFE8FC;
+  --accent-foreground: #4A38C7;
+
+  --destructive: #e5484d;
+  --destructive-foreground: #FFFDF8;
+
+  --border: #ECE3D4;
+  --input: #ECE3D4;
+  --ring: #6E5BFA;
+
+  /* —— 语义色（纯色 + soft 浅底）—— */
+  --brand: #6E5BFA;        --brand-soft: #F0EDFF;
+  --success: #16a34a;      --success-soft: #e7f6ed;
+  --warning: #d97706;      --warning-soft: #fdf0dd;
+  --danger: #e5484d;       --danger-soft: #fcebec;
+  --info: #0ea5e9;         --info-soft: #e3f4fc;
+  --purple: #7c3aed;       --purple-soft: #f1ebfe;
+  --pink: #db2777;         --pink-soft: #fce8f1;
+
+  /* —— 实体气泡（知识图谱 / 记忆长卷）：世界观 / 角色 / 长期记忆 / 伏笔 / 焦点 / 风格指纹 —— */
+  --entity-world:  #8b7dff; --entity-world-soft:  #efecff;
+  --entity-char:   #2bb97a; --entity-char-soft:   #e4f6ec;
+  --entity-memory: #4a8ae0; --entity-memory-soft: #e6eefb;
+  --entity-fore:   #4fb0e0; --entity-fore-soft:   #e2f2fa;
+  --entity-focus:  #f08a4b; --entity-focus-soft:  #fdecdf;
+  --entity-style:  #b173e8; --entity-style-soft:  #f4eafb;
+
+  /* —— 运行状态机（写作流 / runs / agent）—— */
+  --state-idle: #94a3b8;
+  --state-queued: #0ea5e9;
+  --state-running: #5b5bd6;
+  --state-streaming: #5b5bd6;
+  --state-paused: #d97706;
+  --state-success: #16a34a;
+  --state-error: #e5484d;
+
+  /* 兼容旧别名 */
+  --status-running: var(--state-running);
+  --status-success: var(--state-success);
+  --status-warning: var(--state-paused);
+  --status-error: var(--state-error);
+  --status-idle: var(--state-idle);
+  --status-paused: var(--state-paused);
+  --status-queued: var(--state-queued);
+
+  /* —— 图表 —— */
+  --chart-1: #5b5bd6;
+  --chart-2: #16a34a;
+  --chart-3: #d97706;
+  --chart-4: #db2777;
+  --chart-5: #0ea5e9;
+
+  --radius: 0.75rem;
+
+  /* —— 海拔阴影（克制、贴合纸感）—— */
+  --shadow-xs: 0 1px 0 rgba(74, 58, 36, 0.04);
+  --shadow-sm: 0 1px 2px rgba(74, 58, 36, 0.06), 0 1px 0 rgba(74, 58, 36, 0.03);
+  --shadow-md: 0 6px 20px -10px rgba(74, 58, 36, 0.16), 0 1px 2px rgba(74, 58, 36, 0.05);
+  --shadow-lg: 0 20px 44px -18px rgba(74, 58, 36, 0.22);
+  --ring-focus: 0 0 0 3px color-mix(in oklab, var(--ring) 32%, transparent);
+
+  /* —— 动效与缓动令牌（统一微交互规范）—— */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-1: 120ms;   /* 即时反馈：hover / press */
+  --dur-2: 200ms;   /* 状态切换 */
+  --dur-3: 340ms;   /* 入场 / 面板 */
+  --dur-4: 560ms;   /* 强调 / 流式 */
+
+  /* —— 自托管字体族(@fontsource variable → public/fonts,无 gstatic 构建期依赖)—— */
+  --font-inter: 'Inter Variable';
+  --font-lora: 'Lora Variable';
+  --font-noto-sans-sc: 'Noto Sans SC Variable';
+  --font-noto-serif-sc: 'Noto Serif SC Variable';
+
+  /* —— 字体族(全站唯一来源,design.css 的 --font-sans-cj 等都 alias 到这里)——
+     mono 不再列 'JetBrains Mono'(我们没自托管,这一项只会在少数装了它的开发机上吃到,
+     反而让大多数访客显示不一致)——直接用 SF Mono / Menlo / Consolas 的系统优秀链。 */
+  /* 中文优先用各平台最精致的系统字:Mac=苹方 PingFang / 鸿蒙 / 小米 MiSans;
+     都没有再落自托管思源黑体(保证非 Mac/无安装时仍一致)。Latin 仍走 Inter。
+     —— 把 PingFang 排在自托管 Noto 之前,Mac 上中文才会用苹方而不是偏重的思源黑。 */
+  --font-sans-ui: var(--font-inter), 'Inter', 'PingFang SC', 'HarmonyOS Sans SC', 'MiSans', var(--font-noto-sans-sc), 'Source Han Sans SC', 'Noto Sans SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --font-serif-prose: var(--font-lora), var(--font-noto-serif-sc), 'Source Han Serif SC', 'Songti SC', 'Noto Serif CJK SC', 'Noto Serif SC', 'STSong', Georgia, serif; /* prose=思源宋体 */
+  --font-mono-num: 'SF Mono', SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+  /* —— 像素体(Zpix「最像素」自托管):仅用于刻意像素点缀(品牌字标 .brand-name / .font-pixel / .pixel-badge);
+     正文 / UI / 标题 / 数字 / 导航一律用清晰 sans(点阵体放大即糊,不再全局铺开)。见 design.css 的 .app 字体策略。 —— */
+  --font-pixel: 'Zpix', var(--font-sans-ui);
+  /* —— UI 像素体(缝合像素 12px 简体,比 Zpix 更清晰易读):用于导航/卡标题/徽章/标签等 UI 短文本,
+     增加可爱温暖感又看得清。正文长文仍用宋体。在 12/24px 原生尺寸最锐。 —— */
+  --font-pixel-ui: 'Fusion Pixel 12px Proportional SC', var(--font-sans-ui); /* pixel-ui */
+
+  /* —— 侧边栏 —— */
+  --sidebar: #FBF7EF;
+  --sidebar-foreground: #4E4638;
+  --sidebar-primary: #6E5BFA;
+  --sidebar-primary-foreground: #FFFDF8;
+  --sidebar-accent: #EFE8FC;
+  --sidebar-accent-foreground: #4A38C7;
+  --sidebar-border: #ECE3D4;
+  --sidebar-ring: #6E5BFA;
+}
+
+.dark {
+  /* —— 表面 · 夜间（深空靛蓝）—— */
+  --background: #262136;
+  --foreground: #ECE3D2;
+
+  --card: #2E2942;
+  --card-foreground: #ECE3D2;
+
+  --popover: #2A2640;
+  --popover-foreground: #ECE3D2;
+
+  --primary: #9C8BFF;
+  --primary-foreground: #1A1610;
+
+  --secondary: #312C48;
+  --secondary-foreground: #D8CDB8;
+
+  --muted: #232035;
+  --muted-foreground: #A89A82;
+
+  --accent: #322A44;
+  --accent-foreground: #CFC3F5;
+
+  --destructive: #f2555a;
+  --destructive-foreground: #1A1610;
+
+  --border: #363050;
+  --input: #363050;
+  --ring: #9C8BFF;
+
+  --brand: #9C8BFF;        --brand-soft: #2E2640;
+  --success: #34d399;      --success-soft: #0f2b22;
+  --warning: #fbbf24;      --warning-soft: #2e2510;
+  --danger: #f2555a;       --danger-soft: #311618;
+  --info: #38bdf8;         --info-soft: #0b2733;
+  --purple: #a78bfa;       --purple-soft: #221a3b;
+  --pink: #f472b6;         --pink-soft: #2f1626;
+
+  /* —— 实体气泡 · 夜间 —— */
+  --entity-world:  #a99bff; --entity-world-soft:  #232753;
+  --entity-char:   #34d399; --entity-char-soft:   #0f2b22;
+  --entity-memory: #5fa0f0; --entity-memory-soft: #0b223a;
+  --entity-fore:   #5cc4f0; --entity-fore-soft:   #0b2733;
+  --entity-focus:  #f3a36a; --entity-focus-soft:  #2e1d10;
+  --entity-style:  #c79bf0; --entity-style-soft:  #221a3b;
+
+  --state-idle: #64748b;
+  --state-queued: #38bdf8;
+  --state-running: #8b8bf2;
+  --state-streaming: #8b8bf2;
+  --state-paused: #fbbf24;
+  --state-success: #34d399;
+  --state-error: #f2555a;
+
+  --chart-1: #8b8bf2;
+  --chart-2: #34d399;
+  --chart-3: #fbbf24;
+  --chart-4: #f472b6;
+  --chart-5: #38bdf8;
+
+  --shadow-xs: 0 1px 0 rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 8px 26px -12px rgba(0, 0, 0, 0.65), 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 24px 52px -20px rgba(0, 0, 0, 0.75);
+  --ring-focus: 0 0 0 3px color-mix(in oklab, var(--ring) 42%, transparent);
+
+  --sidebar: #1C1829;
+  --sidebar-foreground: #C6B9A1;
+  --sidebar-primary: #9C8BFF;
+  --sidebar-primary-foreground: #1A1610;
+  --sidebar-accent: #322A44;
+  --sidebar-accent-foreground: #CFC3F5;
+  --sidebar-border: #352C20;
+  --sidebar-ring: #9C8BFF;
+}
+
+@theme inline {
+  --font-sans: var(--font-sans-ui);
+  --font-serif: var(--font-serif-prose);
+  --font-mono: var(--font-mono-num);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-purple: var(--purple);
+  --color-purple-soft: var(--purple-soft);
+  --color-pink: var(--pink);
+  --color-pink-soft: var(--pink-soft);
+
+  --color-entity-world: var(--entity-world);   --color-entity-world-soft: var(--entity-world-soft);
+  --color-entity-char: var(--entity-char);     --color-entity-char-soft: var(--entity-char-soft);
+  --color-entity-memory: var(--entity-memory); --color-entity-memory-soft: var(--entity-memory-soft);
+  --color-entity-fore: var(--entity-fore);     --color-entity-fore-soft: var(--entity-fore-soft);
+  --color-entity-focus: var(--entity-focus);   --color-entity-focus-soft: var(--entity-focus-soft);
+  --color-entity-style: var(--entity-style);   --color-entity-style-soft: var(--entity-style-soft);
+
+  --color-state-idle: var(--state-idle);
+  --color-state-queued: var(--state-queued);
+  --color-state-running: var(--state-running);
+  --color-state-streaming: var(--state-streaming);
+  --color-state-paused: var(--state-paused);
+  --color-state-success: var(--state-success);
+  --color-state-error: var(--state-error);
+
+  --color-status-running: var(--status-running);
+  --color-status-success: var(--status-success);
+  --color-status-warning: var(--status-warning);
+  --color-status-error: var(--status-error);
+  --color-status-idle: var(--status-idle);
+  --color-status-paused: var(--status-paused);
+  --color-status-queued: var(--status-queued);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* —— 命名字阶（语义化，不覆盖 Tailwind 默认 text-xs/sm/base）——
+     用法：text-micro / text-cap / text-body / text-ui / text-title
+            text-head / text-h2 / text-h1 / text-display
+     规范：UI 文案最小到 micro(11px) 为下限；正文 body(13)/ui(14)；
+            标题层级 title(16)→h2(22)→h1(26)→display(32)。 */
+  /* 字号规范(type scale)— 全站唯一来源,组件统一用这些变量,别再硬编码 px。整体偏小、精致。 */
+  --text-micro: 11px;     --text-micro--line-height: 1.4;     /* 角标/计数 */
+  --text-cap: 12px;       --text-cap--line-height: 1.45;      /* 副标签/说明 */
+  --text-body: 13px;      --text-body--line-height: 1.6;      /* 正文默认 */
+  --text-ui: 13px;        --text-ui--line-height: 1.55;       /* 按钮/控件 */
+  --text-title: 14.5px;   --text-title--line-height: 1.4;    --text-title--font-weight: 600;  /* 卡片标题 */
+  --text-head: 16px;      --text-head--line-height: 1.35;    --text-head--font-weight: 600;   /* 区块标题 */
+  --text-h2: 18px;        --text-h2--line-height: 1.3;       --text-h2--font-weight: 700;     /* 次级标题 */
+  --text-h1: 21px;        --text-h1--line-height: 1.25;      --text-h1--font-weight: 700;     /* 页面标题 */
+  --text-display: 25px;   --text-display--line-height: 1.2;  --text-display--font-weight: 700; /* 大标题/Hero,慎用 */
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body {
+    @apply bg-background text-foreground;
+    /* 桌面客户端:窗口级固定,document/body 永不滚动 —— 滚动只发生在 pane 内(正文/列表/日志/预览)。
+       这是把"网页式下拉 dashboard"变成"创作工作站"的根本一步。 */
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  body {
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-optical-sizing: auto;     /* 可变字体按字号自动取最优光学尺寸,大小字都更精神 */
+  }
+  /* 类型层级 —— 标题字距:本应用以中文为主。负字距是拉丁 display 体的技巧,
+     套到中文会让方块字"挤在一起"显脏。中文标题用 normal(0),只给纯拉丁标题一点点收紧。 */
+  h1, h2, h3, h4 { letter-spacing: normal; }
+  /* 纯拉丁标题(标了 lang=en 或 .latin)才收紧字距,中文不动 */
+  h1:lang(en), h2:lang(en), h3:lang(en), .latin-title { letter-spacing: -0.015em; }
+  .tabular-nums,
+  [data-tabular] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 22%, transparent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ----------------------------------------------------------------
+   设计系统工具类（壳层 / 仪表盘 / 写作台复用，统一规范）
+   ---------------------------------------------------------------- */
+
+@layer components {
+  .shadow-card { box-shadow: var(--shadow-xs); }
+  .shadow-pop { box-shadow: var(--shadow-md); }
+  .shadow-float { box-shadow: var(--shadow-lg); }
+  .ring-focus { box-shadow: var(--ring-focus); }
+
+  /* 语义药丸 —— data-tone 切换语义；data-dot 显隐前导点 */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: 1.375rem;
+    padding: 0 0.5625rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    border-radius: 999px;
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .pill[data-dot]::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0.9;
+    flex: none;
+  }
+  .pill[data-tone='brand']   { background: var(--brand-soft);   color: var(--brand);   border-color: transparent; }
+  .pill[data-tone='success'] { background: var(--success-soft); color: var(--success); border-color: transparent; }
+  .pill[data-tone='warning'] { background: var(--warning-soft); color: var(--warning); border-color: transparent; }
+  .pill[data-tone='danger']  { background: var(--danger-soft);  color: var(--danger);  border-color: transparent; }
+  .pill[data-tone='purple']  { background: var(--purple-soft);  color: var(--purple);  border-color: transparent; }
+  .pill[data-tone='info']    { background: var(--info-soft);    color: var(--info);    border-color: transparent; }
+  .pill[data-tone='muted']   { background: var(--muted); color: var(--muted-foreground); border-color: transparent; }
+
+  /* 标准卡片 */
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-xs);
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.75rem 0.875rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-head h2,
+  .panel-head h3 { flex: 1; font-size: 0.875rem; font-weight: 600; color: var(--foreground); }
+  .panel-body { padding: 0.875rem; }
+
+  /* 段控 */
+  .seg {
+    display: inline-flex;
+    background: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 0.625rem;
+    padding: 3px;
+    gap: 2px;
+  }
+  .seg > button {
+    height: 1.75rem;
+    padding: 0 0.75rem;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--muted-foreground);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    transition: all var(--dur-1) var(--ease-out);
+  }
+  .seg > button:hover { color: var(--foreground); }
+  .seg > button[data-active] {
+    background: var(--card);
+    color: var(--foreground);
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* 状态点 —— data-state 驱动颜色；running/streaming 自带脉冲 */
+  .state-dot {
+    width: 8px; height: 8px; border-radius: 999px;
+    background: var(--state-idle); flex: none;
+    position: relative;
+  }
+  .state-dot[data-state='queued']  { background: var(--state-queued); }
+  .state-dot[data-state='running'],
+  .state-dot[data-state='streaming'] { background: var(--state-running); }
+  .state-dot[data-state='paused']  { background: var(--state-paused); }
+  .state-dot[data-state='success'] { background: var(--state-success); }
+  .state-dot[data-state='error']   { background: var(--state-error); }
+  .state-dot[data-state='running']::after,
+  .state-dot[data-state='streaming']::after {
+    content: '';
+    position: absolute; inset: -3px;
+    border-radius: 999px;
+    background: currentColor;
+    background: var(--state-running);
+    opacity: 0.35;
+    animation: state-ping 1.5s var(--ease-out) infinite;
+  }
+}
+
+/* ----------------------------------------------------------------
+   文稿排版 —— 手稿衬线
+   ---------------------------------------------------------------- */
+
+.prose-manuscript {
+  font-family: var(--font-serif);
+  font-size: 1.0625rem;
+  line-height: 1.95;
+  letter-spacing: 0.01em;
+  color: color-mix(in oklab, var(--foreground) 94%, var(--muted-foreground));
+}
+.prose-manuscript p { margin-bottom: 1.1em; text-indent: 2em; }
+.prose-manuscript p:first-child { text-indent: 0; }
+.prose-manuscript .quote-line {
+  text-indent: 0;
+  padding-left: 1em;
+  border-left: 2px solid color-mix(in oklab, var(--primary) 55%, transparent);
+  color: var(--primary);
+  font-style: italic;
+}
+
+/* ----------------------------------------------------------------
+   动效 —— 流式写作 / 入场 / 状态
+   ---------------------------------------------------------------- */
+
+@keyframes typing-cursor { 0%,55% { opacity: 1; } 56%,100% { opacity: 0.15; } }
+@keyframes ink-fade-in {
+  from { opacity: 0; transform: translateY(3px); filter: blur(2px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes state-ping {
+  0% { transform: scale(0.7); opacity: 0.5; }
+  70%, 100% { transform: scale(1.9); opacity: 0; }
+}
+@keyframes shimmer {
+  0% { background-position: -360px 0; }
+  100% { background-position: 360px 0; }
+}
+@keyframes stream-caret {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.animate-typing-cursor { animation: typing-cursor 1.05s var(--ease-out) infinite; }
+.animate-ink-in { animation: ink-fade-in var(--dur-3) var(--ease-out) both; }
+.animate-rise-in { animation: rise-in var(--dur-3) var(--ease-out) both; }
+
+/* 流式 token 入场：每个新片段轻盈淡入 */
+.stream-token { animation: ink-fade-in 0.32s var(--ease-out) both; }
+/* 流式输出处的呼吸光标 */
+.stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 1px;
+  vertical-align: -0.15em;
+  border-radius: 2px;
+  background: var(--primary);
+  animation: stream-caret 1s var(--ease-out) infinite;
+}
+
+/* 骨架微光 */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--muted) 25%,
+    color-mix(in oklab, var(--muted) 60%, var(--card)) 37%,
+    var(--muted) 63%
+  );
+  background-size: 720px 100%;
+  animation: shimmer 1.4s linear infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* ----------------------------------------------------------------
+   滚动条 —— 极细，融入背景
+   ---------------------------------------------------------------- */
+
+.scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-thin::-webkit-scrollbar-track { background: transparent; }
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--muted-foreground) 26%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--muted-foreground) 48%, transparent);
+  background-clip: padding-box;
+}

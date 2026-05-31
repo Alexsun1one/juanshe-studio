@@ -1,0 +1,145 @@
+/* 编辑部的猫:工作台脚边像素陪伴。pointer-events:none,纯陪伴不挡操作。 */
+
+.cj-cat {
+  position: fixed;
+  right: 102px;
+  bottom: 10px;
+  z-index: 38;
+  pointer-events: none;
+  user-select: none;
+  width: 72px;
+  height: 64px;
+  filter: drop-shadow(0 4px 5px rgba(74, 58, 36, 0.18));
+}
+
+.cj-cat-stage {
+  position: relative;
+  width: 72px;
+  height: 64px;
+  transition: transform 4.4s cubic-bezier(0.37, 0, 0.4, 1);
+}
+
+.cj-cat[data-state="sleep"] .cj-cat-stage,
+.cj-cat[data-state="wake"] .cj-cat-stage {
+  transition: transform 1.2s var(--ease-soft, ease);
+}
+
+.cj-cat-img {
+  position: absolute;
+  left: 2px;
+  bottom: 0;
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  transform-origin: 50% 90%;
+  filter:
+    drop-shadow(1px 0 0 rgba(43, 38, 32, 0.25))
+    drop-shadow(-1px 0 0 rgba(43, 38, 32, 0.25))
+    drop-shadow(0 1px 0 rgba(43, 38, 32, 0.25));
+  transition: transform 0.35s var(--ease-soft, ease);
+}
+
+.cj-cat-shadow {
+  position: absolute;
+  left: 11px;
+  bottom: 2px;
+  width: 46px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(74, 58, 36, 0.15);
+  filter: blur(1px);
+}
+
+:where(html.dark) .cj-cat-shadow {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.cj-cat[data-state="sleep"] .cj-cat-img {
+  animation: cj-cat-breathe 3s ease-in-out infinite;
+}
+
+.cj-cat[data-state="wake"] .cj-cat-img {
+  animation: cj-cat-perk 0.5s var(--ease-spring-cj, ease) 1;
+}
+
+.cj-cat[data-state="walk"] .cj-cat-img {
+  animation: cj-cat-bob 0.42s steps(2, end) infinite;
+}
+
+@keyframes cj-cat-breathe {
+  0%, 100% { translate: 0 0; scale: 1 1; }
+  50% { translate: 0 -1px; scale: 1.02 0.98; }
+}
+
+@keyframes cj-cat-perk {
+  0% { translate: 0 0; }
+  50% { translate: 0 -3px; }
+  100% { translate: 0 0; }
+}
+
+@keyframes cj-cat-bob {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -2px; }
+}
+
+.cj-cat-zzz {
+  position: absolute;
+  top: -3px;
+  left: 47px;
+  display: flex;
+  gap: 1px;
+  color: var(--brand-400, #9D8AFF);
+  font-family: var(--font-pixel-ui, monospace);
+  font-weight: 700;
+  opacity: 0;
+}
+
+.cj-cat[data-state="sleep"] .cj-cat-zzz {
+  opacity: 1;
+}
+
+.cj-cat-zzz span {
+  font-size: 9px;
+  line-height: 1;
+  animation: cj-cat-zzz 3.2s ease-in-out infinite;
+}
+
+.cj-cat-zzz span:nth-child(1) {
+  font-size: 8px;
+  animation-delay: 0s;
+}
+
+.cj-cat-zzz span:nth-child(2) {
+  font-size: 10px;
+  animation-delay: 0.5s;
+}
+
+.cj-cat-zzz span:nth-child(3) {
+  font-size: 12px;
+  animation-delay: 1s;
+}
+
+@keyframes cj-cat-zzz {
+  0% { transform: translateY(2px) translateX(0); opacity: 0; }
+  30% { opacity: 0.9; }
+  100% { transform: translateY(-9px) translateX(4px); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cj-cat-stage,
+  .cj-cat-img,
+  .cj-cat-zzz span {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .cj-cat {
+    right: 88px;
+    bottom: 8px;
+    transform: scale(0.82);
+    transform-origin: right bottom;
+  }
+}

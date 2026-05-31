@@ -1,0 +1,189 @@
+/* 检测台 · (scoped .cj-detect) — 工作条 + 图标化检测流水线 + 检测维度
+   说明:本页正文是共享的 <CapabilityWorkbench initialTab="detect">(不在本页改,自带
+   作品/章节选择、单章·全书检测、检测结果与历史统计,整体较高),故沿用 .page 文档流
+   (与同样内嵌 Workbench 的题材库/导入台一致);这里把页头升级到 books / import 标杆
+   workhead 的密度与颜值:像素 + 标题 + 一行密集 KPI,再用图标化流水线 + 检测维度替代
+   裸文字一句话。视觉只用既有 token / kit;色彩一律走 CSS 变量,状态走 .pill[data-state]。 */
+.cj-detect { display: flex; flex-direction: column; gap: 0; padding: 0; }
+
+/* ── 顶部工作条:像素 + 标题 + 一行 KPI(对齐 .cj-import .imp-head / .cj-books .bk-head)── */
+.cj-detect .det-head {
+  padding: 14px 4px 16px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--line-1);
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in oklab, var(--brand-500) 6%, transparent), transparent 58%),
+    transparent;
+}
+.cj-detect .det-headline {
+  display: flex; align-items: center; gap: 13px; min-width: 0;
+}
+.cj-detect .det-head-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 5px color-mix(in oklab, var(--brand-600) 22%, transparent));
+  transition: transform var(--motion-base) var(--ease-soft);
+}
+.cj-detect .det-head:hover .det-head-pixel { transform: translateY(-2px) rotate(-3deg); }
+.cj-detect .det-headline-text { min-width: 0; flex: 1 1 auto; }
+.cj-detect .det-headline-text .page-title-row { margin: 0; }
+.cj-detect .det-headline-text .page-sub {
+  margin-top: 3px; max-width: 760px;
+  line-height: 1.55;
+}
+
+/* 右上「走通 Studio API」标——沿用 brand 软底 pill 语气,克制 */
+.cj-detect .det-head-meta {
+  flex: 0 0 auto; margin-left: auto; align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-num); font-variant-numeric: tabular-nums;
+  font-size: 11.5px; font-weight: 600;
+  color: var(--brand-600); padding: 4px 11px;
+  border-radius: var(--r-pill); background: var(--brand-50);
+  white-space: nowrap;
+}
+.cj-detect .det-head-meta-ico { width: 13px; height: 13px; }
+
+/* 一行 KPI:密集而不乱,横向铺满(对齐 .cj-books .bk-kpis) */
+.cj-detect .det-kpis {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+
+/* ── 焦点带:像素「状态核验官」+ 当前检测目标/就绪度 + 图标化检测流水线 ── */
+.cj-detect .det-hero {
+  display: flex; align-items: flex-start; gap: 15px;
+  padding: 14px 16px; margin-bottom: 16px;
+  border: 1px solid var(--line-1); border-radius: var(--r-xl);
+  background:
+    radial-gradient(120% 160% at 0% 0%, color-mix(in oklab, var(--brand-500) 8%, transparent), transparent 60%),
+    var(--bg-card);
+  box-shadow: var(--sh-1);
+  transition: box-shadow var(--motion-fast) var(--ease-soft);
+}
+.cj-detect .det-hero:hover { box-shadow: var(--sh-2); }
+.cj-detect .det-hero-pix {
+  flex: 0 0 auto; margin-top: 1px;
+  filter: drop-shadow(0 2px 6px color-mix(in oklab, var(--brand-500) 26%, transparent));
+  transition: transform var(--motion-fast) var(--ease-soft);
+}
+.cj-detect .det-hero:hover .det-hero-pix { transform: translateY(-2px) rotate(-3deg); }
+.cj-detect .det-hero-body { flex: 1 1 auto; min-width: 0; }
+.cj-detect .det-hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--text-micro); font-weight: 600; color: var(--ink-400);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.cj-detect .det-hero-eyebrow-ico { width: 13px; height: 13px; }
+
+/* 一行总评:当前检测目标 + 就绪度 pill(语义色只走 .pill[data-state]) */
+.cj-detect .det-hero-line {
+  margin: 6px 0 0;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  font-size: var(--text-body); color: var(--ink-600); line-height: 1.5;
+}
+.cj-detect .det-hero-line b { color: var(--ink-900); font-weight: 600; }
+.cj-detect .det-verdict { flex: 0 0 auto; }
+
+/* 检测流水线:每条 = 像素角色 + 图标 + 标题 + 状态 pill + 一行描述;箭头分隔阶段 */
+.cj-detect .det-pipeline {
+  margin-top: 11px;
+  display: flex; align-items: stretch; flex-wrap: wrap; gap: 8px 6px;
+}
+.cj-detect .det-pipe {
+  flex: 1 1 230px; min-width: 0;
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 9px 11px;
+  border: 1px solid var(--line-1); border-radius: var(--r-lg);
+  background: var(--bg-card);
+  transition: border-color var(--motion-fast) var(--ease-soft),
+              background var(--motion-fast) var(--ease-soft);
+}
+.cj-detect .det-pipe:hover { border-color: var(--line-2); background: var(--bg-hover); }
+.cj-detect .det-pipe-pixel {
+  flex: 0 0 auto; margin-top: 1px;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.06));
+  transition: transform var(--motion-fast) var(--ease-soft);
+}
+.cj-detect .det-pipe:hover .det-pipe-pixel { transform: translateY(-1px) rotate(-2deg); }
+.cj-detect .det-pipe-body { min-width: 0; flex: 1 1 auto; }
+.cj-detect .det-pipe-titleline {
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+}
+.cj-detect .det-pipe-ic { width: 14px; height: 14px; flex: 0 0 auto; color: var(--brand-500); }
+.cj-detect .det-pipe-title {
+  font-size: 12.5px; font-weight: 600; color: var(--ink-800);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cj-detect .det-pipe-titleline .pill { flex: 0 0 auto; margin-left: auto; }
+.cj-detect .det-pipe-desc {
+  margin: 3px 0 0; font-size: 11.5px; color: var(--ink-500); line-height: 1.45;
+}
+.cj-detect .det-pipe-arrow {
+  flex: 0 0 auto; align-self: center;
+  display: inline-grid; place-items: center;
+}
+.cj-detect .det-pipe-arrow svg { width: 15px; height: 15px; color: var(--ink-300); }
+
+/* ── 检测维度 + 确认守则:一行收口(维度=看什么,守则=人味达标安心发布)── */
+.cj-detect .det-foot {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px;
+  margin: 0 0 20px;
+}
+.cj-detect .det-dims {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 7px 8px;
+  min-width: 0;
+}
+.cj-detect .det-dims-k {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--text-cap); font-weight: 600; color: var(--ink-500);
+}
+.cj-detect .det-dims-k .ic { width: 14px; height: 14px; color: var(--ink-400); }
+.cj-detect .det-dim {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 5px 11px 5px 9px; border-radius: var(--r-pill);
+  border: 1px solid var(--line-1); background: var(--bg-sunken);
+  transition: border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-detect .det-dim:hover { border-color: var(--line-2); }
+.cj-detect .det-dim-ic {
+  width: 13px; height: 13px; flex: 0 0 auto; color: var(--ink-400);
+  align-self: center;
+}
+.cj-detect .det-dim-name { font-size: 12px; font-weight: 600; color: var(--ink-700); }
+.cj-detect .det-dim-hint { font-style: normal; font-size: 11px; color: var(--ink-400); white-space: nowrap; }
+
+/* 收口落点:人味达标 → 安心发布,轻 brand 着色作为暖心终点 */
+.cj-detect .det-foot-goal {
+  flex: 0 0 auto; margin-left: auto;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600;
+  color: var(--brand-600); padding: 5px 12px;
+  border-radius: var(--r-pill); background: var(--brand-50);
+  border: 1px solid color-mix(in oklab, var(--brand-500) 22%, transparent);
+  white-space: nowrap;
+}
+.cj-detect .det-foot-goal .ic { width: 14px; height: 14px; }
+
+/* ── 响应式:KPI 与流水线自适应,Workbench 自身随窗收拢 ── */
+@media (max-width: 1080px) {
+  .cj-detect .det-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .cj-detect .det-headline { flex-wrap: wrap; }
+  .cj-detect .det-head-meta { margin-left: 0; }
+  .cj-detect .det-headline-text .page-sub { white-space: normal; }
+  .cj-detect .det-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cj-detect .det-hero { gap: 12px; padding: 13px; }
+  .cj-detect .det-hero-pix { width: 38px; height: 38px; }
+  .cj-detect .det-pipe-arrow { display: none; }
+  .cj-detect .det-foot-goal { margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cj-detect .det-head:hover .det-head-pixel,
+  .cj-detect .det-hero:hover .det-hero-pix,
+  .cj-detect .det-pipe:hover .det-pipe-pixel { transform: none; }
+  .cj-detect .det-hero { transition: none; }
+}

@@ -1,0 +1,658 @@
+/* 作品管理 · 工作站化:一屏不下拉,滚动只在 pane 内 (scoped .cj-books) */
+
+/* ── 顶部工作条:像素 + 标题 + 一行密集 KPI(非大卡平铺)── */
+.cj-books.cj-screen { }
+.cj-books .bk-head {
+  padding: 12px 20px 12px;
+  border-bottom: 1px solid var(--line-1);
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in srgb, var(--brand-500) 6%, transparent), transparent 58%),
+    var(--bg-app);
+}
+.cj-books .bk-headline {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+.cj-books .bk-hero-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--brand-600) 22%, transparent));
+  transition: transform 240ms var(--ease-soft);
+}
+.cj-books .bk-head:hover .bk-hero-pixel {
+  transform: translateY(-2px) rotate(-3deg);
+}
+.cj-books .bk-headline-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.cj-books .bk-headline-text .page-title-row {
+  margin: 0;
+}
+.cj-books .bk-headline-text .page-sub {
+  margin-top: 3px;
+  max-width: 640px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cj-books .bk-head-cta {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+}
+
+/* 一行 KPI:密集而不乱,横向铺满 */
+.cj-books .bk-kpis {
+  margin-top: 11px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+
+/* ── 主体:主区 + Inspector ── */
+.cj-books .bk-mainpane {
+  padding: 0;
+}
+.cj-books .bk-mainpane-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 11px 18px 9px 20px;
+  border-bottom: 1px solid var(--line-1);
+}
+.cj-books .bk-mainpane-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-800);
+  letter-spacing: 0.01em;
+}
+.cj-books .bk-mainpane-stat {
+  margin-left: auto;
+}
+.cj-books .bk-pane-scroll {
+  flex: 1 1 auto;
+  padding: 4px 12px 14px;
+}
+
+/* 列表:轻量分隔线行,无边框卡片(对齐 library/consistency) */
+.cj-books .bk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.cj-books .bk-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 11px 14px 11px 16px;
+  border: 1px solid transparent;
+  border-bottom-color: var(--line-1);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  transition: background var(--motion-fast) var(--ease-soft),
+              border-color var(--motion-fast) var(--ease-soft),
+              box-shadow var(--motion-fast) var(--ease-soft);
+}
+.cj-books .bk-list .bk-row:last-child {
+  border-bottom-color: transparent;
+}
+.cj-books .bk-row:hover {
+  background: var(--bg-card);
+  border-color: var(--line-2);
+  box-shadow: var(--sh-1);
+}
+.cj-books .bk-row.active {
+  background: color-mix(in srgb, var(--brand-500) 5%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--brand-500) 26%, var(--line-1));
+}
+
+/* 书脊色细竖条(每行一个 accent,克制) */
+.cj-books .bk-rail {
+  position: absolute;
+  inset: 4px auto 4px 0;
+  width: 3px;
+  border-radius: 999px;
+  opacity: 0.55;
+}
+.cj-books .bk-row.active .bk-rail {
+  width: 3px;
+  background: var(--brand-500) !important;
+  opacity: 1;
+}
+
+/* 待处理状态:左侧淡淡语义提示(只染极少,不抢戏) */
+.cj-books .bk-row[data-state="failed"] {
+  background: color-mix(in srgb, var(--err-500) 5%, transparent);
+}
+.cj-books .bk-row[data-state="failed"]:hover {
+  background: color-mix(in srgb, var(--err-500) 9%, transparent);
+}
+.cj-books .bk-row[data-state="creating-stuck"],
+.cj-books .bk-row[data-state="needs-foundation"] {
+  background: color-mix(in srgb, var(--warn-500) 5%, transparent);
+}
+.cj-books .bk-row[data-state="creating-stuck"]:hover,
+.cj-books .bk-row[data-state="needs-foundation"]:hover {
+  background: color-mix(in srgb, var(--warn-500) 9%, transparent);
+}
+
+.cj-books .bk-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.06));
+  transition: transform var(--motion-fast) var(--ease-soft);
+}
+.cj-books .bk-row:hover .bk-pixel {
+  transform: translateY(-1px) rotate(-2deg);
+}
+/* 建书中:像素轻微呼吸,点出"正在跑" */
+.cj-books .bk-row[data-state="creating-live"] .bk-pixel {
+  animation: bk-breathe 1.8s var(--ease-soft) infinite;
+}
+@keyframes bk-breathe {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+}
+
+.cj-books .bk-main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.cj-books .bk-titleline {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.cj-books .bk-title {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cj-books .bk-current {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--brand-600);
+  background: var(--brand-50);
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+}
+/* 标题下:规模(章节/进度/字数/更新)一眼看清 + 仅待处理状态附一行恢复指引 */
+.cj-books .bk-sub {
+  margin-top: 5px;
+  min-width: 0;
+}
+.cj-books .bk-scale {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--text-cap);
+  color: var(--ink-500);
+}
+.cj-books .bk-kind {
+  flex: 0 0 auto;
+  font-size: var(--text-micro);
+  font-weight: 600;
+  color: var(--ink-500);
+  background: var(--bg-sunken);
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+}
+.cj-books .bk-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  white-space: nowrap;
+}
+.cj-books .bk-chip b {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-800);
+  line-height: 1;
+}
+.cj-books .bk-chip i {
+  font-style: normal;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-400);
+}
+.cj-books .bk-chip em {
+  font-style: normal;
+  font-size: var(--text-micro);
+  color: var(--ink-400);
+  margin-left: 1px;
+}
+.cj-books .bk-dot {
+  flex: 0 0 auto;
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--ink-300);
+}
+.cj-books .bk-upd {
+  flex: 0 1 auto;
+  font-size: var(--text-micro);
+  color: var(--ink-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cj-books .bk-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ink-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 待处理状态的指引语着一点语义色,让眼睛落到「该动手的地方」 */
+.cj-books .bk-hint[data-tone="warn"] { color: var(--warn-600, var(--warn-500)); }
+.cj-books .bk-hint[data-tone="error"] { color: var(--err-600, var(--err-500)); }
+.cj-books .bk-hint[data-tone="running"] { color: var(--brand-600); }
+
+/* 改名内联编辑 */
+.cj-books .bk-rename {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+}
+.cj-books .bk-rename input {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 320px;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-sans-cj);
+  color: var(--ink-900);
+  background: var(--bg-card);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+}
+.cj-books .bk-rename input:focus {
+  outline: none;
+  border-color: var(--brand-500);
+  box-shadow: var(--ring);
+}
+.cj-books .bk-mini {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: var(--font-sans-cj);
+  color: var(--ink-600);
+  background: var(--bg-card);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: all var(--motion-fast) var(--ease-soft);
+}
+.cj-books .bk-mini:hover {
+  border-color: var(--brand-300);
+}
+.cj-books .bk-mini:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.cj-books .bk-mini.primary {
+  color: var(--ink-inv);
+  background: var(--brand-500);
+  border-color: var(--brand-500);
+}
+.cj-books .bk-mini.primary:hover {
+  background: var(--brand-600);
+  border-color: var(--brand-600);
+}
+.cj-books .bk-mini:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* 内联恢复动作:紧凑文字按钮 + 图标按钮,不堆大按钮 */
+.cj-books .bk-acts {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cj-books .bk-busy {
+  color: var(--brand-500);
+  margin-right: 2px;
+}
+
+.cj-books .bk-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 11px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: var(--font-sans-cj);
+  color: var(--ink-700);
+  background: var(--bg-card);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--motion-fast) var(--ease-soft);
+}
+.cj-books .bk-act:hover {
+  border-color: var(--brand-300);
+  color: var(--ink-900);
+}
+.cj-books .bk-act:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.cj-books .bk-act.primary {
+  color: var(--ink-inv);
+  background: var(--brand-500);
+  border-color: var(--brand-500);
+}
+.cj-books .bk-act.primary:hover {
+  background: var(--brand-600);
+  border-color: var(--brand-600);
+}
+.cj-books .bk-act.warn:hover {
+  color: var(--warn-500);
+  border-color: color-mix(in srgb, var(--warn-500) 45%, var(--line-2));
+}
+.cj-books .bk-act.danger:hover {
+  color: var(--err-500);
+  border-color: color-mix(in srgb, var(--err-500) 45%, var(--line-2));
+}
+.cj-books .bk-act:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cj-books .bk-ic {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  background: none;
+  color: var(--ink-400);
+  cursor: pointer;
+  transition: all var(--motion-fast) var(--ease-soft);
+}
+.cj-books .bk-ic:hover {
+  color: var(--ink-800);
+  background: var(--bg-sunken);
+}
+.cj-books .bk-ic:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.cj-books .bk-ic.danger:hover {
+  color: var(--err-500);
+}
+.cj-books .bk-ic:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cj-books .spin {
+  animation: bk-spin 0.8s linear infinite;
+}
+@keyframes bk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cj-books .bk-pixel,
+  .cj-books .bk-row[data-state="creating-live"] .bk-pixel {
+    animation: none;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   Inspector · 编辑部概览(状态构成 + 进度 + 需要你处理 + 最近更新)
+   ════════════════════════════════════════════════════════════ */
+.cj-books .bk-insp-scroll {
+  padding: 14px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cj-books .bk-insp-scroll > .card,
+.cj-books .bk-insp-scroll > .cj-foldcard { margin: 0; }
+
+.cj-books .bk-overview .card-action { white-space: nowrap; }
+.cj-books .bk-overview-empty {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-500);
+}
+
+/* 概览计量条 + 行内读数 */
+.cj-books .bk-meters {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.cj-books .bk-meters .cj-meter + .bk-meter-cap { margin-top: -3px; }
+.cj-books .bk-meter-cap {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-bottom: 3px;
+  font-size: 11.5px;
+  color: var(--ink-500);
+}
+.cj-books .bk-meter-cap .num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--ink-800);
+}
+.cj-books .bk-meter-of { color: var(--ink-400); }
+.cj-books .bk-meter-pct {
+  margin-left: auto;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--brand-600);
+}
+
+/* 状态三连(待处理 / 写作中 / 就绪) */
+.cj-books .bk-statgrid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.cj-books .bk-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  background: var(--bg-sunken);
+}
+.cj-books .bk-stat b {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ink-800);
+}
+.cj-books .bk-stat i {
+  font-style: normal;
+  font-size: var(--text-micro);
+  font-weight: 600;
+  color: var(--ink-400);
+}
+.cj-books .bk-stat[data-tone="warn"] b { color: var(--warn-600, var(--warn-500)); }
+.cj-books .bk-stat[data-tone="info"] b { color: var(--brand-600); }
+.cj-books .bk-stat[data-tone="ok"] b { color: var(--ok-600, var(--ok-500)); }
+
+/* Inspector 折叠卡里的迷你列表(可点进入) */
+.cj-books .bk-mini-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+}
+.cj-books .bk-mini-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px 7px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background var(--motion-fast) var(--ease-soft), border-color var(--motion-fast) var(--ease-soft);
+}
+.cj-books .bk-mini-row:hover {
+  background: var(--bg-card);
+  border-color: var(--line-2);
+}
+.cj-books .bk-mini-row:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.cj-books .bk-mini-pixel { flex: 0 0 auto; }
+.cj-books .bk-mini-rail {
+  position: absolute;
+  inset: 5px auto 5px 0;
+  width: 3px;
+  border-radius: 999px;
+  opacity: 0.65;
+}
+.cj-books .bk-mini-row:has(.bk-mini-rail) { padding-left: 13px; }
+.cj-books .bk-mini-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.cj-books .bk-mini-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cj-books .bk-mini-hint {
+  font-size: 11px;
+  color: var(--ink-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cj-books .bk-mini-row[data-tone="warn"] .bk-mini-hint { color: var(--warn-600, var(--warn-500)); }
+.cj-books .bk-mini-row[data-tone="error"] .bk-mini-hint { color: var(--err-600, var(--err-500)); }
+.cj-books .bk-mini-row[data-tone="running"] .bk-mini-hint { color: var(--brand-600); }
+.cj-books .bk-mini-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--ink-400);
+}
+.cj-books .bk-mini-meta .num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--ink-600);
+}
+.cj-books .bk-mini-meta em { font-style: normal; }
+.cj-books .bk-mini-upd {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cj-books .bk-mini-row .pill { flex: 0 0 auto; }
+
+/* ── 响应式:窄屏把 KPI 收成 2 列;极窄时动作换行到标题下 ── */
+@media (max-width: 1100px) {
+  .cj-books .bk-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .cj-books .bk-kpis > .cj-kpi:nth-child(4),
+  .cj-books .bk-kpis > .cj-kpi:nth-child(5) {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 860px) {
+  .cj-books .bk-headline {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .cj-books .bk-headline-text .page-sub { white-space: normal; }
+  .cj-books .bk-head-cta { margin-left: 0; }
+  .cj-books .bk-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .cj-books .bk-head { padding: 12px 14px; }
+  .cj-books .bk-hero-pixel {
+    width: 40px;
+    height: 40px;
+  }
+  .cj-books .bk-pane-scroll { padding: 4px 8px 12px; }
+  .cj-books .bk-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    padding: 12px 14px 12px 16px;
+  }
+  .cj-books .bk-main {
+    flex: 1 1 calc(100% - 47px);
+  }
+  .cj-books .bk-scale {
+    flex-wrap: wrap;
+    gap: 6px 8px;
+  }
+  .cj-books .bk-hint {
+    white-space: normal;
+  }
+  .cj-books .bk-acts {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    margin-top: 4px;
+    padding-left: 47px;
+  }
+  .cj-books .bk-act {
+    flex: 0 0 auto;
+  }
+}

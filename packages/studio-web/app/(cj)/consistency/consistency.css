@@ -1,0 +1,164 @@
+/* 一致性扫描 · (scoped .cj-consistency) — 上架前最后一道连贯关。
+   轻盈错落:卡门禁的章节给重权重(带维度条),已达标/缺失收成轻量行,不堆等大卡。 */
+.cj-consistency { display: flex; flex-direction: column; }
+
+.cj-consistency .consistency-head { display: flex; flex-direction: column; gap: 5px; margin-bottom: 20px; }
+.cj-consistency .head-eyebrow { font-size: var(--text-micro); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-warm-deep); }
+.cj-consistency .consistency-head .page-title { font-size: var(--text-h1); }
+.cj-consistency .head-sub { color: var(--ink-500); font-size: var(--text-cap); font-weight: 500; line-height: 1.5; }
+
+/* ── 焦点带:评分环 + 上架信心一句话(深色面,内部强调用 on-dark 高亮,不随主题切换) ── */
+.cj-consistency .con-hero {
+  --on-dark-ok: #3FD394; --on-dark-warn: #FFC06A; --on-dark-brand: #B0A4FF;
+  display: grid; grid-template-columns: auto 1fr auto; gap: 22px; align-items: center;
+  border-radius: var(--r-xl); padding: 20px 24px; margin-bottom: 26px;
+  background: linear-gradient(135deg, #15172E, #241C46 70%, #3A2C8F);
+  color: #fff; position: relative; overflow: hidden;
+}
+.cj-consistency .con-hero::after {
+  content: ""; position: absolute; right: -36px; bottom: -46px; width: 190px; height: 190px;
+  background: radial-gradient(circle, rgba(63,211,148,0.22), transparent 70%); pointer-events: none;
+}
+
+/* 评分环:scoped 类(绝不用全局 .ring),显式去黑框 */
+.cj-consistency .con-ring { width: 88px; height: 88px; flex: 0 0 88px; position: relative; box-shadow: none; outline: none; }
+.cj-consistency .con-ring svg { transform: rotate(-90deg); width: 100%; height: 100%; display: block; }
+.cj-consistency .con-ring .track { stroke: rgba(255,255,255,0.14); }
+.cj-consistency .con-ring .prog { stroke: var(--on-dark-ok); transition: stroke-dasharray 600ms var(--ease-soft); }
+.cj-consistency .con-ring .t { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: var(--font-num); }
+.cj-consistency .con-ring .t .big { font-size: 28px; font-weight: 800; line-height: 1; }
+.cj-consistency .con-ring .t .sm { font-size: 9.5px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+
+.cj-consistency .con-hero-body { min-width: 0; }
+.cj-consistency .con-hero-line { margin: 0; display: flex; align-items: center; gap: 9px; font-size: var(--text-body); color: rgba(255,255,255,0.78); }
+.cj-consistency .con-grade { display: inline-flex; align-items: center; font-size: var(--text-cap); font-weight: 800; padding: 2px 10px; border-radius: var(--r-pill); }
+.cj-consistency .con-grade.ok { background: rgba(63,211,148,0.18); color: var(--on-dark-ok); }
+.cj-consistency .con-grade.brand { background: rgba(176,164,255,0.18); color: var(--on-dark-brand); }
+.cj-consistency .con-grade.warn { background: rgba(255,192,106,0.18); color: var(--on-dark-warn); }
+.cj-consistency .con-grade.muted { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
+
+/* 上架信心:把真实门禁结果转成一句可行动判断 */
+.cj-consistency .con-conf { margin: 9px 0 0; display: flex; align-items: flex-start; gap: 7px; font-size: var(--text-body); line-height: 1.6; max-width: 56ch; }
+.cj-consistency .con-conf svg { flex: 0 0 auto; margin-top: 2px; }
+.cj-consistency .con-conf.ok { color: var(--on-dark-ok); }
+.cj-consistency .con-conf.warn { color: var(--on-dark-warn); }
+.cj-consistency .con-conf.muted { color: rgba(255,255,255,0.66); }
+
+.cj-consistency .con-hero-stats { margin: 12px 0 0; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; font-size: var(--text-cap); color: rgba(255,255,255,0.6); }
+.cj-consistency .con-hero-stats b { font-family: var(--font-num); color: #fff; font-weight: 800; font-size: var(--text-head); }
+.cj-consistency .con-hero-stats i { font-style: normal; color: rgba(255,255,255,0.5); margin-left: 1px; }
+.cj-consistency .con-hero-stats .ok b { color: var(--on-dark-ok); }
+.cj-consistency .con-hero-stats .warn b { color: var(--on-dark-warn); }
+.cj-consistency .con-hero-stats .sep { width: 1px; height: 12px; background: rgba(255,255,255,0.16); }
+
+.cj-consistency .con-hero-pix {
+  flex: 0 0 auto; align-self: center;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.35));
+  transition: transform var(--motion-fast) var(--ease-soft);
+}
+.cj-consistency .con-hero:hover .con-hero-pix { transform: translateY(-2px) rotate(-3deg); }
+
+/* ── 分组标题:严重度着色,轻量(标题+留白组织,不画框) ── */
+.cj-consistency .con-group { margin-bottom: 26px; }
+.cj-consistency .con-group:last-child { margin-bottom: 0; }
+.cj-consistency .sh {
+  display: flex; align-items: center; gap: 9px; margin: 0 0 13px;
+  font-size: var(--text-cap); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-700);
+}
+.cj-consistency .sh .c { font-family: var(--font-num); font-weight: 700; letter-spacing: 0; text-transform: none; padding: 1px 8px; border-radius: var(--r-pill); }
+.cj-consistency .sh .sh-hint { display: inline-flex; align-items: center; gap: 7px; font-family: var(--font-sans-cj); font-size: var(--text-micro); font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--ink-400); }
+.cj-consistency .sh .sh-hint::before { content: ""; width: 3px; height: 3px; border-radius: 50%; background: var(--ink-300); }
+.cj-consistency .sh.sev-warn { color: var(--warn-500); }
+.cj-consistency .sh.sev-warn .c { background: var(--warn-50); color: var(--warn-500); }
+.cj-consistency .sh.sev-ok { color: var(--ok-600, var(--ok-500)); }
+.cj-consistency .sh.sev-ok .c { background: var(--ok-50); color: var(--ok-600, var(--ok-500)); }
+.cj-consistency .sh.sev-muted { color: var(--ink-500); }
+.cj-consistency .sh.sev-muted .c { background: var(--bg-sunken); color: var(--ink-500); }
+
+/* ── 卡门禁章节:唯一上框的区块(信息密度高,需维度条+操作),给重权重 ── */
+.cj-consistency .issue-list { display: flex; flex-direction: column; gap: 10px; }
+.cj-consistency .issue { display: grid; grid-template-columns: 4px 1fr auto; gap: 14px; align-items: start; padding: 14px 16px; border: 1px solid var(--line-1); border-radius: var(--r-lg); background: var(--bg-card); transition: border-color var(--motion-fast) var(--ease-soft), box-shadow var(--motion-fast) var(--ease-soft); }
+.cj-consistency .issue:hover { border-color: var(--line-2); box-shadow: var(--sh-1); }
+.cj-consistency .issue .sev { width: 4px; border-radius: 2px; align-self: stretch; }
+.cj-consistency .issue.warn .sev { background: var(--warn-500); }
+.cj-consistency .issue.err .sev { background: var(--err-500); }
+/* 最该先修的一章:轻量 spotlight,不靠重框 */
+.cj-consistency .issue.is-worst {
+  border-color: color-mix(in oklab, var(--warn-500) 32%, var(--line-1));
+  background:
+    radial-gradient(120% 160% at 0% 0%, color-mix(in oklab, var(--warn-500) 7%, transparent), transparent 60%),
+    var(--bg-card);
+}
+.cj-consistency .issue.is-worst:hover { border-color: color-mix(in oklab, var(--warn-500) 44%, var(--line-1)); }
+.cj-consistency .issue .im { min-width: 0; }
+.cj-consistency .issue .it { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: var(--text-title); font-weight: 600; color: var(--ink-900); }
+.cj-consistency .issue .it-ico { flex: 0 0 auto; color: var(--warn-500); }
+.cj-consistency .issue.err .it-ico { color: var(--err-500); }
+.cj-consistency .issue .it-ch { flex: 0 0 auto; font-family: var(--font-num); color: var(--ink-400); font-weight: 700; }
+.cj-consistency .issue .it-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cj-consistency .issue .it-flag { flex: 0 0 auto; font-size: var(--text-micro); font-weight: 700; color: var(--warn-500); background: var(--warn-50); padding: 1px 8px; border-radius: var(--r-pill); }
+.cj-consistency .issue .it .pill { margin-left: auto; }
+.cj-consistency .issue .id { font-size: var(--text-cap); color: var(--ink-600); margin-top: 7px; line-height: 1.6; }
+.cj-consistency .issue .blk { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.cj-consistency .issue .gate-note { margin-top: 8px; font-size: var(--text-cap); line-height: 1.6; color: var(--ink-600); background: var(--bg-sunken); border-radius: var(--r-sm); padding: 7px 9px; }
+.cj-consistency .issue .row-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 11px; }
+.cj-consistency .issue .right { text-align: right; }
+.cj-consistency .issue .right .sc { font-family: var(--font-num); font-size: var(--text-display); font-weight: 800; line-height: 1; }
+.cj-consistency .issue .right .sc.warn { color: var(--warn-500); }
+.cj-consistency .issue .right .ch { font-size: var(--text-micro); color: var(--ink-400); font-family: var(--font-num); margin-top: 4px; }
+
+/* 维度条 */
+.cj-consistency .dims { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 9px 12px; margin-top: 10px; }
+.cj-consistency .dim { font-size: var(--text-micro); }
+.cj-consistency .dim .dl { display: flex; justify-content: space-between; color: var(--ink-500); margin-bottom: 3px; }
+.cj-consistency .dim .dl .dv { font-family: var(--font-num); font-weight: 700; color: var(--ink-900); font-variant-numeric: tabular-nums; }
+.cj-consistency .dim .bar { height: 4px; background: var(--bg-sunken); border-radius: var(--r-pill); overflow: hidden; }
+.cj-consistency .dim .bar > i { display: block; height: 100%; border-radius: var(--r-pill); background: var(--ok-500); transition: width var(--motion-base, 240ms) var(--ease-soft); }
+.cj-consistency .dim .bar > i.low { background: var(--warn-500); }
+
+/* ── 轻量行:已达标 / 报告缺失(无边框,靠细分隔线+留白组织,不堆卡) ── */
+.cj-consistency .lite-list { display: flex; flex-direction: column; }
+.cj-consistency .lite-row {
+  display: flex; align-items: center; gap: 11px;
+  padding: 11px 8px; border-bottom: 1px solid var(--line-1);
+  font-size: var(--text-body); color: inherit; text-decoration: none;
+  transition: background var(--motion-fast) var(--ease-soft);
+}
+.cj-consistency .lite-list .lite-row:last-child { border-bottom: none; }
+.cj-consistency a.lite-row { cursor: pointer; border-radius: var(--r-sm); }
+.cj-consistency a.lite-row:hover { background: var(--bg-sunken); }
+.cj-consistency a.lite-row:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-consistency .lite-row .lite-ico { flex: 0 0 auto; color: var(--ink-300); }
+.cj-consistency .lite-row .lite-ico.ok { color: var(--ok-500); }
+.cj-consistency .lite-row .lite-ch { flex: 0 0 auto; font-family: var(--font-num); font-weight: 700; color: var(--ink-400); }
+.cj-consistency .lite-row .lite-title { flex: 1 1 auto; min-width: 0; font-weight: 600; color: var(--ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cj-consistency .lite-row .lite-band { flex: 0 0 auto; font-size: var(--text-micro); color: var(--ink-400); font-family: var(--font-num); }
+.cj-consistency .lite-row .lite-score { flex: 0 0 auto; font-family: var(--font-num); font-weight: 800; font-size: var(--text-head); color: var(--ok-600, var(--ok-500)); font-variant-numeric: tabular-nums; min-width: 28px; text-align: right; }
+.cj-consistency .lite-row .lite-state { flex: 0 0 auto; font-size: var(--text-micro); font-weight: 600; color: var(--ink-500); background: var(--bg-sunken); padding: 2px 9px; border-radius: var(--r-pill); }
+.cj-consistency .lite-row .lite-acts { flex: 0 0 auto; display: flex; gap: 4px; }
+.cj-consistency .lite-row .lite-acts .ic { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-md); border: 1px solid transparent; background: none; color: var(--ink-400); cursor: pointer; text-decoration: none; transition: all var(--motion-fast) var(--ease-soft); }
+.cj-consistency .lite-row .lite-acts .ic:hover { color: var(--brand-600); background: var(--brand-50); }
+.cj-consistency .lite-row .lite-acts .ic:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* ── 空状态:可爱像素 + 温柔指引 ── */
+.cj-consistency .con-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 40px 16px; }
+.cj-consistency .con-empty p { margin: 0; font-size: var(--text-body); line-height: 1.7; color: var(--ink-500); max-width: 40ch; }
+
+@media (max-width: 860px) {
+  .cj-consistency .con-hero { grid-template-columns: auto 1fr; gap: 18px; padding: 18px; }
+  .cj-consistency .con-hero-pix { display: none; }
+}
+@media (max-width: 620px) {
+  .cj-consistency .con-hero { grid-template-columns: 1fr; gap: 14px; }
+  .cj-consistency .con-ring { width: 76px; height: 76px; flex-basis: 76px; }
+  .cj-consistency .con-ring .t .big { font-size: 24px; }
+  .cj-consistency .con-hero-stats { gap: 8px 14px; }
+  .cj-consistency .sh { flex-wrap: wrap; gap: 6px 9px; }
+  .cj-consistency .issue { grid-template-columns: 4px minmax(0, 1fr); gap: 12px; padding: 13px; }
+  .cj-consistency .issue .it .pill { margin-left: 0; }
+  .cj-consistency .issue .right { grid-column: 2; display: flex; align-items: baseline; gap: 8px; text-align: left; }
+  .cj-consistency .issue .right .ch { margin-top: 0; }
+  .cj-consistency .dims { grid-template-columns: 1fr 1fr; }
+  .cj-consistency .lite-row { flex-wrap: wrap; }
+}
