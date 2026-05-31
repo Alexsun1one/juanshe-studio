@@ -291,8 +291,8 @@ export { LengthNormalizerAgent, type NormalizeLengthInput, type NormalizeLengthO
 export { ContinuityAuditor, type AuditResult, type AuditIssue } from "./agents/continuity.js";
 export { ReviserAgent, DEFAULT_REVISE_MODE, type ReviseOutput, type ReviseMode } from "./agents/reviser.js";
 export { PolisherAgent, type PolishChapterInput, type PolishChapterOutput } from "./agents/polisher.js";
-export { RadarAgent, type RadarResult, type RadarRecommendation } from "./agents/radar.js";
-export { FanqieRadarSource, QidianRadarSource, TextRadarSource, type RadarSource, type PlatformRankings, type RankingEntry } from "./agents/radar-source.js";
+export { RadarAgent, buildRadarModelGuidance, formatRankingsForPrompt, formatSourceHealthForPrompt, summarizeSourceHealth, type RadarModelGuidance, type RadarResult, type RadarRecommendation, type RadarSourceHealth } from "./agents/radar.js";
+export { FanqieRadarSource, JinjiangRadarSource, QidianRadarSource, QimaoRadarSource, RoyalRoadRadarSource, SearchTrendRadarSource, SeventeenKSource, TextRadarSource, WebNovelRadarSource, ZonghengRadarSource, type RadarSource, type PlatformRankings, type RankingEntry } from "./agents/radar-source.js";
 export { readGenreProfile, readBookRules, listAvailableGenres, getBuiltinGenresDir } from "./agents/rules-reader.js";
 export { buildWriterSystemPrompt, buildGoldenOpeningDiscipline } from "./agents/writer-prompts.js";
 export { analyzeAITells, aiToneScore, type AITellResult, type AITellIssue } from "./agents/ai-tells.js";
@@ -312,7 +312,7 @@ export { buildFanficCanonSection, buildCharacterVoiceProfiles, buildFanficModeIn
 
 // Utils
 export { isNewLayoutBook } from "./utils/outline-paths.js";
-export { fetchUrl, searchWeb } from "./utils/web-search.js";
+export { fetchUrl, getConfiguredSearchApiKey, getConfiguredSearchProvider, searchWeb } from "./utils/web-search.js";
 export { filterHooks, filterSummaries, filterSubplots, filterEmotionalArcs, filterCharacterMatrix } from "./utils/context-filter.js";
 export { extractPOVFromOutline, filterMatrixByPOV, filterHooksByPOV } from "./utils/pov-filter.js";
 export { ConsolidatorAgent } from "./agents/consolidator.js";

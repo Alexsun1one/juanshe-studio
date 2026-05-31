@@ -1,7 +1,7 @@
 /**
  * Web search + URL fetch utilities.
  *
- * searchWeb(): Tavily API search (requires TAVILY_API_KEY env var).
+ * searchWeb(): external search API, currently Tavily.
  * fetchUrl(): Fetch a specific URL and return plain text.
  */
 
@@ -11,15 +11,30 @@ export interface SearchResult {
   readonly snippet: string;
 }
 
+export function getConfiguredSearchApiKey(): string | undefined {
+  return process.env.JUANSHE_SEARCH_API_KEY
+    || process.env.HARDWRITE_SEARCH_API_KEY
+    || process.env.TAVILY_API_KEY;
+}
+
+export function getConfiguredSearchProvider(): string {
+  return (process.env.JUANSHE_SEARCH_PROVIDER || process.env.HARDWRITE_SEARCH_PROVIDER || "tavily").toLowerCase();
+}
+
 /**
- * Search the web via Tavily API.
- * Requires TAVILY_API_KEY environment variable.
- * Throws if key is not set — caller should catch and fall back to regular chat.
+ * Search the web via the configured provider.
+ * Chat models only analyze the context we provide here; they do not add live
+ * retrieval to this pipeline unless an external search provider is configured.
  */
 export async function searchWeb(query: string, maxResults = 5): Promise<ReadonlyArray<SearchResult>> {
-  const apiKey = process.env.TAVILY_API_KEY;
+  const apiKey = getConfiguredSearchApiKey();
   if (!apiKey) {
-    throw new Error("TAVILY_API_KEY not set. Set this env var to enable web search, or use OpenAI which has native search.");
+    throw new Error("Search is not configured. Set JUANSHE_SEARCH_API_KEY (or TAVILY_API_KEY) to enable live retrieval; DeepSeek and other chat models can analyze provided context but do not fetch web results for this pipeline by themselves.");
+  }
+
+  const provider = getConfiguredSearchProvider();
+  if (provider !== "tavily") {
+    throw new Error(`Unsupported search provider "${provider}". Current Juanshe builds support tavily via JUANSHE_SEARCH_PROVIDER=tavily.`);
   }
 
   const res = await fetch("https://api.tavily.com/search", {

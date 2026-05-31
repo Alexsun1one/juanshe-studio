@@ -498,7 +498,7 @@ export class PipelineRunner {
   }
 
   // ---------------------------------------------------------------------------
-  // Atomic operations (composable by OpenClaw or agent mode)
+  // Atomic operations (composable by external orchestrators or agent mode)
   // ---------------------------------------------------------------------------
 
   async runRadar(): Promise<RadarResult> {

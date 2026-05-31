@@ -17,13 +17,13 @@ import { buildStudioBookConfig } from "./book-create.js";
 // Skill Registry 落点:repo 根 skills/(相对本文件 packages/studio/src/api/ 上溯 4 层)。
 // 不存在时 assembleContentType 会优雅降级为「无技能」,不崩。
 const SKILLS_DIR = fileURLToPath(new URL("../../../../skills", import.meta.url));
-// 自带搜索:DeepSeek 官方 API 无原生联网搜索,这里调外部搜索 API 增料。
-// 网关:配了 HARDWRITE_SEARCH_API_KEY 才启用(默认 Tavily;可扩展 serper/bing/bocha);未配则返回空 → 文章照常生成,只是不联网增料。
+// 自带搜索:DeepSeek 等聊天模型不会替这条后端链路自动联网;这里调外部搜索 API 增料。
+// 网关:优先配 JUANSHE_SEARCH_API_KEY,兼容 HARDWRITE_SEARCH_API_KEY/TAVILY_API_KEY;未配则返回空 → 文章照常生成,只是不联网增料。
 async function runWebResearch(queries) {
-    const key = process.env.HARDWRITE_SEARCH_API_KEY;
+    const key = process.env.JUANSHE_SEARCH_API_KEY || process.env.HARDWRITE_SEARCH_API_KEY || process.env.TAVILY_API_KEY;
     if (!key || !Array.isArray(queries) || queries.length === 0)
         return [];
-    const provider = (process.env.HARDWRITE_SEARCH_PROVIDER || "tavily").toLowerCase();
+    const provider = (process.env.JUANSHE_SEARCH_PROVIDER || process.env.HARDWRITE_SEARCH_PROVIDER || "tavily").toLowerCase();
     const findings = [];
     for (const q of queries.slice(0, 2)) {
         try {
@@ -1437,26 +1437,76 @@ async function appendVaultIndexEntry(root, indexRelativePath, targetRelativePath
 }
 function radarMarkdown(result) {
     const recommendations = Array.isArray(result?.recommendations) ? result.recommendations : [];
+    const sourceHealth = Array.isArray(result?.sourceHealth) ? result.sourceHealth : [];
+    const guidance = result?.modelGuidance ?? {};
+    const guidanceNotes = Array.isArray(guidance?.notes) ? guidance.notes : [];
+    const recommendedSetup = Array.isArray(guidance?.recommendedSetup) ? guidance.recommendedSetup : [];
+    const warnings = Array.isArray(result?.warnings) ? result.warnings : [];
     const generatedAt = result?.timestamp ?? new Date().toISOString();
     const lines = [
         "# 雷达扫描",
         "",
         `- 生成时间：${generatedAt}`,
         `- 建议数量：${recommendations.length}`,
+        `- 检索模式：${guidance?.searchMode ?? "unknown"}`,
+        `- 当前模型：${guidance?.currentService ?? guidance?.currentProvider ?? "unknown"} / ${guidance?.currentModel ?? "unknown"}`,
         "",
     ];
+    if (sourceHealth.length > 0) {
+        lines.push("## 信源健康", "");
+        for (const source of sourceHealth) {
+            lines.push(`- ${source.platform ?? source.name ?? "信源"}：${source.count ?? 0} 条 / ${source.sourceType ?? "unknown"} / ${source.ok ? "ok" : "needs-check"}${source.warning ? ` / ${source.warning}` : ""}${source.sourceUrl ? ` / ${source.sourceUrl}` : ""}`);
+        }
+        lines.push("");
+    }
+    if (guidanceNotes.length > 0 || recommendedSetup.length > 0) {
+        lines.push("## 模型与检索提示", "");
+        for (const note of guidanceNotes)
+            lines.push(`- ${note}`);
+        for (const setup of recommendedSetup)
+            lines.push(`- 建议：${setup}`);
+        lines.push("");
+    }
+    if (warnings.length > 0) {
+        lines.push("## 本次警告", "");
+        for (const warning of warnings)
+            lines.push(`- ${warning}`);
+        lines.push("");
+    }
+    if (result?.marketSummary) {
+        lines.push("## 市场概述", "", String(result.marketSummary), "");
+    }
     for (const [index, rec] of recommendations.entries()) {
-        lines.push(`## ${index + 1}. ${rec.title ?? rec.genre ?? "机会点"}`, "");
+        lines.push(`## ${index + 1}. ${rec.title ?? rec.concept ?? rec.genre ?? "机会点"}`, "");
+        if (rec.platform)
+            lines.push(`- 平台：${rec.platform}`);
         if (rec.genre)
             lines.push(`- 类型：${rec.genre}`);
+        if (rec.concept)
+            lines.push(`- 概念：${rec.concept}`);
+        if (typeof rec.confidence === "number")
+            lines.push(`- 置信度：${rec.confidence}`);
         if (rec.targetAudience)
             lines.push(`- 读者：${rec.targetAudience}`);
         if (rec.marketSignal)
             lines.push(`- 市场信号：${rec.marketSignal}`);
+        if (rec.readerPromise)
+            lines.push(`- 读者承诺：${rec.readerPromise}`);
+        if (rec.openingHook)
+            lines.push(`- 开篇钩子：${rec.openingHook}`);
+        if (rec.firstVolumeLoop)
+            lines.push(`- 首卷循环：${rec.firstVolumeLoop}`);
         if (rec.rationale)
             lines.push(`- 判断：${rec.rationale}`);
+        if (rec.reasoning)
+            lines.push(`- 判断：${rec.reasoning}`);
         if (rec.differentiation)
             lines.push(`- 差异化：${rec.differentiation}`);
+        if (Array.isArray(rec.benchmarkTitles) && rec.benchmarkTitles.length > 0) {
+            lines.push("", "### 对标标题");
+            for (const title of rec.benchmarkTitles)
+                lines.push(`- ${title}`);
+        }
         if (Array.isArray(rec.hooks) && rec.hooks.length > 0) {
             lines.push("", "### 钩子");
             for (const hook of rec.hooks)
@@ -15962,7 +16012,7 @@ export function createStudioServer(initialConfig, root) {
         const client = createLLMClient(currentConfig.llm);
         const warnings = [];
 
-        // 自带搜索(可选):配了 HARDWRITE_SEARCH_API_KEY 才联网检索增料,注入初稿提示词;未配则跳过。
+        // 自带搜索(可选):配了 JUANSHE_SEARCH_API_KEY 才联网检索增料,注入初稿提示词;未配则跳过。
         let researchFindings = [];
         if (body?.research !== false) {
             researchFindings = await runWebResearch(buildResearchQueries(brief)).catch(() => []);
