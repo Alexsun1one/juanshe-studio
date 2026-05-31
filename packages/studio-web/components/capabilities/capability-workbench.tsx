@@ -34,6 +34,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
+import "./capability-workbench.css"
 
 type WorkbenchTab = "genres" | "import" | "detect"
 type DetectConfirmAction = "chapter" | "all"
@@ -685,18 +686,19 @@ export function CapabilityWorkbench({
   }
 
   return (
-    <section className="border-border bg-card min-w-0 rounded-lg border p-4 sm:p-5">
-      <header className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-muted-foreground flex items-center gap-2 text-xs font-medium">
+    <section className="cap-workbench border-border bg-card min-w-0 rounded-lg border p-4 sm:p-5">
+      <span className="cap-workbench-prop" aria-hidden="true" />
+      <header className="cap-workbench-head flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="cap-workbench-copy min-w-0">
+          <div className="cap-workbench-kicker text-muted-foreground flex items-center gap-2 text-xs font-medium">
             <Wand2 className="size-3.5" />
-            capability workbench
+            编辑部能力台
           </div>
-          <h2 className="text-foreground mt-1 text-base font-semibold">
+          <h2 className="cap-workbench-title text-foreground mt-1 text-base font-semibold">
             可操作能力面板
           </h2>
-          <p className="text-muted-foreground mt-1 max-w-3xl text-xs leading-5">
-            题材库、素材导入、文风学习和 AI 检测现在都从 Web 直接走 Studio API，不再只停留在“接口已代理”。
+          <p className="cap-workbench-desc text-muted-foreground mt-1 max-w-3xl text-xs leading-5">
+            题材库、素材导入、文风学习和 AI 检测都在这里落到真实写入动作；每次改动前先确认，像编辑部桌面上一排有分工的小工具。
           </p>
           <div className="mt-3 flex min-w-0 flex-wrap gap-2">
             <StatusPill label="作品" state={booksState} count={books.length} />
@@ -727,7 +729,7 @@ export function CapabilityWorkbench({
         onValueChange={(value) => setTab(value as WorkbenchTab)}
         className="mt-5"
       >
-        <TabsList className="grid w-full grid-cols-3 sm:w-auto">
+        <TabsList className="cap-tabs grid w-full grid-cols-3 sm:w-auto">
           <TabsTrigger value="genres">
             <Tags className="size-4" />
             题材库
@@ -747,7 +749,7 @@ export function CapabilityWorkbench({
             <div className="min-w-0 space-y-4">
               <form
                 onSubmit={requestCreateGenre}
-                className="border-border bg-card min-w-0 rounded-lg border p-4"
+                className="cap-card border-border bg-card min-w-0 rounded-lg border p-4"
               >
                 <h3 className="text-foreground text-sm font-semibold">
                   新建题材模板
@@ -803,7 +805,7 @@ export function CapabilityWorkbench({
                 </div>
               </form>
 
-              <div className="border-border bg-card min-w-0 rounded-lg border p-4">
+              <div className="cap-card border-border bg-card min-w-0 rounded-lg border p-4">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-foreground text-sm font-semibold">
                     已有题材
@@ -832,7 +834,7 @@ export function CapabilityWorkbench({
                           key={id || index}
                           type="button"
                           className={[
-                            "border-border hover:bg-secondary flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
+                            "cap-list-row border-border hover:bg-secondary flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
                             active ? "bg-secondary text-foreground" : "bg-card",
                           ].join(" ")}
                           onClick={() => {
@@ -859,7 +861,7 @@ export function CapabilityWorkbench({
 
             <form
               onSubmit={requestSaveGenre}
-              className="border-border bg-card min-w-0 rounded-lg border p-4"
+              className="cap-card border-border bg-card min-w-0 rounded-lg border p-4"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -977,7 +979,7 @@ export function CapabilityWorkbench({
             <div className="grid min-w-0 gap-4 lg:grid-cols-2">
               <form
                 onSubmit={requestImportReference}
-                className="border-border bg-card min-w-0 rounded-lg border p-4"
+                className="cap-card border-border bg-card min-w-0 rounded-lg border p-4"
               >
                 <h3 className="text-foreground text-sm font-semibold">
                   导入参考素材
@@ -1015,7 +1017,7 @@ export function CapabilityWorkbench({
 
               <form
                 onSubmit={requestAnalyzeStyle}
-                className="border-border bg-card min-w-0 rounded-lg border p-4"
+                className="cap-card border-border bg-card min-w-0 rounded-lg border p-4"
               >
                 <h3 className="text-foreground text-sm font-semibold">
                   文风学习与导入
@@ -1081,7 +1083,7 @@ export function CapabilityWorkbench({
 
               <form
                 onSubmit={requestImportUrl}
-                className="border-border bg-card min-w-0 rounded-lg border p-4 lg:col-span-2"
+                className="cap-card border-border bg-card min-w-0 rounded-lg border p-4 lg:col-span-2"
               >
                 <div className="flex min-w-0 flex-wrap items-end gap-3">
                   <Field label="URL 素材" className="min-w-0 flex-1 sm:min-w-[240px]">
@@ -1118,7 +1120,7 @@ export function CapabilityWorkbench({
             </div>
 
             <aside className="min-w-0 space-y-4">
-              <div className="border-border bg-card min-w-0 rounded-lg border p-4">
+              <div className="cap-card border-border bg-card min-w-0 rounded-lg border p-4">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-foreground text-sm font-semibold">
                     风格样本历史
@@ -1142,7 +1144,7 @@ export function CapabilityWorkbench({
                     analyses.map((analysis, index) => (
                       <div
                         key={analysisKey(analysis, index)}
-                        className="border-border bg-card rounded-lg border p-3"
+                        className="cap-sample-card border-border bg-card rounded-lg border p-3"
                       >
                         <div className="text-foreground truncate text-sm font-medium">
                           {analysisTitle(analysis)}
@@ -1169,7 +1171,7 @@ export function CapabilityWorkbench({
           <div className="grid min-w-0 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
             <form
               onSubmit={requestDetectChapter}
-              className="border-border bg-card min-w-0 rounded-lg border p-4"
+              className="cap-card border-border bg-card min-w-0 rounded-lg border p-4"
             >
               <h3 className="text-foreground text-sm font-semibold">
                 AI 痕迹检测
@@ -1480,7 +1482,7 @@ function ResultPanel({
 }) {
   const summary = value && !loading ? summarizeResult(value) : []
   return (
-    <div className="border-border bg-card mt-4 min-w-0 rounded-lg border p-4">
+    <div className="cap-card cap-result border-border bg-card mt-4 min-w-0 rounded-lg border p-4">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-foreground text-sm font-semibold">{title}</h3>
         <Badge variant={value && !loading ? "secondary" : "outline"}>

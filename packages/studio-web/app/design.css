@@ -1362,6 +1362,40 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
    PAGE / TITLE
    ═══════════════════════════════════════════════════ */
 .page { padding: 24px 32px 40px; min-width: 0; }
+.app main > .page {
+  position: relative;
+  isolation: isolate;
+}
+.app main > .page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(46vw 28vw at 80% 4%, color-mix(in oklab, var(--brand-500) 5%, transparent), transparent 58%),
+    repeating-linear-gradient(90deg, transparent 0 23px, color-mix(in oklab, var(--brand-500) 2.5%, transparent) 24px 25px);
+  opacity: 0.55;
+}
+.app main > .page::after {
+  content: "";
+  position: absolute;
+  top: 74px;
+  right: clamp(28px, 5vw, 92px);
+  z-index: 0;
+  width: clamp(86px, 9vw, 132px);
+  aspect-ratio: 1;
+  background: var(--page-prop) center / contain no-repeat;
+  opacity: 0.12;
+  filter: var(--brand-asset-filter, saturate(1)) drop-shadow(0 10px 16px rgba(74, 58, 36, 0.12));
+  transform: rotate(-4deg);
+  animation: page-prop-float 5.8s ease-in-out infinite;
+  pointer-events: none;
+}
+.app main > .page > * {
+  position: relative;
+  z-index: 1;
+}
 .page-head {
   display: flex; align-items: flex-end; gap: 24px;
   margin-bottom: 22px;
@@ -1399,11 +1433,22 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
 
 /* 页面进入动效:仅淡入(纯 opacity,零布局/滚动影响,避免任何 transform 上下文副作用) */
 @keyframes cj-page-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes page-prop-float {
+  0%, 100% { transform: rotate(-4deg) translateY(0); }
+  50% { transform: rotate(2deg) translateY(-4px); }
+}
 .app main > .page { animation: cj-page-enter 300ms var(--ease-soft); }
-@media (prefers-reduced-motion: reduce) { .app main > .page { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .app main > .page,
+  .app main > .page::after { animation: none; }
+}
 @media (max-width: 760px) {
   .page {
     padding: 16px 14px 28px;
+  }
+
+  .app main > .page::after {
+    display: none;
   }
 
   .page-head {

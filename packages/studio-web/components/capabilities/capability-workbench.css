@@ -1,0 +1,164 @@
+.cap-workbench {
+  --cap-prop: url("/brand/props/story-board.webp");
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--bg-card) 88%, transparent), color-mix(in oklab, var(--bg-card) 72%, var(--bg-app))),
+    var(--bg-card);
+  box-shadow: var(--sh-1);
+}
+
+.cj-import .cap-workbench {
+  --cap-prop: url("/brand/props/import-crate.webp");
+}
+
+.cj-detect .cap-workbench {
+  --cap-prop: url("/brand/props/radar-desk.webp");
+}
+
+.cj-genres .cap-workbench {
+  --cap-prop: url("/brand/props/library-shelf.webp");
+}
+
+.cap-workbench::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 27px, color-mix(in oklab, var(--brand-500) 3.5%, transparent) 28px 29px),
+    repeating-linear-gradient(0deg, transparent 0 27px, color-mix(in oklab, var(--brand-500) 3%, transparent) 28px 29px);
+  opacity: 0.42;
+}
+
+.cap-workbench-prop {
+  position: absolute;
+  right: clamp(18px, 3vw, 42px);
+  top: 22px;
+  z-index: 0;
+  width: clamp(72px, 8vw, 118px);
+  aspect-ratio: 1;
+  background: var(--cap-prop) center / contain no-repeat;
+  opacity: 0.13;
+  filter: var(--brand-asset-filter, saturate(1)) drop-shadow(0 10px 16px rgba(74, 58, 36, 0.13));
+  transform: rotate(4deg);
+  animation: cap-prop-breathe 4.8s ease-in-out infinite;
+}
+
+.cap-workbench > *:not(.cap-workbench-prop) {
+  position: relative;
+  z-index: 1;
+}
+
+.cap-workbench-head {
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--line-2);
+}
+
+.cap-workbench-kicker {
+  color: var(--accent-warm-deep);
+  letter-spacing: 0.06em;
+}
+
+.cap-workbench-title {
+  font-family: var(--font-pixel-ui);
+  letter-spacing: 0.01em;
+}
+
+.cap-workbench-desc {
+  max-width: 680px;
+}
+
+.cap-tabs {
+  padding: 4px;
+  border: 1px solid var(--line-1);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--bg-sunken) 90%, transparent), color-mix(in oklab, var(--accent-gold, #FFD66A) 8%, var(--bg-sunken)));
+  border-radius: var(--r-lg);
+}
+
+.cap-tabs [role="tab"] {
+  min-height: 32px;
+  gap: 6px;
+  border-radius: var(--r-md);
+  transition: background var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft), transform var(--motion-fast) var(--ease-soft);
+}
+
+.cap-tabs [role="tab"][data-state="active"] {
+  color: var(--brand-700, var(--brand-600));
+  background: var(--bg-card);
+  box-shadow: var(--sh-1);
+}
+
+.cap-tabs [role="tab"]:hover {
+  transform: translateY(-1px);
+}
+
+.cap-card {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--bg-card) 92%, transparent), color-mix(in oklab, var(--bg-card) 78%, var(--bg-sunken))),
+    var(--bg-card);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, white 58%, transparent);
+}
+
+.cap-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, color-mix(in oklab, var(--brand-500) 4%, transparent), transparent 44%),
+    repeating-linear-gradient(0deg, transparent 0 21px, color-mix(in oklab, var(--brand-500) 2.4%, transparent) 22px 23px);
+  opacity: 0.5;
+}
+
+.cap-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.cap-list-row,
+.cap-sample-card {
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--bg-card) 88%, transparent), color-mix(in oklab, var(--bg-card) 72%, var(--bg-sunken)));
+}
+
+.cap-list-row:hover,
+.cap-sample-card:hover {
+  border-color: color-mix(in oklab, var(--brand-500) 26%, var(--line-1));
+}
+
+.cap-result {
+  margin-top: 14px;
+}
+
+@keyframes cap-prop-breathe {
+  0%, 100% { transform: rotate(4deg) translateY(0); opacity: 0.11; }
+  50% { transform: rotate(1deg) translateY(-3px); opacity: 0.17; }
+}
+
+@media (max-width: 760px) {
+  .cap-workbench-prop {
+    display: none;
+  }
+
+  .cap-workbench-head {
+    padding-bottom: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cap-workbench-prop,
+  .cap-tabs [role="tab"] {
+    animation: none;
+    transition: none;
+  }
+
+  .cap-tabs [role="tab"]:hover {
+    transform: none;
+  }
+}
