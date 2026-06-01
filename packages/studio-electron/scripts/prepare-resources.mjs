@@ -14,6 +14,7 @@ const packageRoot = resolve(here, "..")
 const repoRoot = resolve(packageRoot, "..", "..")
 const resourcesRoot = join(packageRoot, ".electron-resources")
 const studioTarget = join(resourcesRoot, "app", "packages", "studio")
+const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm"
 
 function run(command, args) {
   console.log(`[prepare:resources] ${command} ${args.join(" ")}`)
@@ -28,7 +29,7 @@ function run(command, args) {
 }
 
 rmSync(resourcesRoot, { recursive: true, force: true })
-run("pnpm", [
+run(pnpmCommand, [
   "--filter",
   "@juanshe/studio",
   "deploy",
