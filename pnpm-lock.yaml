@@ -4,6 +4,10 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@mariozechner/pi-ai': 0.67.1
+  '@mariozechner/pi-agent-core': 0.67.1
+
 importers:
 
   .: {}
@@ -11,10 +15,10 @@ importers:
   packages/core:
     dependencies:
       '@mariozechner/pi-agent-core':
-        specifier: ^0.67.1
+        specifier: 0.67.1
         version: 0.67.1(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(ws@8.20.0)(zod@3.25.76)
       '@mariozechner/pi-ai':
-        specifier: ^0.67.1
+        specifier: 0.67.1
         version: 0.67.1(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(ws@8.20.0)(zod@3.25.76)
       '@sinclair/typebox':
         specifier: ^0.34.49

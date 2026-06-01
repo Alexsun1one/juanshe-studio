@@ -69,3 +69,44 @@ jobs:
             rm -rf "$PACKDIR"
             cd - >/dev/null
           done
+
+  desktop-package:
+    name: Desktop package (${{ matrix.name }})
+    needs: build-and-test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS arm64 DMG
+            os: macos-14
+            command: npm --prefix packages/studio-electron run pack:mac
+            artifact-name: juanshe-macos-dmg
+            artifact-path: packages/studio-electron/release/*.dmg
+          - name: Windows x64 NSIS
+            os: windows-latest
+            command: npm --prefix packages/studio-electron run pack:win
+            artifact-name: juanshe-windows-installer
+            artifact-path: packages/studio-electron/release/*.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: ${{ matrix.command }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.artifact-path }}
+          if-no-files-found: error

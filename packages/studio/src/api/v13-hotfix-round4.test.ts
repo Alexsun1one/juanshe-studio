@@ -70,6 +70,7 @@ vi.mock("@juanshe/core", async (importOriginal) => {
     isSafeBookId: actual.isSafeBookId,
     chatCompletion: vi.fn(),
     loadProjectConfig: loadProjectConfigMock,
+    EDITOR_IN_CHIEF_SYSTEM_PROMPT: actual.EDITOR_IN_CHIEF_SYSTEM_PROMPT,
     GLOBAL_ENV_PATH: join(tmpdir(), "autow-global.env"),
   };
 });

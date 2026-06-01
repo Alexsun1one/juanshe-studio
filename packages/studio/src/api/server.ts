@@ -8573,6 +8573,7 @@ export function createStudioServer(initialConfig, root) {
         }
         await next();
     });
+    app.get("/healthz", (c) => c.json({ ok: true, service: "juanshe-studio" }));
     app.use("/*", async (c, next) => {
         if (!isSaasModeEnabled() || c.req.method === "OPTIONS") {
             await next();

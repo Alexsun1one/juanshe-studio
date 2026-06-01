@@ -221,6 +221,7 @@ vi.mock("@juanshe/core", async (importOriginal) => {
     resolveSessionActiveBook: resolveSessionActiveBookMock,
     runAgentSession: runAgentSessionMock,
     buildAgentSystemPrompt: vi.fn(() => "You are helpful."),
+    EDITOR_IN_CHIEF_SYSTEM_PROMPT: actual.EDITOR_IN_CHIEF_SYSTEM_PROMPT,
     createAndPersistBookSession: createAndPersistBookSessionMock,
     loadBookSession: loadBookSessionMock,
     persistBookSession: persistBookSessionMock,
@@ -574,6 +575,25 @@ describe("createStudioServer daemon lifecycle", () => {
       temperature: 0.2,
       stream: true,
     });
+  });
+
+  it("keeps /healthz available when activation is required", async () => {
+    const previousRequired = process.env.HARDWRITE_ACTIVATION_REQUIRED;
+    process.env.HARDWRITE_ACTIVATION_REQUIRED = "1";
+    try {
+      const { createStudioServer } = await import("./server.js");
+      const app = createStudioServer(cloneProjectConfig() as never, root);
+
+      const health = await app.request("http://localhost/healthz");
+      expect(health.status).toBe(200);
+      await expect(health.json()).resolves.toEqual({ ok: true, service: "juanshe-studio" });
+
+      const gated = await app.request("http://localhost/api/v1/doctor");
+      expect(gated.status).toBe(403);
+    } finally {
+      if (previousRequired === undefined) delete process.env.HARDWRITE_ACTIVATION_REQUIRED;
+      else process.env.HARDWRITE_ACTIVATION_REQUIRED = previousRequired;
+    }
   });
 
   it("reloads latest llm config for doctor checks without restarting the studio server", async () => {
@@ -2101,7 +2121,9 @@ describe("createStudioServer daemon lifecycle", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/plain");
     expect(response.headers.get("content-disposition")).toContain('filename="export.txt"');
-    expect(response.headers.get("content-disposition")).toContain("filename*=UTF-8''%E8%84%91");
+    expect(response.headers.get("content-disposition")).toContain(
+      `filename*=UTF-8''${encodeURIComponent("星尘邮局.txt")}`,
+    );
     await expect(response.text()).resolves.toContain("正文第一段");
   });
 
@@ -2135,7 +2157,7 @@ describe("createStudioServer daemon lifecycle", () => {
 
   it("renames a session through PUT /api/v1/sessions/:sessionId", async () => {
     renameBookSessionMock.mockResolvedValueOnce({
-      sessionId: "agent-session-1",
+      sessionId: "1700000000000-agent1",
       bookId: "demo-book",
       title: "新标题",
       messages: [],
@@ -2148,16 +2170,16 @@ describe("createStudioServer daemon lifecycle", () => {
     const { createStudioServer } = await import("./server.js");
     const app = createStudioServer(cloneProjectConfig() as never, root);
 
-    const response = await app.request("http://localhost/api/v1/sessions/agent-session-1", {
+    const response = await app.request("http://localhost/api/v1/sessions/1700000000000-agent1", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: "  新标题  " }),
     });
 
     expect(response.status).toBe(200);
-    expect(renameBookSessionMock).toHaveBeenCalledWith(root, "agent-session-1", "新标题");
+    expect(renameBookSessionMock).toHaveBeenCalledWith(root, "1700000000000-agent1", "新标题");
     await expect(response.json()).resolves.toMatchObject({
-      session: { sessionId: "agent-session-1", title: "新标题" },
+      session: { sessionId: "1700000000000-agent1", title: "新标题" },
     });
   });
 
@@ -2165,12 +2187,12 @@ describe("createStudioServer daemon lifecycle", () => {
     const { createStudioServer } = await import("./server.js");
     const app = createStudioServer(cloneProjectConfig() as never, root);
 
-    const response = await app.request("http://localhost/api/v1/sessions/agent-session-1", {
+    const response = await app.request("http://localhost/api/v1/sessions/1700000000000-agent1", {
       method: "DELETE",
     });
 
     expect(response.status).toBe(200);
-    expect(deleteBookSessionMock).toHaveBeenCalledWith(root, "agent-session-1");
+    expect(deleteBookSessionMock).toHaveBeenCalledWith(root, "1700000000000-agent1");
     await expect(response.json()).resolves.toEqual({ ok: true });
   });
 

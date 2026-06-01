@@ -78,7 +78,7 @@ describe("loadProjectConfig local provider auth", () => {
       },
     }, null, 2), "utf-8");
     await writeFile(join(root, ".env"), "", "utf-8");
-    await expect(loadProjectConfig(root)).rejects.toThrow(/HARDWRITE_LLM_API_KEY not set/i);
+    await expect(loadProjectConfig(root)).rejects.toThrow(/JUANSHE_LLM_API_KEY not set/i);
   });
 
   it("loads service-based config using defaultModel and project secrets", async () => {

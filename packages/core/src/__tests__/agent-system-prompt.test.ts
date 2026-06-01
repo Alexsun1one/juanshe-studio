@@ -5,7 +5,7 @@ describe("buildAgentSystemPrompt", () => {
   describe("no book (creation flow)", () => {
     it("Chinese prompt includes info collection workflow", () => {
       const prompt = buildAgentSystemPrompt(null, "zh");
-      expect(prompt).toContain("建书助手");
+      expect(prompt).toContain("开一本新书");
       expect(prompt).toContain("收集信息");
       expect(prompt).toContain("题材");
       expect(prompt).toContain("世界观");
@@ -18,7 +18,7 @@ describe("buildAgentSystemPrompt", () => {
 
     it("English prompt includes info collection workflow", () => {
       const prompt = buildAgentSystemPrompt(null, "en");
-      expect(prompt).toContain("book creation");
+      expect(prompt).toContain("start a brand-new book");
       expect(prompt).toContain("architect");
       expect(prompt).toContain("Genre");
       expect(prompt).toContain("Protagonist");

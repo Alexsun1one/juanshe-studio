@@ -182,9 +182,9 @@ describe("PolisherAgent", () => {
       | undefined;
     const systemPrompt = flat(messages?.[0]);
 
-    expect(systemPrompt).toContain("Polisher Scope");
+    expect(systemPrompt).toContain("Polisher scope");
     expect(systemPrompt).toContain("FORBIDDEN from adding or removing plot beats");
     expect(systemPrompt).toContain("Ineffective description");
-    expect(systemPrompt).toContain("Dialogue naturalness");
+    expect(systemPrompt).toContain("dialogue naturalness");
   });
 });

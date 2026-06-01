@@ -3,6 +3,7 @@
 <p align="center"><sub>以长篇小说为主线的 AI 编辑部 · 硅基小镇派驻碳基社会的写作团队</sub></p>
 
 <p align="center">
+  <a href="https://github.com/Alexsun1one/juanshe/actions/workflows/ci.yml"><img src="https://github.com/Alexsun1one/juanshe/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Proprietary-6E5BFA.svg" alt="License: Proprietary"></a>
   <img src="https://img.shields.io/badge/Source%20Available-Not%20Open%20Source-8B7DFF.svg" alt="Source available, not open source">
 </p>
@@ -27,6 +28,15 @@
 <p align="center">
   <img src="assets/readme/juanshe-pipeline.png" alt="卷舍从灵感到发布的编辑部流水线" width="100%">
 </p>
+
+## 当前交付状态
+
+卷舍当前只做 **macOS / Windows 桌面客户端**。没有移动端安装包，也没有 Android / iOS 路线承诺。
+
+- **macOS**：当前打包入口是 `npm --prefix packages/studio-electron run pack:mac`，产物为 `packages/studio-electron/release/卷舍-0.1.0-arm64.dmg`。本地验证已覆盖 DMG 校验、从 DMG 拷出 `.app`、启动前端登录页和后端健康检查。
+- **Windows**：当前打包入口是 `npm --prefix packages/studio-electron run pack:win`，产物为 `packages/studio-electron/release/卷舍 Setup 0.1.0.exe`。该包固定为 Windows x64 NSIS 安装器，避免在 Apple Silicon 上误打 `win32-arm64`。
+- **GitHub Actions**：CI 会跑 build/test，并额外在 macOS / Windows runner 上产出桌面包 artifact。包能不能公开分发仍取决于签名、公证、下载链路和激活服务，不把“构建通过”冒充成“正式发布”。
+- **分发口径**：在签名、公证和真实用户安装面没有全部过线前，公众号和 README 只按内测 / 预览口径表达，不承诺移动端，不承诺无门槛下载。
 
 ## 产品现在长这样
 
@@ -122,7 +132,7 @@
 
 ## 开始使用
 
-卷舍是一个桌面客户端，目标是装上就能用。
+卷舍是一个桌面客户端，目标是装上就能用。当前只面向 macOS / Windows 桌面系统。
 
 1. 安装桌面包（macOS / Windows）。
 2. 首次打开填上你的笔名；如果你启用了授权码，再输入授权码。
@@ -145,6 +155,16 @@ pnpm --filter @juanshe/studio dev
 pnpm --filter @juanshe/studio-web dev
 ```
 
+本地验证和打包建议走这组命令：
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+pnpm test
+npm --prefix packages/studio-electron run pack:mac
+npm --prefix packages/studio-electron run pack:win
+```
+
 ## 路线图
 
 ### 已落地
@@ -163,6 +183,7 @@ pnpm --filter @juanshe/studio-web dev
 - [x] LLM 配置页：服务商预设、API Key、模型启用和连接测试。
 - [x] 登录页、本地身份设置与可选授权码入口。
 - [x] Electron 桌面打包入口与生产资源准备链路。
+- [x] macOS DMG 本地启动烟测；Windows x64 NSIS 安装器构建产物。
 
 ### 正在打磨
 
@@ -172,7 +193,8 @@ pnpm --filter @juanshe/studio-web dev
 - [ ] 内容支线导出更精致的最终成品：小红书卡片、知乎结构、X thread、Newsletter 模板继续抛光。
 - [ ] 故事图谱实体详情 fallback：当图谱尚未抽取完成时，角色详情继续回落到角色矩阵数据。
 - [ ] 真实写作 mutation smoke 的 staging 书验证，避免在用户真实书上消耗 token 或改稿。
-- [ ] 打包后的 `.app` / 安装包启动烟测与签名体验。
+- [ ] Windows 真机安装与启动烟测。
+- [ ] macOS Developer ID 签名、公证与 Gatekeeper 体验。
 
 ### 下一步
 

@@ -79,6 +79,10 @@ function waitForUrl(url: string, timeoutMs = 30000): Promise<void> {
 function spawnBackends() {
   const root = app.isPackaged ? join(process.resourcesPath, "app") : join(__dirname, "..", "..", "..")
   const workspace = resolveWorkspace()
+  const activationExplicitlyDisabled = process.env.HARDWRITE_ACTIVATION_REQUIRED === "0"
+  const activationVerifyUrl = activationExplicitlyDisabled
+    ? ""
+    : process.env.HARDWRITE_ACTIVATION_VERIFY_URL || DEFAULT_ACTIVATION_VERIFY_URL
   const standaloneRoot = join(root, "packages", "studio-web")
   const webServer =
     [join(standaloneRoot, "packages", "studio-web", "server.js"), join(standaloneRoot, "server.js")]
@@ -95,9 +99,8 @@ function spawnBackends() {
         JUANSHE_WORKSPACE: workspace,
         HARDWRITE_STUDIO_PORT: String(API_PORT),
         HARDWRITE_PROJECT_ROOT: workspace,
-        HARDWRITE_ACTIVATION_REQUIRED: process.env.HARDWRITE_ACTIVATION_REQUIRED || "1",
-        HARDWRITE_ACTIVATION_VERIFY_URL:
-          process.env.HARDWRITE_ACTIVATION_VERIFY_URL || DEFAULT_ACTIVATION_VERIFY_URL,
+        HARDWRITE_ACTIVATION_REQUIRED: activationExplicitlyDisabled ? "0" : process.env.HARDWRITE_ACTIVATION_REQUIRED || "1",
+        HARDWRITE_ACTIVATION_VERIFY_URL: activationVerifyUrl,
       },
       stdio: "inherit",
     },

@@ -10,8 +10,8 @@
     "start": "electron dist/main.js",
     "preflight": "node scripts/preflight.mjs",
     "prepare:resources": "node scripts/prepare-resources.mjs",
-    "pack:mac": "npm run preflight && npm run prepare:resources && npm run build && electron-builder --mac dmg",
-    "pack:win": "npm run preflight && npm run prepare:resources && npm run build && electron-builder --win nsis",
+    "pack:mac": "npm run preflight && npm run prepare:resources && npm run build && electron-builder --mac dmg --arm64",
+    "pack:win": "npm run preflight && npm run prepare:resources && npm run build && electron-builder --win nsis --x64",
     "pack:dir": "npm run preflight && npm run prepare:resources && npm run build && electron-builder --dir"
   },
   "devDependencies": {
