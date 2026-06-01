@@ -149,6 +149,8 @@ xattr -dr com.apple.quarantine /Applications/卷舍.app
 
 开发态可以在源码目录启动：
 
+> 需要 Node.js 22+ 和 pnpm 9+。故事图谱使用 `node:sqlite`，Node 20 不具备这个内置模块。
+
 ```bash
 pnpm install
 pnpm --filter @juanshe/studio dev
