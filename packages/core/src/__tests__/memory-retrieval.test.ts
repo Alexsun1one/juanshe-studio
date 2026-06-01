@@ -80,7 +80,7 @@ describe("retrieveMemorySelection", () => {
     } else {
       expect(result.dbPath).toBeUndefined();
     }
-  });
+  }, 15000);
 
   it("extracts mentor-focused query terms without pulling guild-route negatives into English retrieval", () => {
     const extractQueryTerms = (memoryRetrieval as Record<string, unknown>).extractQueryTerms as

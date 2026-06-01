@@ -4,7 +4,7 @@ import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { serve } from "@hono/node-server";
 import { StateManager, PipelineRunner, ConsolidatorAgent, MemoryDB, createLLMClient, createLogger, createInteractionToolsFromDeps, computeAnalytics, loadProjectConfig, loadProjectSession, processProjectInteractionRequest, resolveSessionActiveBook, listBookSessions, loadBookSession, appendManualSessionMessages, createAndPersistBookSession, renameBookSession, deleteBookSession, migrateBookSession, SessionAlreadyMigratedError, runAgentSession, buildAgentSystemPrompt, resolveServicePreset, resolveServiceProviderFamily, resolveServiceModelsBaseUrl, resolveServiceModel, loadSecrets, saveSecrets, listModelsForService, isApiKeyOptionalForEndpoint, getAllEndpoints, probeModelsFromUpstream, fetchWithProxy, chatCompletion, buildExportArtifact, GLOBAL_ENV_PATH, markdownToContentDocument, renderForPlatform, getContentTypeProfile, assembleContentType, buildWritingSystemPrompt, mountSkills, buildCriticSystemPrompt, buildReviserSystemPrompt, parseCritiqueReport, critiqueWantsRevision, critiquePasses, buildResearchQueries, buildResearchContext, emptyAccountStyle, evolveStyleProfile, buildAccountVoicePrompt, parseCharacterMatrix, parseRoleFile, parseEmotionalArcs, groupArcsByCharacter, tensionByChapter, parsePendingHooks, parseSubplotBoard, hooksByStartChapter, parseVolumeMap, parseChapterSummaries, appearanceCounts, parseStoryFrame, buildGovernanceRecommendation, analyzeStyle, EDITOR_IN_CHIEF_SYSTEM_PROMPT, buildEditorInChiefUserMessage, parseEditorialVerdict, listWechatTemplates, DEFAULT_WECHAT_TEMPLATE, analyzeAITells, aiToneScore, DEFAULT_AI_TONE_FLOOR, } from "@juanshe/core";
-import { access, appendFile, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
+import { access, appendFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createHash, createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 // 卷舍写作引擎(@juanshe/engine)接线:Step 3 经验库 learnings(LLM-free 记录/检索)
@@ -6238,7 +6238,7 @@ async function loadTaskRuns(root) {
 async function atomicWriteFile(targetPath, data) {
     const tmp = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
     await writeFile(tmp, data, "utf-8");
-    await rename(tmp, targetPath);
+    await replaceFileByRename(tmp, targetPath);
 }
 async function saveTaskRuns(root, runs) {
     const file = taskRunsFile(root);
@@ -6246,8 +6246,21 @@ async function saveTaskRuns(root, runs) {
     const compact = [...runs].sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""))).slice(0, 160);
     const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
     await writeFile(tmp, JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), runs: compact }, null, 2), "utf-8");
-    await rename(tmp, file);
+    await replaceFileByRename(tmp, file);
     return compact;
+}
+async function replaceFileByRename(tmp, targetPath) {
+    try {
+        await rename(tmp, targetPath);
+    }
+    catch (error) {
+        const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+        if (process.platform !== "win32" || !["EEXIST", "EPERM", "EBUSY"].includes(code)) {
+            throw error;
+        }
+        await rm(targetPath, { force: true });
+        await rename(tmp, targetPath);
+    }
 }
 // 启动自愈:新进程没有任何在途运行,但磁盘上可能残留上次进程被杀时的 running/queued run。
 // 这些"僵尸 run"会卡住下次写作(prepareWriteSlot 把它当成"正在运行的新鲜任务")。开机一律
