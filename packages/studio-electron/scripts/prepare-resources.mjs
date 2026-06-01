@@ -5,7 +5,7 @@
  * so the packaged app must include a deployed node_modules tree, not only dist.
  */
 import { execFileSync } from "node:child_process"
-import { existsSync, rmSync } from "node:fs"
+import { existsSync, lstatSync, rmSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -29,6 +29,23 @@ function run(command, args) {
   })
 }
 
+function removeSelfLink() {
+  const selfLink = join(studioTarget, "node_modules", ".pnpm", "node_modules", "@juanshe", "studio")
+
+  try {
+    const stat = lstatSync(selfLink)
+
+    if (stat.isSymbolicLink()) {
+      rmSync(selfLink, { force: true, recursive: true })
+      console.log(`[prepare:resources] removed workspace self link ${selfLink}`)
+    }
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      throw error
+    }
+  }
+}
+
 rmSync(resourcesRoot, { recursive: true, force: true })
 run(pnpmCommand, [
   "--filter",
@@ -39,6 +56,7 @@ run(pnpmCommand, [
   "--ignore-scripts",
   studioTarget,
 ])
+removeSelfLink()
 
 if (!existsSync(join(studioTarget, "dist", "api", "index.js"))) {
   throw new Error("deployed Studio API is missing dist/api/index.js")
