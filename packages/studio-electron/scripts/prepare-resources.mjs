@@ -14,13 +14,14 @@ const packageRoot = resolve(here, "..")
 const repoRoot = resolve(packageRoot, "..", "..")
 const resourcesRoot = join(packageRoot, ".electron-resources")
 const studioTarget = join(resourcesRoot, "app", "packages", "studio")
-const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm"
+const pnpmCommand = "pnpm"
 
 function run(command, args) {
   console.log(`[prepare:resources] ${command} ${args.join(" ")}`)
   execFileSync(command, args, {
     cwd: repoRoot,
     stdio: "inherit",
+    shell: process.platform === "win32",
     env: {
       ...process.env,
       NEXT_TELEMETRY_DISABLED: "1",
