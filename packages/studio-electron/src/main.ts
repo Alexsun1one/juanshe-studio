@@ -8,10 +8,18 @@
  * - 无整页刷新:禁用 Cmd+R/F5(菜单不放 reload)+ will-navigate 拦外链 + preload 拦 location.reload。
  * - 缩放:Cmd/Ctrl +/-/0。
  */
-import { app, BrowserWindow, Menu, shell, nativeTheme, type MenuItemConstructorOptions } from "electron"
-import { spawn, type ChildProcess } from "node:child_process"
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  shell,
+  nativeTheme,
+  utilityProcess,
+  type MenuItemConstructorOptions,
+  type UtilityProcess,
+} from "electron"
 import { dirname, join } from "node:path"
-import { existsSync, mkdirSync, cpSync, writeFileSync } from "node:fs"
+import { appendFileSync, existsSync, mkdirSync, cpSync, writeFileSync } from "node:fs"
 import http from "node:http"
 
 const DEV = process.env.ELECTRON_DEV === "1"
@@ -21,7 +29,30 @@ const FRONT_URL = `http://localhost:${FRONT_PORT}`
 const DEFAULT_ACTIVATION_VERIFY_URL = "https://api.nextapi.top/juanshe-activation/verify"
 
 let win: BrowserWindow | null = null
-const children: ChildProcess[] = []
+const children: UtilityProcess[] = []
+
+function logPath(name: string): string {
+  const dir = app.getPath("logs")
+  mkdirSync(dir, { recursive: true })
+  return join(dir, name)
+}
+
+function appendLog(file: string, message: string | Buffer) {
+  appendFileSync(file, message)
+}
+
+function attachUtilityLogs(child: UtilityProcess, label: string, fileName: string) {
+  const file = logPath(fileName)
+  const line = (message: string) => appendLog(file, `[${new Date().toISOString()}] ${label}: ${message}\n`)
+  child.stdout?.on("data", (chunk) => appendLog(file, chunk))
+  child.stderr?.on("data", (chunk) => appendLog(file, chunk))
+  child.on("spawn", () => line(`spawned pid=${child.pid ?? "unknown"}`))
+  child.on("exit", (code) => line(`exited code=${code}`))
+  child.on("error", (type, location, report) => {
+    line(`fatal ${type} at ${location}`)
+    appendLog(file, `${report}\n`)
+  })
+}
 
 /**
  * 解析并(首启时)播种工作区。
@@ -87,14 +118,13 @@ function spawnBackends() {
   const webServer =
     [join(standaloneRoot, "packages", "studio-web", "server.js"), join(standaloneRoot, "server.js")]
       .find((candidate) => existsSync(candidate)) || join(standaloneRoot, "packages", "studio-web", "server.js")
-  // 后端:把工作区同时以 argv[2] 与 env 传入(index.ts 优先读 argv[2]),双保险防 cwd 漂移
-  const api = spawn(
-    process.execPath,
-    [join(root, "packages", "studio", "dist", "api", "index.js"), workspace],
+  // 后端:用 utilityProcess 跑隐藏 Node 服务,避免 macOS Dock 出现可见的 "exec" 子应用。
+  const api = utilityProcess.fork(
+    join(root, "packages", "studio", "dist", "api", "index.js"),
+    [workspace],
     {
       env: {
         ...process.env,
-        ELECTRON_RUN_AS_NODE: "1",
         JUANSHE_API_PORT: String(API_PORT),
         JUANSHE_WORKSPACE: workspace,
         HARDWRITE_STUDIO_PORT: String(API_PORT),
@@ -102,17 +132,17 @@ function spawnBackends() {
         HARDWRITE_ACTIVATION_REQUIRED: activationExplicitlyDisabled ? "0" : process.env.HARDWRITE_ACTIVATION_REQUIRED || "1",
         HARDWRITE_ACTIVATION_VERIFY_URL: activationVerifyUrl,
       },
-      stdio: "inherit",
+      serviceName: "Juanshe Studio API",
+      stdio: "pipe",
     },
   )
-  const next = spawn(
-    process.execPath,
-    [webServer],
+  const next = utilityProcess.fork(
+    webServer,
+    [],
     {
       cwd: dirname(webServer),
       env: {
         ...process.env,
-        ELECTRON_RUN_AS_NODE: "1",
         HOSTNAME: "127.0.0.1",
         PORT: String(FRONT_PORT),
         JUANSHE_API_BASE: `http://localhost:${API_PORT}`,
@@ -120,9 +150,12 @@ function spawnBackends() {
         HARDWRITE_API_BASE: `http://localhost:${API_PORT}`,
         NEXT_PUBLIC_HARDWRITE_API_BASE: `http://localhost:${API_PORT}`,
       },
-      stdio: "inherit",
+      serviceName: "Juanshe Web Server",
+      stdio: "pipe",
     },
   )
+  attachUtilityLogs(api, "api", "backend.log")
+  attachUtilityLogs(next, "web", "studio-web.log")
   children.push(api, next)
 }
 
