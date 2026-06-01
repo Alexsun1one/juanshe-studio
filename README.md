@@ -129,6 +129,14 @@
 3. 在「模型配置」里选择服务商、粘贴 API Key、测试连接、保存模型。
 4. 新建一本小说，选择目标小说平台，点「继续创作」；或者进入内容支线生成公众号 / 小红书 / 知乎 / X 内容。
 
+macOS 内测包若提示"已损坏"，通常是未公证应用被浏览器加上 quarantine，不代表 DMG 下载损坏。将 `卷舍.app` 拖到「应用程序」后可执行:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/卷舍.app
+```
+
+正式公开分发需要 Apple Developer ID 签名与公证。
+
 开发态可以在源码目录启动：
 
 ```bash

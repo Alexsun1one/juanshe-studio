@@ -11,6 +11,7 @@ copyright: © 卷舍 编辑部
 directories:
   output: release
   buildResources: build
+afterPack: scripts/adhoc-mac-sign.mjs
 files:
   - dist/**/*
   - "!**/*.{map,md}"
@@ -46,7 +47,7 @@ mac:
   category: public.app-category.productivity
   target: [dmg]
   darkModeSupport: true
-  # 线上分发需 Apple 公证(notarytool);本地试用可跳过签名
+  # 线上分发需 Apple Developer ID 签名 + 公证(notarytool);无证书时 afterPack 会做内测用 ad-hoc bundle 签名
 win:
   target: [nsis]
 nsis:
