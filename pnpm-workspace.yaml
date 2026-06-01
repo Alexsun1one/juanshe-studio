@@ -5,9 +5,9 @@ overrides:
   '@mariozechner/pi-agent-core': 0.67.1
 allowBuilds:
   electron: true
-  esbuild: set this to true or false
-  msw: set this to true or false
-  protobufjs: set this to true or false
-  sharp: set this to true or false
+  esbuild: true
+  msw: true
+  protobufjs: true
+  sharp: true
 minimumReleaseAgeExclude:
   - '@ai-sdk/anthropic@3.0.81'
