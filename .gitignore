@@ -22,8 +22,11 @@ packages/studio-electron/.electron-resources/
 _*.md
 
 # Local runtime data
+/hardwrite.json
+/.hardwrite/
 /books/
 /prompt/
+/卷舍写作库/
 
 # Local reference docs and generated assets
 packages/studio-web/docs/

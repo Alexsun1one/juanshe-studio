@@ -207,10 +207,6 @@ export default function CjDashboard() {
   const [confirmAction, setConfirmAction] = React.useState<DashboardWorkflowAction | null>(null)
   // 新建书向导:工作台直接打开,不再跳 /books
   const [newBookOpen, setNewBookOpen] = React.useState(false)
-  // 空工作区自动弹一次(首次访问)
-  React.useEffect(() => {
-    if (!booksLoading && !active && books.length === 0) setNewBookOpen(true)
-  }, [booksLoading, active, books.length])
 
   // 「续写一开,创作流程自动进入剧场态」的 ref(effect 在 isRunning 派生之后再注册,避免 TDZ)
   const agentsFlowRef = React.useRef<HTMLDivElement | null>(null)

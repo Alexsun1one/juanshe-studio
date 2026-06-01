@@ -2,7 +2,15 @@ import { startStudioServer } from "./server.js";
 import { runStartupSnapshot } from "./startup-snapshot.js";
 import { resolve } from "node:path";
 
-const root = resolve(process.argv[2] ?? process.env.JUANSHE_WORKSPACE ?? process.env.HARDWRITE_PROJECT_ROOT ?? process.cwd());
+function workspaceRootArg() {
+  const raw = process.argv[2];
+  if (!raw || raw.startsWith("-")) return undefined;
+  // tsx may expose the entry script as argv[2]; that is not a workspace path.
+  if (/\.(?:[cm]?[jt]s|tsx?)$/i.test(raw)) return undefined;
+  return raw;
+}
+
+const root = resolve(process.env.JUANSHE_WORKSPACE ?? process.env.HARDWRITE_PROJECT_ROOT ?? workspaceRootArg() ?? process.cwd());
 const port = parseInt(process.env.JUANSHE_API_PORT ?? process.env.HARDWRITE_STUDIO_PORT ?? "4567", 10);
 
 // 启动前自动快照所有书的真相文件（防强停/重启把状态写截断；零破坏、纯加备份）

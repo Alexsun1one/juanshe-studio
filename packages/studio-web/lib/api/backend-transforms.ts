@@ -980,11 +980,45 @@ export function normalizeLLMProviders(
 }
 
 export function normalizeProjectPrefs(data: unknown): ProjectPrefs {
-  const project = asRecord(pickObject(data, ["project", "item"]))
+  const source = asRecord(data)
+  const project = asRecord(pickObject(source, ["project", "item"]))
+  const defaultRun = asRecord(first(source, ["defaultRun", "default_run"]))
+  const notify = asRecord(first(source, ["notify"]))
   const language = text(first(project, ["language", "locale"]), "zh")
+  const notifyFlag = (value: unknown, fallback: boolean) =>
+    typeof value === "boolean" ? value : fallback
   return {
     ...PROJECT_PREFS_SEED,
     locale: language.toLowerCase().startsWith("en") ? "en" : "zh-CN",
+    theme: text(first(source, ["theme"]), PROJECT_PREFS_SEED.theme) as ProjectPrefs["theme"],
+    defaultRun: {
+      targetWordsPerChapter: num(
+        first(defaultRun, ["targetWordsPerChapter", "targetWords", "wordCount"]),
+        PROJECT_PREFS_SEED.defaultRun.targetWordsPerChapter,
+      ),
+      targetQuality: num(
+        first(defaultRun, ["targetQuality", "targetScore"]),
+        PROJECT_PREFS_SEED.defaultRun.targetQuality,
+      ),
+      maxRewritesPerChapter: num(
+        first(defaultRun, ["maxRewritesPerChapter", "maxRewrites"]),
+        PROJECT_PREFS_SEED.defaultRun.maxRewritesPerChapter,
+      ),
+    },
+    notify: {
+      onChapterDone: notifyFlag(
+        first(notify, ["onChapterDone", "chapterDone"]),
+        PROJECT_PREFS_SEED.notify.onChapterDone,
+      ),
+      onRunFailed: notifyFlag(
+        first(notify, ["onRunFailed", "runFailed"]),
+        PROJECT_PREFS_SEED.notify.onRunFailed,
+      ),
+      onLowQuality: notifyFlag(
+        first(notify, ["onLowQuality", "lowQuality"]),
+        PROJECT_PREFS_SEED.notify.onLowQuality,
+      ),
+    },
   }
 }
 

@@ -3,7 +3,7 @@
 .nb-dialog {
   max-width: 640px !important;
   max-height: calc(100dvh - 48px);
-  position: relative;
+  position: fixed;
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
