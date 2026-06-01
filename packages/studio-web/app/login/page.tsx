@@ -54,35 +54,30 @@ export default function LoginPage() {
     const name = author.trim() || "作者大大"
     const trimmed = code.trim()
     try {
-      if (trimmed) {
-        // 有激活码:交后端校验(远程 verify / HMAC / 校验和 / 名单 任一)
-        const res = await fetch("/api/v1/auth/activate", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ code: trimmed, authorName: author.trim(), email: email.trim(), deviceId: getDeviceId() }),
-        })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok || data?.error) {
-          setErr(data?.error?.message || "激活码无效,请检查后重试。")
-          setBusy(false)
-          return
-        }
-        // 记下等级(Normal/Pro/Ultra)与邮箱,供全站显示/按等级解锁
-        try {
-          const tier = data?.activation?.tier
-          if (tier) localStorage.setItem("cj.tier", String(tier))
-          if (email.trim()) localStorage.setItem("cj.email", email.trim())
-        } catch { /* ignore */ }
-      } else {
-        // 没填激活码:仅当后端未强制要求时放行(单机试用)
-        const res = await fetch("/api/v1/auth/activation").catch(() => null)
-        const data = res ? await res.json().catch(() => ({})) : {}
-        if (data?.required && !data?.unlocked) {
-          setErr("本产品需要激活码才能进入,请填写后再试。")
-          setBusy(false)
-          return
-        }
+      if (!trimmed) {
+        setErr("请先输入激活码。关注公众号回复「领码」即可领取。")
+        setBusy(false)
+        return
       }
+
+      // 有激活码:交后端校验(远程 verify / HMAC / 校验和 / 名单 任一)
+      const res = await fetch("/api/v1/auth/activate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: trimmed, authorName: author.trim(), email: email.trim(), deviceId: getDeviceId() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data?.error) {
+        setErr(data?.error?.message || "激活码无效,请检查后重试。")
+        setBusy(false)
+        return
+      }
+      // 记下等级(Normal/Pro/Ultra)与邮箱,供全站显示/按等级解锁
+      try {
+        const tier = data?.activation?.tier
+        if (tier) localStorage.setItem("cj.tier", String(tier))
+        if (email.trim()) localStorage.setItem("cj.email", email.trim())
+      } catch { /* ignore */ }
       // 通过:写本地身份后进门
       try {
         setAuthorName(name)
@@ -193,7 +188,7 @@ export default function LoginPage() {
               placeholder="JUAN-XXXX-XXXX-XXXX"
               spellCheck={false}
             />
-            <span className="hint">没有激活码?本地试用可直接进入(写作需在「服务设置」配置你自己的模型 Key)。</span>
+            <span className="hint">没有激活码?关注公众号「{WECHAT_NAME}」回复「{WECHAT_KEYWORD}」领取。</span>
           </label>
 
           <label className="field">

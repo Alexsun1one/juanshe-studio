@@ -304,7 +304,17 @@
   animation: cj-fade-in var(--motion, .2s) var(--ease-out-cj, ease);
 }
 .cj-login .cc-title { font-size: 12.5px; font-weight: 700; color: var(--brand-700, var(--brand-600)); }
-.cj-login .cc-banner { display: block; width: 100%; max-height: 66px; object-fit: cover; object-position: top center; border-radius: var(--r-md); background: #fff; border: 1px solid var(--line-1); }
+.cj-login .cc-banner {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 112px;
+  object-fit: contain;
+  object-position: center;
+  border-radius: var(--r-md);
+  background: #fff;
+  border: 1px solid var(--line-1);
+}
 .cj-login .cc-banner-fallback {
   display: grid; place-items: center; gap: 3px; width: 100%; min-height: 92px; padding: 14px;
   font-size: 12.5px; font-weight: 700; color: var(--ink-400); text-align: center; line-height: 1.3;

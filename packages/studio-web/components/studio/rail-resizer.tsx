@@ -6,7 +6,7 @@ import { useStudio } from "@/lib/studio-context"
 import { RAIL_BOUNDS } from "@/lib/studio-context"
 
 /**
- * 细栏拖拽分隔条 — Claude Desktop 式三栏布局的左右把手。
+ * 细栏拖拽分隔条 — 三栏布局的左右把手。
  *
  * - 拖拽改变对应栏的像素宽度（带边界 clamp + localStorage 持久化）
  * - 双击复位到默认宽度

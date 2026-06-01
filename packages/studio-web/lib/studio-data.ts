@@ -771,7 +771,7 @@ export const OUTLINE = [
   },
   {
     actId: "a2",
-    actTitle: { zh: "第二卷 · 裂隙之书", en: "Act II · The Rift Codex" },
+    actTitle: { zh: "第二卷 · 裂隙之书", en: "Act II · The Rift Archive" },
     chapters: [
       { id: "c4", num: 4, title: { zh: "手绘地图", en: "The Hand-Drawn Map" }, beats: 5, words: 2679, status: "done" },
       { id: "c5", num: 5, title: { zh: "裂隙回音初现", en: "Echoes of the Rift" }, beats: 7, words: 1284, status: "writing" },
@@ -813,7 +813,7 @@ export const HOT_OPPS = [
   { id: "o1", title: { zh: "赛博修仙", en: "Cyber-cultivation" }, score: 89, trend: "up", change: "+35%" },
   { id: "o2", title: { zh: "代号黎明", en: "Code Dawn" }, score: 82, trend: "up", change: "+18%" },
   { id: "o3", title: { zh: "时间代理人", en: "Time Agent" }, score: 76, trend: "flat", change: "+6%" },
-  { id: "o4", title: { zh: "古籍修复师", en: "Codex Restorer" }, score: 71, trend: "up", change: "+14%" },
+  { id: "o4", title: { zh: "古籍修复师", en: "Archive Restorer" }, score: 71, trend: "up", change: "+14%" },
 ]
 
 export const STYLE_RADAR = [
