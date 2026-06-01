@@ -1,0 +1,24 @@
+{
+  "name": "juanshe",
+  "version": "0.1.0",
+  "type": "novel",
+  "language": "zh",
+  "llm": {
+    "provider": "openai",
+    "service": "custom",
+    "configSource": "studio",
+    "baseUrl": "",
+    "model": "",
+    "apiFormat": "chat",
+    "stream": true
+  },
+  "notify": [],
+  "inputGovernanceMode": "v2",
+  "daemon": {
+    "schedule": {
+      "radarCron": "0 */6 * * *",
+      "writeCron": "*/15 * * * *"
+    },
+    "maxConcurrentBooks": 3
+  }
+}

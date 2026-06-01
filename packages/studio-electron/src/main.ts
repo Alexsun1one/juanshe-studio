@@ -18,6 +18,7 @@ const DEV = process.env.ELECTRON_DEV === "1"
 const FRONT_PORT = Number(process.env.JUANSHE_WEB_PORT || 3100)
 const API_PORT = Number(process.env.JUANSHE_API_PORT || 4569)
 const FRONT_URL = `http://localhost:${FRONT_PORT}`
+const DEFAULT_ACTIVATION_VERIFY_URL = "https://api.nextapi.top/juanshe-activation/verify"
 
 let win: BrowserWindow | null = null
 const children: ChildProcess[] = []
@@ -51,7 +52,7 @@ function resolveWorkspace(): string {
   if (!existsSync(join(ws, "hardwrite.json"))) {
     writeFileSync(
       join(ws, "hardwrite.json"),
-      JSON.stringify({ name: "juanshe", version: "0.1.0", type: "novel", language: "zh-CN" }, null, 2),
+      JSON.stringify({ name: "juanshe", version: "0.1.0", type: "novel", language: "zh" }, null, 2),
       "utf-8",
     )
   }
@@ -94,6 +95,9 @@ function spawnBackends() {
         JUANSHE_WORKSPACE: workspace,
         HARDWRITE_STUDIO_PORT: String(API_PORT),
         HARDWRITE_PROJECT_ROOT: workspace,
+        HARDWRITE_ACTIVATION_REQUIRED: process.env.HARDWRITE_ACTIVATION_REQUIRED || "1",
+        HARDWRITE_ACTIVATION_VERIFY_URL:
+          process.env.HARDWRITE_ACTIVATION_VERIFY_URL || DEFAULT_ACTIVATION_VERIFY_URL,
       },
       stdio: "inherit",
     },

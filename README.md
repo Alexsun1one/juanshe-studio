@@ -74,7 +74,7 @@
 - **内容支线出口**：公众号、小红书、知乎、X、Newsletter 预览与复制已经接入，公众号方向支持粘贴编辑器可用的排版输出。
 - **内容类型与技能库**：长篇小说是主战场；公众号长文、小红书笔记、知乎回答、X thread 等作为支线内容类型，有自己的角色编制、平台渲染和技能挂载。
 - **本地优先 + BYOK**：项目、稿件、密钥优先留在本机；模型服务走你自己的 API Key，可接 OpenAI 兼容端点、DeepSeek、小米 MiMo、本地 Ollama 等。
-- **桌面应用打包路径**：当前更适合的 macOS 打包入口是 `pnpm --filter @juanshe/studio-electron pack:mac`，Electron 资源准备链路已接入。
+- **桌面应用打包路径**：当前更适合的 macOS 打包入口是 `pnpm --filter @juanshe/studio-electron pack:mac`，Electron 资源准备链路已接入；打包客户端默认启用激活码门禁并走远端验证服务。
 
 ## 17 位派驻编辑
 

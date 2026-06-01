@@ -33,7 +33,7 @@ extraResources:
   - from: ../../packages/studio-web/public
     to: app/packages/studio-web/public
   # 首启播种用的干净工作区模板(无任何个人作品、空书架 → 触发新手引导);滤掉陈旧运行态
-  - from: ../../../Autow/workspace-template
+  - from: ../../workspace-template
     to: workspace-template
     filter: ["**/*", "!.hardwrite/**", "!**/.DS_Store", "!**/*.log"]
   # 随包携带商业授权协议全文
