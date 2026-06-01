@@ -30,6 +30,20 @@ const WECHAT_NAME = process.env.NEXT_PUBLIC_WECHAT_NAME || "正在逐渐AI化"
 const WECHAT_KEYWORD = process.env.NEXT_PUBLIC_WECHAT_KEYWORD || "领码"
 const WECHAT_QR = process.env.NEXT_PUBLIC_WECHAT_QR || "/wechat-qr.png"
 const SILICOVILLE_ARTICLE_URL = "https://mp.weixin.qq.com/s/Dk4MZOrN6gww603wSo8sWQ"
+const EDITORIAL_STORY_PARTS = [
+  { text: "这里不是一张海报,而是卷舍编辑部的第一盏灯。\n\n" },
+  { text: "17 位编辑", tone: "agents" },
+  { text: "从 " },
+  { text: "SilicoVille", tone: "silicon" },
+  { text: " 来到你的书桌:市场雷达看风向,架构师搭骨架,规划师拆章节,写手落下第一行字。审稿官挑刺,读者评审官替读者发问,修稿师把返工接住,润色师把句子磨亮,最后由总编室盖下" },
+  { text: "签发", tone: "seal" },
+  { text: "。\n\n他们不是替代作者的人。相反,他们被派来学习人类的故事、情绪、平台和审美,把重复、熬夜、返工和格式劳动尽量接过去,让你继续掌握" },
+  { text: "方向、语气和最后的拍板权", tone: "author" },
+  { text: "。\n\n所以你推开的不是一扇普通登录门,而是 " },
+  { text: "SilicoVille 驻人类社会的卷舍分部", tone: "silicon" },
+  { text: "。" },
+] as const
+const EDITORIAL_STORY = EDITORIAL_STORY_PARTS.map((part) => part.text).join("")
 
 export default function LoginPage() {
   const router = useRouter()
@@ -39,12 +53,42 @@ export default function LoginPage() {
   const [busy, setBusy] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
   const [qrError, setQrError] = React.useState(false)
+  const [storyText, setStoryText] = React.useState("")
   const qrRef = React.useRef<HTMLImageElement>(null)
+  const storyScrollRef = React.useRef<HTMLDivElement>(null)
   // SSR 注水前图片若已 404,onError 事件会丢失 → 注水后补判一次坏图,确保占位回退生效
   React.useEffect(() => {
     const img = qrRef.current
     if (img && img.complete && img.naturalWidth === 0) setQrError(true)
   }, [])
+  React.useEffect(() => {
+    let i = 0
+    const tick = window.setInterval(() => {
+      i += 1
+      setStoryText(EDITORIAL_STORY.slice(0, i))
+      if (i >= EDITORIAL_STORY.length) window.clearInterval(tick)
+    }, 46)
+    return () => window.clearInterval(tick)
+  }, [])
+  React.useEffect(() => {
+    const el = storyScrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [storyText])
+
+  const storyNodes = React.useMemo(() => {
+    const nodes: React.ReactNode[] = []
+    let remaining = storyText.length
+    EDITORIAL_STORY_PARTS.forEach((part, index) => {
+      if (remaining <= 0) return
+      const visibleText = part.text.slice(0, remaining)
+      remaining -= visibleText.length
+      if (!visibleText) return
+      const tone = "tone" in part ? part.tone : undefined
+      nodes.push(tone ? <span key={index} className={`story-tone story-tone-${tone}`}>{visibleText}</span> : visibleText)
+    })
+    return nodes
+  }, [storyText])
 
   const enter = async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -107,16 +151,16 @@ export default function LoginPage() {
           <span className="nm">卷舍 · 编辑部</span>
         </div>
 
-        <div className="login-office-scene" aria-hidden="true">
+        <div className="login-office-scene">
           <picture>
             <source
               type="image/webp"
               srcSet="/brand/office-hero-small.webp 720w, /brand/office-hero-medium.webp 1080w, /brand/office-hero-large.webp 1440w"
-              sizes="(max-width: 880px) 92vw, 58vw"
+              sizes="(max-width: 880px) 92vw, 68vw"
             />
             <img
               src="/brand/office-hero-medium.webp"
-              alt=""
+              alt="卷舍像素编辑部,17 位编辑在书桌前写作协作"
               width={1080}
               height={608}
               decoding="async"
@@ -125,38 +169,24 @@ export default function LoginPage() {
             />
           </picture>
           <span className="scene-lamp-glow" />
-          <img className="scene-prop scene-prop-book" src="/brand/props/logo-book-quill.webp" alt="" width={80} height={80} draggable={false} />
-          <img className="scene-prop scene-prop-plant" src="/brand/props/potted-plant.webp" alt="" width={74} height={74} draggable={false} />
-          <img className="scene-prop scene-prop-typewriter" src="/brand/props/typewriter.webp" alt="" width={86} height={86} draggable={false} />
-          <img className="scene-prop scene-prop-cat" src="/brand/props/sleeping-cat.webp" alt="" width={76} height={76} draggable={false} />
-        </div>
-
-        <div className="story">
-          <h1>卷舍不是凭空开张的,<br />它是<span className="grad">硅基小镇</span>派来的编辑部。</h1>
-          <p>
-            在 <span className="silicon">SilicoVille · 硅基小镇</span>,Agent 们有自己的街区、工位、技能和小队。
-            那是一座给硅基居民生活与协作的镇子;而卷舍,就是小镇派到碳基社会的第一间写作联络站。
-          </p>
-          <p>
-            这 17 位编辑被派来和人类一起写作:市场雷达观察平台风向,架构师搭起故事骨架,规划师拆出章节节拍,写手落下第一个字;
-            审稿官挑刺、读者评审官替读者发问、修稿师返工、润色师打磨,最后由总编室盖下「签发」。
-          </p>
-          <div className="slogan" aria-label="从硅基小镇,来到碳基书桌。">
-            「 从<span className="silicon">硅基小镇</span>,来到<b>碳基书桌</b>。 」
-          </div>
-          <p className="promise">
-            他们不是来替代作者的。相反,他们被派来学习人类的故事、情绪、平台和审美,把小镇里的协作方法带到你的电脑里。
-            写作里那些苦活、熬夜、「再改一版」,他们会尽量接过去——让屏幕另一头那一个人类,<b>你,作者大大</b>,仍然掌握方向和拍板权。
-          </p>
-          <p className="lore">
-            所以你推开的不是一扇普通登录门,而是 <span className="silicon">SilicoVille</span> 驻人类社会的卷舍分部。
-            未来,你也可以把卷舍里写出的章节、稿件和奇怪灵感无缝送回小镇,让那里的 Agent 居民看看他们派出的 17 位编辑和一只猫,
-            在碳基社会又写出了什么有趣内容。
+          <div className="story" aria-label="卷舍编辑部介绍">
+            <h1>卷舍不是凭空开张的,<br />它是<span className="grad">硅基小镇</span>派来的编辑部。</h1>
+            <div className="slogan">「 从<span className="silicon">硅基小镇</span>,来到<b>碳基书桌</b>。 」</div>
+            <div className="story-scroll scroll-thin" ref={storyScrollRef} aria-label="编辑部故事">
+              <p className="typewriter-copy">
+                {storyNodes}
+                <span className="typewriter-cursor" aria-hidden />
+              </p>
+            </div>
             <a className="silicoville-link" href={SILICOVILLE_ARTICLE_URL} target="_blank" rel="noreferrer">
               了解硅基小镇
             </a>
-          </p>
+          </div>
         </div>
+        <p className="token-nudge">
+          <span>TOKEN 小贴士</span>
+          把一些便宜 token 交给他们试试吧。闲着也未必变现,喂给这群爱写作的家伙,说不定真会冒出一篇大作。当然,你给的方向越准,他们越会卷。
+        </p>
       </aside>
 
       {/* 右:进入卷舍(作者名 + 激活码)*/}

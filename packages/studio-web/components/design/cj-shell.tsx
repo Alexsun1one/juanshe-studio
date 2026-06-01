@@ -145,6 +145,15 @@ const DEFAULT_COLLAPSED_GROUPS = NAV.reduce<Record<string, boolean>>((acc, group
   return acc
 }, {})
 
+const ROUTE_SECTION_LABELS: Record<string, string> = {
+  workbench: "工作台",
+  creation: "创作",
+  knowledge: "知识与资产",
+  publish: "发布与运营",
+  system: "系统与智能体",
+  settings: "设置",
+}
+
 function routeSectionOf(pathname: string | null): string {
   if (!pathname || pathname === "/") return "workbench"
   if (/^\/(books|assistant|compose|editor|outline|characters|materials)/.test(pathname)) return "creation"
@@ -216,12 +225,38 @@ export function CjShell({ children }: { children: React.ReactNode }) {
           <CjTopbar />
           <div className="main-scroll scroll-thin" ref={scrollRef} tabIndex={-1}>{children}</div>
         </main>
+        <CjStatusBar routeSection={routeSection} />
         {/* 全局运行日志/错误中心:错误实时 toast + 浮动入口抽屉,所有智能体事件都浮到前台 */}
         <EventLogCenter />
         {/* 全站 AI 写作剧场:续写/修复/批量一跑就弹,随处可监看进度与停止 */}
         <WorkflowTheater bookId={bookId} bookTitle={activeBook?.title.zh ?? "—"} />
       </div>
     </CollapseCtx.Provider>
+  )
+}
+
+function CjStatusBar({ routeSection }: { routeSection: string }) {
+  const { books, bookId } = useWorkspace()
+  const activeBook = books.find((b) => b.id === bookId)
+  const runningCount = books.filter((b) => b.autoRunning).length
+  const titleOf = (t: string | { zh: string; en: string } | undefined): string =>
+    typeof t === "string" ? t : (t?.zh ?? t?.en ?? "")
+  const bookTitle = titleOf(activeBook?.title) || "未选择作品"
+
+  return (
+    <footer className="desktop-statusbar" aria-label="桌面状态栏">
+      <div className="desktop-status-left">
+        <span className="desktop-status-dot" aria-hidden />
+        <span className="desktop-status-strong">本地工作区</span>
+        <span className="desktop-status-seg">{ROUTE_SECTION_LABELS[routeSection] ?? "工作台"}</span>
+        <span className="desktop-status-book" title={bookTitle}>{bookTitle}</span>
+      </div>
+      <div className="desktop-status-right">
+        <span>{runningCount > 0 ? `${runningCount} 个任务运行中` : "智能体待命"}</span>
+        <span>⌘K 搜索</span>
+        <span>API 4569</span>
+      </div>
+    </footer>
   )
 }
 

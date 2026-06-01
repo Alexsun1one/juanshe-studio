@@ -154,6 +154,7 @@
   --sidebar-w:        222px;   /* 200 放不下"系统与智能体"6 字分组名(被截成"系统与…"),加宽到能完整显示 */
   --sidebar-w-mini:   76px;
   --topbar-h:         56px;
+  --desktop-statusbar-h: 34px;
 }
 
 /* ═══ DARK theme — 同时响应 data-theme 与 .dark ═══ */
@@ -238,12 +239,16 @@
    ═══════════════════════════════════════════════════ */
 .app {
   display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--desktop-statusbar-h);
   height: 100dvh;          /* dvh:Electron/移动端工具条变化时仍贴满,不留窗口级滚动缝隙 */
   overflow: hidden;
   font-family: var(--font-sans-cj);
   color: var(--ink-800);
-  background: var(--bg-app);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--bg-card) 46%, transparent) 0%, transparent 44%),
+    radial-gradient(circle at 72% 0%, color-mix(in oklab, var(--brand-500) 10%, transparent), transparent 34%),
+    color-mix(in oklab, var(--bg-app) 86%, var(--ink-900) 3%);
   font-size: var(--text-body, 13px);   /* 字号规范:全站正文默认 13px */
   line-height: 1.5;
   transition: grid-template-columns var(--motion-base) var(--ease-soft);
@@ -252,8 +257,37 @@
 /* 固定外壳:main 撑满视口,顶栏固定,内容区(.main-scroll)是默认滚动容器——
    不再依赖 document/body 滚动。改成 flex 列,使「工作站页」(.cj-screen)能 flex:1 精确撑满、
    自身不滚;旧页面(普通文档流)仍按内容高度在 .main-scroll 内滚动,二者并存不冲突。 */
-.app main { min-width: 0; min-height: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; position: relative; z-index: 1; }
-.app .main-scroll { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
+.app main {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--bg-card) 30%, transparent), transparent 38%),
+    color-mix(in oklab, var(--bg-app) 78%, var(--bg-card));
+}
+.app .main-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 10px 12px 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid color-mix(in oklab, var(--line-1) 84%, transparent);
+  border-radius: 16px;
+  background: var(--bg-card);
+  box-shadow:
+    0 1px 0 color-mix(in oklab, var(--bg-inverse) 38%, transparent) inset,
+    0 18px 42px color-mix(in oklab, var(--ink-900) 9%, transparent);
+  isolation: isolate;
+}
 .app .main-scroll:focus, .app .main-scroll:focus-visible { outline: none; }
 .app .cj-logo-img {
   filter: var(--brand-asset-filter, none);
@@ -298,7 +332,7 @@
   pointer-events: none;
 }
 .app .cj-workhead::after {
-  content: "";
+  content: none;
   position: absolute;
   right: clamp(18px, 3vw, 42px);
   bottom: -34px;
@@ -347,7 +381,7 @@
     color-mix(in oklab, var(--bg-app) 54%, var(--bg-card));
 }
 .app .cj-inspector::after {
-  content: "";
+  content: none;
   position: absolute;
   right: -18px;
   bottom: 12px;
@@ -534,6 +568,8 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
    SIDEBAR
    ═══════════════════════════════════════════════════ */
 .sidebar {
+  grid-column: 1;
+  grid-row: 1 / span 2;
   background: var(--bg-sidebar);
   border-right: 1px solid var(--line-1);
   padding: 18px 12px;
@@ -542,7 +578,7 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   gap: 7px;
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: 100dvh;
   overflow-y: auto;
   overflow-x: hidden;
   transition: background var(--motion-base) var(--ease-soft);
@@ -786,9 +822,9 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
 /* 总设置弹出菜单 —— 从底部按钮上方浮起 */
 .settings-menu {
   position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
-  right: 0;
+  left: calc(100% + 10px);
+  bottom: 0;
+  min-width: 190px;
   z-index: var(--z-popover, 60);
   background: var(--bg-card);
   border: 1px solid var(--line-1);
@@ -798,8 +834,8 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   animation: settings-menu-in 160ms var(--ease-soft, ease-out);
 }
 @keyframes settings-menu-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: none; }
 }
 .settings-menu-h {
   font-size: 11px;
@@ -891,15 +927,28 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
    TOPBAR
    ═══════════════════════════════════════════════════ */
 .topbar {
-  height: var(--topbar-h);
+  height: calc(var(--topbar-h) + 8px);
   flex: 0 0 auto;
-  background: var(--bg-app);
-  border-bottom: 1px solid var(--line-1);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--bg-card) 80%, transparent), color-mix(in oklab, var(--bg-app) 92%, transparent)),
+    var(--bg-app);
+  border-bottom: 1px solid color-mix(in oklab, var(--line-1) 86%, transparent);
   display: flex; align-items: center; gap: 12px;
-  padding: 0 24px;
+  padding: 8px 18px 8px 20px;
   position: relative;
   z-index: var(--z-sticky);
-  transition: background var(--motion-base) var(--ease-soft);
+  box-shadow: 0 1px 0 color-mix(in oklab, var(--bg-inverse) 28%, transparent) inset;
+  transition: background var(--motion-base) var(--ease-soft), box-shadow var(--motion-base) var(--ease-soft);
+}
+.topbar::before {
+  content: "";
+  width: 42px;
+  height: 7px;
+  border-radius: 999px;
+  background:
+    repeating-linear-gradient(90deg, color-mix(in oklab, var(--ink-500) 50%, transparent) 0 3px, transparent 3px 7px);
+  opacity: 0.38;
+  flex: 0 0 auto;
 }
 .workspace-sel { position: relative; min-width: 168px; }
 .ws-trigger {
@@ -1291,6 +1340,62 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
 .user-menu-item.danger:hover { background: color-mix(in oklab, var(--err-500, #E5675C) 12%, transparent); }
 .user-menu-item:disabled { opacity: .6; cursor: default; }
 
+/* 桌面底栏 —— 明确应用窗口的下边界,承载状态而不是再堆卡片。 */
+.desktop-statusbar {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  height: var(--desktop-statusbar-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 14px;
+  border-top: 1px solid color-mix(in oklab, var(--line-1) 88%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--bg-card) 58%, transparent), color-mix(in oklab, var(--bg-sidebar) 82%, transparent)),
+    var(--bg-sidebar);
+  color: var(--ink-500);
+  font-size: 11.5px;
+  line-height: 1;
+  position: relative;
+  z-index: var(--z-sticky);
+  box-shadow: 0 1px 0 color-mix(in oklab, var(--bg-inverse) 24%, transparent) inset;
+}
+.desktop-status-left,
+.desktop-status-right {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.desktop-status-right { flex: 0 0 auto; color: var(--ink-400); }
+.desktop-status-left { flex: 1 1 auto; }
+.desktop-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--ok-600);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ok-600) 16%, transparent);
+}
+.desktop-status-strong {
+  color: var(--ink-700);
+  font-weight: 700;
+}
+.desktop-status-seg {
+  padding-left: 9px;
+  border-left: 1px solid var(--line-1);
+  color: var(--ink-600);
+  font-weight: 600;
+}
+.desktop-status-book {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-500);
+}
+
 @media (max-width: 760px) {
   .app,
   .app.sidebar-collapsed {
@@ -1387,7 +1492,7 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   isolation: isolate;
 }
 .app main > .page::before {
-  content: "";
+  content: none;
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -1398,7 +1503,7 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   opacity: 0.55;
 }
 .app main > .page::after {
-  content: "";
+  content: none;
   position: absolute;
   top: 74px;
   right: clamp(28px, 5vw, 92px);

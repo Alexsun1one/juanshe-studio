@@ -5,7 +5,7 @@
   height: 100dvh;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(380px, 0.95fr);
+  grid-template-columns: minmax(0, 1.95fr) minmax(330px, 0.72fr);
   font-family: var(--font-pixel-ui);  /* 登录页 UI 默认像素 */
   background: var(--bg-app);
   color: var(--ink-800);
@@ -324,6 +324,224 @@
 .cj-login .cc-banner-fallback span { font-size: 10.5px; color: var(--ink-300); font-weight: 500; }
 .cj-login .cc-hint { font-size: 11.5px; line-height: 1.45; color: var(--ink-600); margin: 0; }
 .cj-login .cc-hint b { color: var(--ink-900); font-weight: 700; }
+
+/* ════ v3:编辑部图成为主视觉,文案嵌入图右侧空白区 ════ */
+.cj-login .aside {
+  padding: clamp(20px, 2.3vw, 34px);
+  justify-content: stretch;
+}
+.cj-login .aside-brand {
+  flex: 0 0 auto;
+  margin-bottom: clamp(14px, 1.8vh, 20px);
+}
+.cj-login .login-office-scene {
+  width: 100%;
+  max-width: none;
+  flex: 0 1 auto;
+  min-height: 0;
+  margin: 0;
+  align-self: center;
+  height: min(72vh, 720px);
+  border-radius: 20px;
+  box-shadow:
+    0 1px 0 color-mix(in oklab, var(--bg-inverse) 45%, transparent) inset,
+    0 26px 70px -36px rgba(74, 58, 36, 0.56);
+}
+.cj-login .login-office-scene::before {
+  background:
+    linear-gradient(90deg, transparent 0 38%, rgba(255, 239, 198, 0.34) 58%, rgba(255, 245, 218, 0.88) 100%),
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.025));
+}
+.cj-login .login-office-scene::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 78% 45%, rgba(255, 232, 166, 0.34), transparent 30%),
+    linear-gradient(90deg, transparent 0 48%, rgba(255, 247, 225, 0.48) 72%, rgba(255, 250, 235, 0.94) 100%);
+  animation: login-mask-breathe 5.6s ease-in-out infinite;
+}
+.cj-login .login-office-scene picture > img {
+  object-fit: cover;
+  object-position: center center;
+  filter: saturate(0.98) contrast(0.98);
+}
+.cj-login .scene-lamp-glow {
+  right: 9%;
+  top: 41%;
+  width: 42px;
+  height: 42px;
+  opacity: 0.24;
+}
+.cj-login .story {
+  position: absolute;
+  z-index: 6;
+  right: clamp(24px, 3.2vw, 52px);
+  top: clamp(74px, 12vh, 128px);
+  bottom: clamp(42px, 7vh, 82px);
+  width: min(28vw, 360px);
+  max-width: 31%;
+  margin: 0;
+  padding: clamp(16px, 1.7vw, 24px) clamp(16px, 1.8vw, 24px) clamp(14px, 1.5vw, 20px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #4A3828;
+  border: 1px solid rgba(133, 93, 46, 0.14);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 249, 235, 0.72), rgba(255, 241, 212, 0.54)),
+    rgba(255, 246, 224, 0.62);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.74) inset,
+    0 18px 34px -28px rgba(74, 45, 18, 0.48);
+  backdrop-filter: blur(2px);
+}
+.cj-login .story h1 {
+  font-size: clamp(20px, 1.55vw, 27px);
+  line-height: 1.24;
+  margin: 0 0 10px;
+  color: #38291E;
+  text-shadow: 0 1px 0 rgba(255, 246, 222, 0.8);
+}
+.cj-login .story h1 .grad,
+.cj-login .silicon {
+  background: linear-gradient(90deg, #6B54D8, #8B5DDA);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.cj-login .story .slogan {
+  margin: 0 0 11px;
+  font-size: clamp(12.5px, 0.94vw, 15px);
+  line-height: 1.45;
+  color: #B45E23;
+  letter-spacing: 0;
+}
+.cj-login .story .typewriter-copy {
+  white-space: pre-wrap;
+  font-family: var(--font-serif-prose);
+  font-size: clamp(12.5px, 0.84vw, 14px);
+  line-height: 1.64;
+  color: #5E4A38;
+  margin: 0;
+  text-shadow: 0 1px 0 rgba(255, 246, 222, 0.62);
+}
+.cj-login .story-tone {
+  font-family: var(--font-pixel-ui);
+  font-weight: 700;
+}
+.cj-login .story-tone-silicon {
+  color: #6B54D8;
+  text-shadow: 0 1px 0 rgba(255, 246, 222, 0.74);
+}
+.cj-login .story-tone-agents {
+  color: #A85727;
+}
+.cj-login .story-tone-seal {
+  color: #B34E3F;
+  background: rgba(255, 228, 196, 0.58);
+  padding: 0 2px;
+  border-radius: 4px;
+}
+.cj-login .story-tone-author {
+  color: #3E7660;
+  background: rgba(214, 241, 222, 0.48);
+  padding: 0 2px;
+  border-radius: 4px;
+}
+.cj-login .story-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 8px;
+  margin-right: -6px;
+  mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 22px), transparent 100%);
+}
+.cj-login .typewriter-cursor {
+  display: inline-block;
+  width: 0.56em;
+  height: 1.12em;
+  margin-left: 2px;
+  vertical-align: -0.16em;
+  border-right: 2px solid #6B54D8;
+  animation: login-cursor-blink 0.82s steps(1, end) infinite;
+}
+.cj-login .token-nudge {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 1;
+  width: min(100%, 760px);
+  margin: 12px auto 0;
+  padding: 8px 12px;
+  border: 1px dashed rgba(168, 102, 42, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 246, 225, 0.52);
+  color: #6D5540;
+  font-family: var(--font-serif-prose);
+  font-size: clamp(11.5px, 0.76vw, 12.5px);
+  line-height: 1.5;
+}
+.cj-login .token-nudge span {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 7px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(107, 84, 216, 0.1);
+  color: #6B54D8;
+  font-family: var(--font-pixel-ui);
+  font-size: 10px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+@keyframes login-cursor-blink {
+  0%, 48% { opacity: 1; }
+  49%, 100% { opacity: 0; }
+}
+@keyframes login-mask-breathe {
+  0%, 100% { opacity: 0.78; }
+  50% { opacity: 0.96; }
+}
+.cj-login .silicoville-link {
+  margin: 14px 0 0;
+  min-height: 30px;
+  padding: 4px 12px 5px;
+  flex: 0 0 auto;
+  background: rgba(255, 246, 225, 0.66);
+  border-color: rgba(107, 84, 216, 0.26);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.76) inset,
+    0 8px 18px -14px rgba(72, 47, 150, 0.68);
+}
+.cj-login .panel {
+  padding: clamp(22px, 2.2vw, 34px) clamp(26px, 3vw, 46px);
+  background:
+    linear-gradient(90deg, color-mix(in oklab, var(--bg-app) 72%, transparent), var(--bg-app) 22%),
+    var(--bg-app);
+}
+.cj-login .card {
+  max-width: 336px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  box-shadow:
+    0 1px 0 color-mix(in oklab, var(--bg-inverse) 44%, transparent) inset,
+    0 22px 54px -38px rgba(74, 58, 36, 0.58);
+}
+.cj-login .card-emblem {
+  width: 38px;
+  height: 38px;
+  margin-bottom: 12px;
+}
+.cj-login .card h2 { font-size: 20px; }
+.cj-login .card-sub { margin-bottom: 16px; }
+.cj-login .card .field { margin-bottom: 10px; }
+.cj-login .card .inp { height: 38px; }
+.cj-login .code-claim { padding: 8px; }
+.cj-login .cc-banner { max-height: 92px; }
 
 @media (max-width: 880px) {
   .cj-login { grid-template-columns: 1fr; height: auto; min-height: 100dvh; overflow: visible; }

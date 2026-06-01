@@ -156,7 +156,7 @@ export function EventLogCenter() {
           setUnreadErrors(0)
         }}
         aria-label="运行日志与错误"
-        className="fixed bottom-4 right-4 z-40 flex h-10 items-center gap-2 rounded-full border px-3 text-xs shadow-lg backdrop-blur transition-colors motion-safe:transition-all hover:brightness-105"
+        className="fixed bottom-14 right-4 z-40 flex h-10 items-center gap-2 rounded-full border px-3 text-xs shadow-lg backdrop-blur transition-colors motion-safe:transition-all hover:brightness-105"
         style={{
           background: "color-mix(in oklab, var(--card) 92%, transparent)",
           borderColor: unreadErrors > 0 ? "var(--destructive)" : "var(--border)",

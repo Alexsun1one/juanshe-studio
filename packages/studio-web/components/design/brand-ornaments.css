@@ -4,15 +4,15 @@
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
-  opacity: 0.92;
+  opacity: 0.48;
 }
 
 .app {
   --page-prop: url("/brand/props/typewriter.webp");
   --page-prop-size: clamp(86px, 9vw, 132px);
-  --page-prop-opacity: 0.18;
+  --page-prop-opacity: 0;
   --workhead-prop-size: clamp(70px, 8vw, 112px);
-  --workhead-prop-opacity: 0.14;
+  --workhead-prop-opacity: 0;
 }
 
 .app[data-route-section="creation"] {
@@ -181,13 +181,13 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, color-mix(in oklab, var(--brand-500) 5%, transparent), transparent 34%),
-    repeating-linear-gradient(0deg, transparent 0 23px, color-mix(in oklab, var(--brand-500) 4%, transparent) 24px 25px),
-    repeating-linear-gradient(90deg, transparent 0 23px, color-mix(in oklab, var(--brand-500) 3%, transparent) 24px 25px);
-  opacity: 0.18;
+    repeating-linear-gradient(0deg, transparent 0 23px, color-mix(in oklab, var(--brand-500) 2%, transparent) 24px 25px),
+    repeating-linear-gradient(90deg, transparent 0 23px, color-mix(in oklab, var(--brand-500) 1.8%, transparent) 24px 25px);
+  opacity: 0.1;
 }
 
 .bo-town {
+  display: none;
   position: absolute;
   right: clamp(18px, 2vw, 32px);
   bottom: clamp(18px, 3vw, 42px);
@@ -200,6 +200,7 @@
 }
 
 .bo-prop {
+  display: none;
   position: absolute;
   width: clamp(42px, 5vw, 78px);
   height: auto;
@@ -244,6 +245,7 @@
 }
 
 .bo-page-prop {
+  display: none;
   position: absolute;
   right: clamp(110px, 15vw, 250px);
   top: clamp(52px, 9vh, 118px);
@@ -260,8 +262,8 @@
   position: absolute;
   border-radius: 999px;
   background: color-mix(in oklab, var(--brand-500) 38%, var(--accent-gold, #FFD66A));
-  opacity: 0.16;
-  filter: blur(8px);
+  opacity: 0.08;
+  filter: blur(12px);
   animation: bo-light-breathe 3.8s ease-in-out infinite;
 }
 
@@ -306,7 +308,7 @@
 }
 
 :where(html.dark) .brand-ornaments {
-  opacity: 0.72;
+  opacity: 0.34;
 }
 
 :where(html.dark) .bo-prop,
