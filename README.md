@@ -25,6 +25,8 @@
 
 卷舍的主线是**长篇网文 / 小说生产**：构思、大纲、章节连写、审稿修订、质量门禁、故事图谱、小说平台资料包。公众号、小红书、知乎、X 等是内容支线，用同一间编辑部把小说素材、作者观点和运营内容整理成可复制的成品。
 
+当前桌面包的第一屏是「推开卷舍的门」登录 / 激活页。未激活时，客户端会停在这里；即使直接访问工作台路由，也会回到 `/login`，不会跳过门禁进入主应用。
+
 <p align="center">
   <img src="assets/readme/juanshe-pipeline.png" alt="卷舍从灵感到发布的编辑部流水线" width="100%">
 </p>
@@ -33,9 +35,10 @@
 
 卷舍当前只做 **macOS / Windows 桌面客户端**。没有移动端安装包，也没有 Android / iOS 路线承诺。
 
-- **macOS**：当前打包入口是 `npm --prefix packages/studio-electron run pack:mac`，产物为 `packages/studio-electron/release/卷舍-0.1.0-arm64.dmg`。本地验证已覆盖 DMG 校验、从 DMG 拷出 `.app`、启动前端登录页和后端健康检查。
+- **macOS**：当前打包入口是 `npm --prefix packages/studio-electron run pack:mac`，产物为 `packages/studio-electron/release/卷舍-0.1.0-arm64.dmg`。最新本地包已通过 DMG 校验、`codesign --verify --deep --strict`、`hdiutil verify`，并验证未激活启动会落到登录页。
 - **Windows**：当前打包入口是 `npm --prefix packages/studio-electron run pack:win`，产物为 `packages/studio-electron/release/卷舍 Setup 0.1.0.exe`。该包固定为 Windows x64 NSIS 安装器，避免在 Apple Silicon 上误打 `win32-arm64`。
-- **GitHub Actions**：CI 会跑 build/test，并额外在 macOS / Windows runner 上产出桌面包 artifact。包能不能公开分发仍取决于签名、公证、下载链路和激活服务，不把“构建通过”冒充成“正式发布”。
+- **GitHub Actions**：CI 会跑 build/test，并额外在 macOS / Windows runner 上产出桌面包 artifact。最新已验证的绿色 run 是 `26759729036`，包含 macOS arm64 DMG 与 Windows x64 NSIS artifact。包能不能公开分发仍取决于签名、公证、下载链路和激活服务，不把“构建通过”冒充成“正式发布”。
+- **首屏与激活**：打包客户端默认启用激活门禁。未激活状态会停在「推开卷舍的门」登录页；主应用路由由前端激活守卫兜底，不再把未激活用户直接放进工作台。
 - **分发口径**：在签名、公证和真实用户安装面没有全部过线前，公众号和 README 只按内测 / 预览口径表达，不承诺移动端，不承诺无门槛下载。
 
 ## 产品现在长这样
@@ -43,8 +46,8 @@
 <table>
   <tr>
     <td width="50%">
-      <img src="assets/readme/screenshot-login.png" alt="卷舍登录页：SilicoVille 派驻碳基社会的背景故事">
-      <br><sub>SilicoVille 世界观入口：硅基小镇派来的编辑部。</sub>
+      <img src="assets/readme/screenshot-login.png" alt="卷舍登录 / 激活页：推开卷舍的门">
+      <br><sub>当前首屏：填写作者称呼和激活码，推开卷舍的门。</sub>
     </td>
     <td width="50%">
       <img src="assets/readme/screenshot-workbench.png" alt="卷舍工作台">
@@ -84,7 +87,8 @@
 - **内容支线出口**：公众号、小红书、知乎、X、Newsletter 预览与复制已经接入，公众号方向支持粘贴编辑器可用的排版输出。
 - **内容类型与技能库**：长篇小说是主战场；公众号长文、小红书笔记、知乎回答、X thread 等作为支线内容类型，有自己的角色编制、平台渲染和技能挂载。
 - **本地优先 + BYOK**：项目、稿件、密钥优先留在本机；模型服务走你自己的 API Key，可接 OpenAI 兼容端点、DeepSeek、小米 MiMo、本地 Ollama 等。
-- **桌面应用打包路径**：当前更适合的 macOS 打包入口是 `pnpm --filter @juanshe/studio-electron pack:mac`，Electron 资源准备链路已接入；打包客户端默认启用激活码门禁并走远端验证服务。
+- **登录 / 激活门禁**：桌面包未激活时会固定回到登录页；过门后再进入本地工作台、模型配置和写作流水线。
+- **桌面应用打包路径**：当前 Mac / Windows 打包入口分别是 `npm --prefix packages/studio-electron run pack:mac` 与 `npm --prefix packages/studio-electron run pack:win`。Electron 资源准备链路已接入，打包客户端默认启用激活码门禁并走远端验证服务。
 
 ## 17 位派驻编辑
 
@@ -135,7 +139,7 @@
 卷舍是一个桌面客户端，目标是装上就能用。当前只面向 macOS / Windows 桌面系统。
 
 1. 安装桌面包（macOS / Windows）。
-2. 首次打开填上你的笔名；如果你启用了授权码，再输入授权码。
+2. 首次打开会进入「推开卷舍的门」登录 / 激活页；填上你的作者称呼和激活码。
 3. 在「模型配置」里选择服务商、粘贴 API Key、测试连接、保存模型。
 4. 新建一本小说，选择目标小说平台，点「继续创作」；或者进入内容支线生成公众号 / 小红书 / 知乎 / X 内容。
 
@@ -183,7 +187,7 @@ npm --prefix packages/studio-electron run pack:win
 - [x] 内容支线导出：公众号、小红书、知乎、X、Newsletter 预览与复制。
 - [x] 内容类型档案、技能库、平台渲染器、文章生成 / 评审 / 修订闭环。
 - [x] LLM 配置页：服务商预设、API Key、模型启用和连接测试。
-- [x] 登录页、本地身份设置与可选授权码入口。
+- [x] 登录 / 激活页、本地身份设置与桌面首屏激活门禁。
 - [x] Electron 桌面打包入口与生产资源准备链路。
 - [x] macOS DMG 本地启动烟测；Windows x64 NSIS 安装器构建产物。
 
