@@ -137,6 +137,14 @@ const SETTINGS_ITEMS: NavItem[] = [
   { href: "/shortcuts", label: "快捷键", icon: Keyboard, pixelKind: "shortcuts" },
 ]
 
+const NAV_GROUP_COLLAPSE_STORAGE_KEY = "cj-nav-collapsed-groups"
+const NAV_GROUP_COLLAPSE_VERSION_KEY = "cj-nav-collapsed-groups-version"
+const NAV_GROUP_COLLAPSE_VERSION = "2"
+const DEFAULT_COLLAPSED_GROUPS = NAV.reduce<Record<string, boolean>>((acc, group) => {
+  if (group.groupId) acc[group.groupId] = true
+  return acc
+}, {})
+
 function routeSectionOf(pathname: string | null): string {
   if (!pathname || pathname === "/") return "workbench"
   if (/^\/(books|assistant|compose|editor|outline|characters|materials)/.test(pathname)) return "creation"
@@ -237,20 +245,29 @@ function CjSidebar() {
     try { router.prefetch(href) } catch {}
   }
 
-  // 大分类折叠状态 — localStorage 持久化,关页面也记得
-  const STORAGE_KEY = "cj-nav-collapsed-groups"
-  const [collapsedGroups, setCollapsedGroups] = React.useState<Record<string, boolean>>({})
+  // 大分类折叠状态 — 默认收起,避免首次进入被二级入口淹没;用户手动展开后持久化。
+  const [collapsedGroups, setCollapsedGroups] = React.useState<Record<string, boolean>>(DEFAULT_COLLAPSED_GROUPS)
   React.useEffect(() => {
     if (typeof window === "undefined") return
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY)
-      if (raw) setCollapsedGroups(JSON.parse(raw))
+      const version = window.localStorage.getItem(NAV_GROUP_COLLAPSE_VERSION_KEY)
+      const raw = window.localStorage.getItem(NAV_GROUP_COLLAPSE_STORAGE_KEY)
+      if (version === NAV_GROUP_COLLAPSE_VERSION && raw) {
+        setCollapsedGroups({ ...DEFAULT_COLLAPSED_GROUPS, ...JSON.parse(raw) })
+        return
+      }
+      window.localStorage.setItem(NAV_GROUP_COLLAPSE_STORAGE_KEY, JSON.stringify(DEFAULT_COLLAPSED_GROUPS))
+      window.localStorage.setItem(NAV_GROUP_COLLAPSE_VERSION_KEY, NAV_GROUP_COLLAPSE_VERSION)
+      setCollapsedGroups(DEFAULT_COLLAPSED_GROUPS)
     } catch { /* ignore */ }
   }, [])
   const toggleGroup = (groupId: string) => {
     setCollapsedGroups((prev) => {
       const next = { ...prev, [groupId]: !prev[groupId] }
-      try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+      try {
+        window.localStorage.setItem(NAV_GROUP_COLLAPSE_STORAGE_KEY, JSON.stringify(next))
+        window.localStorage.setItem(NAV_GROUP_COLLAPSE_VERSION_KEY, NAV_GROUP_COLLAPSE_VERSION)
+      } catch { /* ignore */ }
       return next
     })
   }
