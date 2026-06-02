@@ -21,6 +21,7 @@ import {
 import { dirname, join } from "node:path"
 import { appendFileSync, existsSync, mkdirSync, cpSync, writeFileSync } from "node:fs"
 import http from "node:http"
+import { registerPublishers } from "./publishers/index.js"
 
 const DEV = process.env.ELECTRON_DEV === "1"
 const FRONT_PORT = Number(process.env.JUANSHE_WEB_PORT || 3100)
@@ -223,6 +224,7 @@ async function createWindow() {
 
 app.whenReady().then(async () => {
   buildMenu()
+  registerPublishers() // 多平台「一键发草稿」IPC(番茄等;浏览器自动化复用自带 Chromium)
   if (!DEV) {
     spawnBackends()
     try {
