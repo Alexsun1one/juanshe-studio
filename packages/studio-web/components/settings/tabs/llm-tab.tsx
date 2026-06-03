@@ -94,6 +94,11 @@ export function LLMTab() {
               ? "Configure base URL, API key and which models are available for each provider."
               : "为每个提供商配置 Base URL、API Key 与可用模型；前端不会展示明文 key。"}
           </p>
+          <p className="text-muted-foreground/60 mt-1.5 text-[11px] leading-relaxed">
+            {lang === "en"
+              ? "💡 Tip: You can add multiple providers and assign different models to different agents (e.g. faster model for polishing, stronger model for writing & reviewing) in Agent Settings."
+              : "💡 提示：可添加多个服务商、配置不同 Key，然后在「智能体设置」里为不同角色指定不同模型——例如写手/审稿官用强模型(DeepSeek/GPT-4)，润色用快模型(Kimi/Moonshot)，降低成本的同时保证写作质量。"}
+          </p>
           <p className="text-muted-foreground/70 mt-1 text-[11px]">
             {providers.length > 0
               ? lang === "en"

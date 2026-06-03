@@ -2177,7 +2177,7 @@ function repairRunScore(run) {
     const n = Number(latest?.scoreAfter ?? latest?.score ?? run?.scoreAfter ?? 0);
     return Number.isFinite(n) ? n : 0;
 }
-function repairRunPassed(run, targetScore = 90) {
+function repairRunPassed(run, targetScore = 80) {
     const results = Array.isArray(run?.results) ? run.results : [];
     const latest = results.length ? results[results.length - 1] : null;
     return Boolean(latest?.pass || run?.pass) && repairRunScore(run) >= targetScore;
@@ -2503,7 +2503,7 @@ function activityGovernanceLines(entries, bookId) {
         .slice(0, 18)
         .map((entry) => `${entry.displayTime || entry.timestamp || ""} ${entry.summary || entry.event}${entry.suggestion ? `；建议：${entry.suggestion}` : ""}`);
 }
-function promptPatchFromLessons(agent, lines, targetScore = 90) {
+function promptPatchFromLessons(agent, lines, targetScore = 80) {
     const bullets = uniqueLines(lines, 10).map((line) => `- ${line}`).join("\n") || "- 暂无新增失败样本；继续遵守基础角色职责。";
     const common = `## 自动复盘精华\n目标：后续章节首稿争取 ${targetScore}+，不要等低分后再补救。\n这些经验来自失败日志、质量报告、LLM Wiki、human_notes 和 task runs。它们约束写法与流程，不直接改写 truth files 事实。\n${bullets}`;
     const map = {
@@ -2583,7 +2583,7 @@ const PROMPT_ROLE_CONFLICTS = {
     "quality-reporter": [{ field: "promptPatch", patterns: [/改写正文|续写正文|生成正文/i], message: "quality-reporter 补丁疑似写正文，质量报告只能汇总分数、问题和下一步动作。" }],
     "prompt-governor": [{ field: "promptPatch", patterns: [/写正文|生成章节|改写正文|修改\s*truth files|改写\s*truth files/i], message: "prompt-governor 补丁疑似越权写正文或改 truth files，只能治理提示词。" }],
 };
-function reviewPromptGovernanceDigest(digest, targetScore = 90) {
+function reviewPromptGovernanceDigest(digest, targetScore = 80) {
     const source = digest?.promptWriterDraft || digest?.promptPatches || {};
     const fallbackLines = [...(digest?.pitfalls || []), ...(digest?.wikiLessons || [])];
     const fixedPatches = {};
@@ -2643,7 +2643,7 @@ function reviewPromptGovernanceDigest(digest, targetScore = 90) {
         checkedAgents: PROMPT_GOVERNANCE_AGENTS,
     };
 }
-async function buildPromptGovernanceDigest(root, state, bookId = "", targetScore = 90) {
+async function buildPromptGovernanceDigest(root, state, bookId = "", targetScore = 80) {
     const runs = await loadTaskRuns(root).catch(() => []);
     const activities = await readActivityEntries(root, 220).catch(() => []);
     const quality = bookId ? await buildBookQualitySummary(state, bookId).catch(() => null) : null;
@@ -3315,7 +3315,7 @@ function structuredQualityPassed(report) {
         || report?.quality?.gate?.pass === true
         || report?.passed === true;
 }
-function applyStructuredQualityOverride(quality, structuredReport, status, targetScore = 90) {
+function applyStructuredQualityOverride(quality, structuredReport, status, targetScore = 80) {
     const score = structuredQualityScore(structuredReport);
     const issues = [
         ...(Array.isArray(structuredReport?.auditResult?.issues) ? structuredReport.auditResult.issues : []),
@@ -6421,7 +6421,7 @@ function enrichTaskRunForClient(run) {
         createdBeijingTime: formatBeijingDateTime(run.createdAt),
         updatedBeijingTime: formatBeijingDateTime(run.updatedAt),
         heartbeatBeijingTime: formatBeijingDateTime(run.heartbeatAt),
-        failureReason: repairMissedTarget ? `修复后评分 ${latestResult?.scoreAfter ?? "--"}，仍未达到 ${latestResult?.targetScore ?? 90}+ 或仍存在阻断项。` : (info?.reason || run.failureReason || ""),
+        failureReason: repairMissedTarget ? `修复后评分 ${latestResult?.scoreAfter ?? "--"}，仍未达到 ${latestResult?.targetScore ?? 80}}+ 或仍存在阻断项。` : (info?.reason || run.failureReason || ""),
         impact: info?.impact || run.impact || "",
         suggestion: repairMissedTarget ? "继续点击修复到90+，系统会携带上一轮质量报告和阻断项再次分配修稿。" : (info?.suggestion || run.suggestion || ""),
         events,
@@ -8286,7 +8286,7 @@ export function createStudioServer(initialConfig, root) {
         if (activeWriteRunId(bookId) === runId)
             activeWriteJobs.delete(bookId);
     }
-    function qualityGateActuallyPassed(quality, targetScore = 90) {
+    function qualityGateActuallyPassed(quality, targetScore = 80) {
         const score = Number(quality?.total);
         if (!Number.isFinite(score) || score < targetScore)
             return false;
@@ -8317,7 +8317,7 @@ export function createStudioServer(initialConfig, root) {
         broadcast("quality-gate:auto-heal", payload);
         return true;
     }
-    async function evaluateGeneratedChapterGate(bookId, result, targetScore = 90, options = {}) {
+    async function evaluateGeneratedChapterGate(bookId, result, targetScore = 80, options = {}) {
         const chapterNumber = Number(result?.chapterNumber || 0);
         const qualityOptions = {
             targetWordCount: options.targetWordCount,
@@ -8363,7 +8363,7 @@ export function createStudioServer(initialConfig, root) {
             },
         };
     }
-    async function findExistingQualityGateBlocker(bookId, targetScore = 90, beforeChapter = Number.POSITIVE_INFINITY) {
+    async function findExistingQualityGateBlocker(bookId, targetScore = 80, beforeChapter = Number.POSITIVE_INFINITY) {
         const index = await state.loadChapterIndex(bookId).catch(() => []);
         const chapters = [...index]
             .map((chapter) => ({
@@ -8374,6 +8374,9 @@ export function createStudioServer(initialConfig, root) {
             .filter((chapter) => Number.isInteger(chapter.chapterNumber) && chapter.chapterNumber > 0 && chapter.chapterNumber < beforeChapter)
             .sort((left, right) => left.chapterNumber - right.chapterNumber);
         for (const chapter of chapters) {
+            // approved/ready 状态的章节已被人工确认通过，直接跳过质量检查——
+            // 不跳过会导致旧 gate.pass=false 字段(按旧阈值存储)永远拦住续写。
+            if (chapter.status === "approved" || chapter.status === "ready" || chapter.status === "published") continue;
             const payload = await buildChapterQualityPayload(state, bookId, chapter.chapterNumber).catch((error) => ({
                 bookId,
                 chapterNumber: chapter.chapterNumber,
@@ -8392,7 +8395,9 @@ export function createStudioServer(initialConfig, root) {
             }));
             const quality = payload?.quality ?? {};
             const score = Number(quality.total ?? 0);
-            const pass = quality.gate?.pass === true && Number.isFinite(score) && score >= targetScore;
+            // gate.pass 是按写章时的阈值存的，阈值降低后历史 false 不该继续拦截。
+            // 只要当前分数 >= 当前 targetScore 就视为通过，不依赖历史存储的 gate.pass。
+            const pass = Number.isFinite(score) && score >= targetScore;
             if (!pass) {
                 return {
                     ...chapter,
@@ -11351,7 +11356,9 @@ export function createStudioServer(initialConfig, root) {
         const num = parseInt(c.req.param("num"), 10);
         const body = await c.req.json().catch(() => ({}));
         const apply = body.apply !== false;
-        const targetScore = Math.max(70, Math.min(98, Number(body.targetScore) || 90));
+        const _repairBook = await state.loadBookConfig(id).catch(() => null);
+        const _repairBookScore = Number(_repairBook?.targetScore || _repairBook?.writing?.targetScore) || 0;
+        const targetScore = Math.max(70, Math.min(98, Number(body.targetScore) || _repairBookScore || 80));
         const requestedTargetWordCount = Number(body.targetWordCount ?? body.wordCount ?? body.targetWordsPerChapter) || undefined;
         const qualityOptions = { targetWordCount: requestedTargetWordCount, gateTarget: targetScore };
         const embedded = body.embedded === true;
@@ -12622,7 +12629,9 @@ export function createStudioServer(initialConfig, root) {
         if (!book) {
             return c.json({ error: { code: "BOOK_NOT_FOUND", message: `Book not found: ${id}` }, bookId: id }, 404);
         }
-        const targetScore = Math.max(70, Math.min(98, Number(body.targetScore) || 90));
+        // 优先读请求体→书级配置→项目配置→默认 80(DeepSeek 等主流模型的合理基准)
+        const bookTargetScore = Number(book?.targetScore || book?.writing?.targetScore) || 0;
+        const targetScore = Math.max(70, Math.min(98, Number(body.targetScore) || bookTargetScore || 80));
         const requestedWordCount = Number(body.wordCount) || undefined;
         // 轻中重档位:读 body.mode + 当前激活等级(②)→ 限档(未指定 mode = 既有 max 行为)
         const _activationForMode = await loadActivation(root).catch(() => null);
@@ -12763,7 +12772,9 @@ export function createStudioServer(initialConfig, root) {
         const rangeTotal = fromChapter && toChapter && toChapter >= fromChapter ? (toChapter - fromChapter + 1) : 0;
         const total = Math.max(1, Math.min(100, rangeTotal || Number(body.chapters) || 1));
         const wordCount = Number(body.wordCount ?? body.targetWordsPerChapter) || undefined;
-        const targetScore = Math.max(70, Math.min(98, Number(body.targetScore ?? body.targetQuality) || 90));
+        const _batchBook = await state.loadBookConfig(id).catch(() => null);
+        const _batchBookScore = Number(_batchBook?.targetScore || _batchBook?.writing?.targetScore) || 0;
+        const targetScore = Math.max(70, Math.min(98, Number(body.targetScore ?? body.targetQuality) || _batchBookScore || 80));
         const maxRewritesPerChapter = Math.max(1, Math.min(REPAIR_MAX_AUTO_ROUNDS, Number(body.maxRewritesPerChapter ?? body.maxAutoRounds) || REPAIR_MAX_AUTO_ROUNDS));
         const autoRepair = body.autoRepair !== false;
         // 轻中重档位:连续写也读 body.mode + 激活等级 → 限档(与单章 write-next 一致;未指定 mode = 既有 max 行为)
@@ -12923,7 +12934,9 @@ export function createStudioServer(initialConfig, root) {
         const id = c.req.param("id");
         const body = await c.req.json().catch(() => ({}));
         const origin = new URL(c.req.url).origin;
-        const targetScore = Math.max(70, Math.min(98, Number(body.targetScore) || 90));
+        const _batchRepairBook = await state.loadBookConfig(id).catch(() => null);
+        const _batchRepairScore = Number(_batchRepairBook?.targetScore || _batchRepairBook?.writing?.targetScore) || 0;
+        const targetScore = Math.max(70, Math.min(98, Number(body.targetScore) || _batchRepairScore || 80));
         const limit = Math.max(1, Math.min(50, Number(body.limit) || 50));
         const fromChapter = Math.max(1, Number(body.fromChapter) || 1);
         const toChapter = Math.max(fromChapter, Number(body.toChapter) || Number.POSITIVE_INFINITY);
@@ -13213,6 +13226,36 @@ export function createStudioServer(initialConfig, root) {
             const updated = list.map((ch) => ch.number === num ? { ...ch, status: "approved" } : ch);
             await state.saveChapterIndex(id, updated);
             return c.json({ ok: true, chapterNumber: num, status: "approved" });
+        }
+        catch (e) {
+            return c.json({ error: String(e) }, 500);
+        }
+    });
+    // 一键放行：把所有 score >= targetScore 的章节批量 approve，解除质量门禁阻塞。
+    // 前端「续写被挡住」提示里可直接调这个，无需逐章手动操作。
+    app.post("/api/v1/books/:id/chapters/approve-qualifying", async (c) => {
+        const id = c.req.param("id");
+        const body = await c.req.json().catch(() => ({}));
+        const bookCfg = await state.loadBookConfig(id).catch(() => null);
+        const bookScore = Number(bookCfg?.targetScore || bookCfg?.writing?.targetScore) || 0;
+        const threshold = Math.max(70, Math.min(98, Number(body.targetScore) || bookScore || 80));
+        try {
+            const index = await state.loadChapterIndex(id);
+            const list = Array.isArray(index) ? index : [];
+            const approved = [];
+            const updated = await Promise.all(list.map(async (ch) => {
+                if (ch.status === "approved") return ch;
+                // 读该章质量分
+                const payload = await buildChapterQualityPayload(state, id, ch.number ?? ch.chapterNumber).catch(() => null);
+                const score = Number(payload?.quality?.total ?? 0);
+                if (score >= threshold) {
+                    approved.push({ chapterNumber: ch.number ?? ch.chapterNumber, score });
+                    return { ...ch, status: "approved" };
+                }
+                return ch;
+            }));
+            await state.saveChapterIndex(id, updated);
+            return c.json({ ok: true, threshold, approved, total: approved.length });
         }
         catch (e) {
             return c.json({ error: String(e) }, 500);
@@ -13819,7 +13862,7 @@ export function createStudioServer(initialConfig, root) {
             },
             defaultRun: {
                 targetWordsPerChapter: Number(raw.chapterWordCount || raw.targetChapterWords || raw.wordCount || 3000),
-                targetQuality: Number(raw.qualityGate?.targetScore || raw.targetQuality || 90),
+                targetQuality: Number(raw.qualityGate?.targetScore || raw.targetQuality || 80),
                 maxRewritesPerChapter: Number(raw.qualityGate?.maxRewritesPerChapter || raw.maxRewritesPerChapter || 2),
             },
             notify: {

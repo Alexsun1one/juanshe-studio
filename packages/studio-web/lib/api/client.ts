@@ -727,6 +727,14 @@ export function startRepairQualityBatch(
   )
 }
 
+/** 一键放行：把所有 score >= targetScore 的章节批量标记为 approved，解除质量门禁阻塞。 */
+export function approveQualifyingChapters(
+  bookId: string,
+  opts: { targetScore?: number } = {},
+): Promise<{ ok: boolean; threshold: number; approved: { chapterNumber: number; score: number }[]; total: number }> {
+  return postJSON(`/api/v1/books/${encodeURIComponent(bookId)}/chapters/approve-qualifying`, opts)
+}
+
 // ----------------------------------------------------------------------
 // 关系图谱（从书里提取）
 // ----------------------------------------------------------------------

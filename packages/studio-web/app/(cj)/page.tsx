@@ -15,6 +15,7 @@ import {
   startWriteBatch,
   startWriteNextChapter,
   stopBookWorkflow,
+  approveQualifyingChapters,
 } from "@/lib/api/client"
 import { useWorkspace } from "@/lib/workspace-context"
 import { NewBookDialog } from "@/components/workbench/new-book-dialog"
@@ -272,7 +273,11 @@ export default function CjDashboard() {
       toast.success("已唤醒编辑部,模型准备中…", { description: "规划师正在读取设定与记忆,马上开写。" })
       run.refresh()
     } catch (e) {
-      if (!showWriteBlockToast(e, { onConfigureLlm: () => router.push("/llm") })) toast.error(`触发失败:${e instanceof Error ? e.message : String(e)}`)
+      if (!showWriteBlockToast(e, {
+        onConfigureLlm: () => router.push("/llm"),
+        onApproveQualifying: bookId ? async () => { await approveQualifyingChapters(bookId, { targetScore: targetQuality }) } : undefined,
+        bookId: bookId ?? undefined,
+      })) toast.error(`触发失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBusy(false)
     }
@@ -309,7 +314,11 @@ export default function CjDashboard() {
       })
       run.refresh()
     } catch (e) {
-      if (!showWriteBlockToast(e, { onConfigureLlm: () => router.push("/llm") })) toast.error(`触发失败:${e instanceof Error ? e.message : String(e)}`)
+      if (!showWriteBlockToast(e, {
+        onConfigureLlm: () => router.push("/llm"),
+        onApproveQualifying: bookId ? async () => { await approveQualifyingChapters(bookId, { targetScore: targetQuality }) } : undefined,
+        bookId: bookId ?? undefined,
+      })) toast.error(`触发失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBusy(false)
     }

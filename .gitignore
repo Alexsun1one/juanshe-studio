@@ -37,3 +37,8 @@ packages/studio-web/docs/
 
 # 测试产物
 test-results/
+
+# 本机运行态密钥/激活（绝不提交）
+.autow/
+**/.autow/secrets.json
+**/.autow/activation.json
