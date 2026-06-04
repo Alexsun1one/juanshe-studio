@@ -504,6 +504,19 @@ export class MemoryDB {
     return { inserted: true, superseded };
   }
 
+  /**
+   * 只读:若写入 rel(singleValued),会作废哪些现行边(同主、同谓、宾不同、未作废)。
+   * 供"矛盾守门"在写入前判定——新章是否在推翻一条已确立的事实,而不写库。
+   */
+  findActiveSupersededBy(rel: { subjectId: string; predicate: string; object: string; singleValued?: boolean }): ReadonlyArray<GraphRelation> {
+    if (!rel.singleValued) return [];
+    const rows = this.db.prepare(
+      `SELECT ${RELATION_SELECT} FROM relations
+       WHERE subject_id = ? AND predicate = ? AND object <> ? AND valid_until_chapter IS NULL`,
+    ).all(rel.subjectId, rel.predicate, rel.object) as Record<string, unknown>[];
+    return rows.map((r) => this.mapRelation(r));
+  }
+
   private mapRelation(row: Record<string, unknown>): GraphRelation {
     return {
       id: Number(row.id),

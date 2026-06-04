@@ -3280,9 +3280,35 @@ ${matrix}`,
           `[graph] 第 ${chapterNumber} 章入图:实体 ${result.entitiesUpserted} · 关系 +${result.relationsAdded} · 矛盾消解 ${result.superseded}`,
         );
       }
+      // ③ 矛盾守门:图谱查出"不可变事实被推翻"的硬矛盾(死亡/血缘/身份/永久)→ 写进本章 auditIssues
+      // (warning 级,喂门禁/复修且 UI 可见;不硬卡,因图谱抽取并非完美,标"疑似"交编辑/复修确认)。
+      if (result.contradictions.length > 0) {
+        for (const c of result.contradictions) {
+          this.config.logger?.warn?.(`[graph] ⚠️ 疑似矛盾:${c.description}`);
+        }
+        await this.appendChapterAuditIssues(
+          bookId,
+          chapterNumber,
+          result.contradictions.map((c) => `[warning] 图谱矛盾守门:${c.description}`),
+        ).catch(() => undefined);
+      }
     } catch (error) {
       this.config.logger?.warn?.(`[graph] 第 ${chapterNumber} 章入图跳过：${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  /** 把额外审稿问题(如图谱矛盾守门)去重追加到指定章节的 auditIssues。 */
+  private async appendChapterAuditIssues(bookId: string, chapterNumber: number, issues: ReadonlyArray<string>): Promise<void> {
+    if (issues.length === 0) return;
+    const chapters = await this.state.loadChapterIndex(bookId).catch(() => [] as ChapterMeta[]);
+    const list = chapters.map((c) => ({ ...c }));
+    const target = list.find((c) => Number(c.number) === chapterNumber);
+    if (!target) return;
+    const existing = Array.isArray(target.auditIssues) ? target.auditIssues : [];
+    const additions = issues.filter((it) => !existing.includes(it));
+    if (additions.length === 0) return;
+    target.auditIssues = [...existing, ...additions];
+    await this.state.saveChapterIndex(bookId, list);
   }
 
   private async rebuildCurrentStateFactHistory(bookDir: string, uptoChapter: number): Promise<void> {
