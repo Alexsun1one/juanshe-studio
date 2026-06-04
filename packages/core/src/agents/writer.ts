@@ -43,6 +43,7 @@ import {
 } from "../utils/narrative-control.js";
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { atomicWriteFile } from "../utils/fs-atomic.js";
+import { checkSceneCharacterBudget } from "../utils/scene-character-budget.js";
 import { join } from "node:path";
 import {
   readStoryFrame,
@@ -735,6 +736,18 @@ export class WriterAgent extends BaseAgent {
         reason: describeError(error),
       });
     }
+
+    // 确定性兜底:用 observer 的结构化观察数本章场景/有戏人物数,对照 memo「不要做」里的上限(planner 现在会写进去)。
+    // observer 抽取由 LLM 识别、结构化,数它可靠;这是对 prompt 约束 + LLM 审稿主防线的确定性补充。超限记一条可见警告。
+    try {
+      const budget = checkSceneCharacterBudget(observations, params.chapterIntent ?? "");
+      if (budget.violations.length > 0) {
+        this.logInfo(resolvedLang, {
+          zh: `⚠️ 容量超标(observer 确定性计数,场景 ${budget.sceneCount}/上限 ${budget.sceneCap ?? "—"}、有戏人物 ${budget.characterCount}/上限 ${budget.characterCap ?? "—"}）：${budget.violations.join("；")}`,
+          en: `⚠️ Scene/character budget exceeded (scenes ${budget.sceneCount}/${budget.sceneCap ?? "—"}, chars ${budget.characterCount}/${budget.characterCap ?? "—"}): ${budget.violations.join("; ")}`,
+        });
+      }
+    } catch { /* 计数失败不影响主流程 */ }
 
     // Phase 2b: Reflector — merge observations into truth files
     this.logInfo(resolvedLang, {
