@@ -29,8 +29,10 @@ export const LLMConfigSchema = z.object({
   stream: z.boolean().default(true),
   services: z.array(LLMServiceEntrySchema).optional(),
   defaultModel: z.string().min(1).optional(),
-  /** 可选 embedding 模型 id(语义检索)。配了才启用语义重排,复用本服务的 baseUrl/key;不配 → 纯词面检索。 */
+  /** 可选 embedding 模型 id(语义检索)。配了才启用语义重排;不配 → 纯词面检索。 */
   embeddingModel: z.string().min(1).optional(),
+  /** 可选 embedding 专用 baseUrl。chat 服务(如 deepseek)无 /embeddings 时,把嵌入指向本地 Ollama(http://127.0.0.1:11434/v1, bge-m3)等;不设则复用 chat baseUrl。 */
+  embeddingBaseUrl: z.string().min(1).optional(),
 });
 
 export type LLMConfig = z.infer<typeof LLMConfigSchema>;

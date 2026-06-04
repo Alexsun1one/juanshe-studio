@@ -3654,8 +3654,12 @@ ${matrix}`,
     // 语义检索:仅当配置了 embedding 模型时启用(复用 composer 的 client baseUrl/key)。
     // 未配置 → embed 为 undefined → retrieveMemorySelection 走纯词面,行为与改动前完全一致。
     const composerClient = this.agentCtxFor("composer", book.id).client;
-    const embed = composerClient.embeddingModel
-      ? (texts: ReadonlyArray<string>) => embedTexts(composerClient, texts, composerClient.embeddingModel as string)
+    // 嵌入模型/baseUrl:优先用项目配置(embeddingModel/embeddingBaseUrl),再用环境变量兜底(原型期便于开关)。
+    // embeddingBaseUrl 让嵌入走独立服务(如本地 Ollama bge-m3),与 chat(deepseek 无 /embeddings)解耦。
+    const embeddingModel = composerClient.embeddingModel ?? process.env.JUANSHE_EMBED_MODEL;
+    const embeddingBaseUrl = composerClient.embeddingBaseUrl ?? process.env.JUANSHE_EMBED_BASE_URL;
+    const embed = embeddingModel
+      ? (texts: ReadonlyArray<string>) => embedTexts(composerClient, texts, embeddingModel as string, embeddingBaseUrl)
       : undefined;
     const composed = await composeGovernedChapter({
       book,

@@ -142,8 +142,10 @@ export interface LLMClient {
   readonly proxyUrl?: string;
   readonly _piModel?: PiModel<PiApi>;
   readonly _apiKey?: string;
-  /** 可选 embedding 模型 id(语义检索用)。配置了才启用语义重排,否则纯词面。复用本 client 的 baseUrl/key。 */
+  /** 可选 embedding 模型 id(语义检索用)。配置了才启用语义重排,否则纯词面。 */
   readonly embeddingModel?: string;
+  /** 可选 embedding 专用 baseUrl。chat 服务(如 deepseek)没有 /embeddings 时,可把嵌入指向本地 Ollama(bge-m3)等;未设则复用本 client 的 baseUrl。 */
+  readonly embeddingBaseUrl?: string;
   readonly defaults: {
     readonly temperature: number;
     /**
@@ -256,6 +258,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
     _piModel: piModel,
     _apiKey: config.apiKey,
     embeddingModel: config.embeddingModel,
+    embeddingBaseUrl: config.embeddingBaseUrl,
     defaults,
   };
 }
@@ -1167,9 +1170,11 @@ export async function embedTexts(
   client: LLMClient,
   texts: ReadonlyArray<string>,
   embeddingModel: string,
+  baseUrlOverride?: string,
 ): Promise<number[][]> {
   if (texts.length === 0) return [];
-  const baseUrl = (client._piModel?.baseUrl ?? "").replace(/\/$/, "");
+  // baseUrlOverride 让嵌入走独立服务(如本地 Ollama bge-m3),不必和 chat 同 baseUrl。
+  const baseUrl = (baseUrlOverride ?? client._piModel?.baseUrl ?? "").replace(/\/$/, "");
   if (!baseUrl) throw new Error("embedTexts: 缺少 baseUrl");
   const headers = buildCustomHeaders(client);
   const errorCtx = { baseUrl, model: embeddingModel };
