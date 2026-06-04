@@ -3142,7 +3142,11 @@ function computeChapterQualityScore(args) {
     const sensoryAnchors = countPattern(content, [/光|风|雨|冷|热|声|味|疼|汗|血|铁|尘|玻璃|灯|影/g]);
     const emotionTurns = countPattern(content, [/愣|笑|怒|怕|慌|怔|沉默|咬牙|皱眉|心里|眼神|呼吸/g]);
     const warnings = Array.isArray(args.auditIssues) ? args.auditIssues : [];
-    const criticals = warnings.filter((item) => auditIssueSeverity(item) === "critical").length;
+    const criticalIssues = warnings.filter((item) => auditIssueSeverity(item) === "critical");
+    // Path B:硬伤 critical 才 ×16 重罚 + 门禁 + 封顶;LLM 软 critical 按 warning×5 轻推(详见 isHardContinuityCritical)。
+    const hardCriticals = criticalIssues.filter(isHardContinuityCritical).length;
+    const softCriticals = criticalIssues.length - hardCriticals;
+    const criticals = criticalIssues.length; // 总数,仅用于展示
     const warningCount = warnings.filter((item) => auditIssueSeverity(item) === "warning").length;
     const target = Number(args.targetWordCount || 3000);
     const ratio = target > 0 ? chineseChars / target : 1;
@@ -3151,7 +3155,7 @@ function computeChapterQualityScore(args) {
     const lengthScore = ratio >= 1
         ? clampScore(100 - Math.min(18, (ratio - 1) * 20))
         : clampScore(100 - Math.min(45, (1 - ratio) * 80));
-    const continuityScore = clampScore(96 - criticals * 16 - warningCount * 5 - (args.status === "state-degraded" ? 18 : 0));
+    const continuityScore = clampScore(96 - hardCriticals * 16 - (softCriticals + warningCount) * 5 - (args.status === "state-degraded" ? 18 : 0));
     const shortParagraphRatio = paragraphs.length ? shortParagraphs / paragraphs.length : 0;
     const shortParagraphPenalty = Math.min(10, Math.max(0, shortParagraphRatio - 0.32) * 36);
     const rhythmScore = clampScore(78 + Math.min(10, plotSignals / 2) + Math.min(6, sensoryAnchors / 9) + Math.min(6, emotionTurns / 3) + Math.min(5, dialogueCount * 1.5) - shortParagraphPenalty - (avgSentence > 65 ? 8 : 0) - (avgSentence < 14 ? 5 : 0));
@@ -3188,7 +3192,7 @@ function computeChapterQualityScore(args) {
     const blockers = [];
     if (args.status === "state-degraded")
         blockers.push("state-degraded");
-    if (criticals)
+    if (hardCriticals)
         blockers.push("critical-audit");
     if (!report)
         blockers.push("missing-quality-report");
@@ -3200,17 +3204,17 @@ function computeChapterQualityScore(args) {
     // 已移除:缺报告仍由 blocker(missing-quality-report)拦门禁并触发重生,但不再焊死分数(这正是"修半天卡88"的机械成因之一)。
     const gatedTotal = args.status === "state-degraded"
         ? Math.min(rawTotal, 74)
-        : criticals
+        : hardCriticals
             ? Math.min(rawTotal, 84)
             : rawTotal;
     const total = clampScore(gatedTotal);
     const reasons = [];
     if (args.status === "state-degraded")
         reasons.push("状态链降级：上一章事实、伏笔或人物状态未可靠结算。");
-    if (criticals)
-        reasons.push(`${criticals} 条 critical 审稿问题需要优先修。`);
-    if (warningCount)
-        reasons.push(`${warningCount} 条 warning 会影响连续性或阅读信任。`);
+    if (hardCriticals)
+        reasons.push(`${hardCriticals} 条硬伤(死亡/血缘/身份/时间线/设定矛盾)必须优先修。`);
+    if (softCriticals + warningCount)
+        reasons.push(`${softCriticals + warningCount} 条疑似问题会影响连续性或阅读信任,建议核查。`);
     if (lengthScore < 80)
         reasons.push(`字数与目标 ${target} 偏差较大，当前约 ${chineseChars} 中文字。`);
     if (aiMarkers > 6)
@@ -3348,6 +3352,22 @@ function auditIssueSeverity(issue) {
     if (/^(?:warning|warn|警告)\s*[:：]/i.test(text))
         return "warning";
     return "info";
+}
+// ── Path B · critical 分级 ──────────────────────────────────────────────
+// 只有"确定性硬伤"才配 ×16 重罚 + critical 门禁 + 84 封顶;LLM 自评的"软 critical"(措辞泛、主观)按 warning×5 轻推。
+// 既不放过真矛盾(连续性=头号诉求),又不让一条 LLM 主观 critical 把好章焊死在 84 分(就是"修 5 轮卡 82/84"的机械成因)。
+// 硬伤特征:死亡/复活、血缘身世、真实身份、时间线断裂、能力凭空、伏笔超期烂尾、设定/世界观/canon 硬冲突、前后矛盾、逻辑硬伤。
+const HARD_CONTINUITY_PATTERNS = /死(亡|了|去|于)|身亡|丧命|遇害|复活|还魂|死而复生|起死回生|血缘|身世|亲生|生父|生母|亲爹|亲娘|兄妹|兄弟|姐妹|姐弟|血亲|真实身份|真名|本名|真身|冒名|顶替|时间线|时序|时间.{0,4}矛盾|前后.{0,3}(时间|日期)|凭空|无中生有|突然(会|能|拥有|掌握|具备)|能力.{0,6}(矛盾|凭空|无来由|前文)|武功.{0,4}(凭空|矛盾)|伏笔.{0,6}(超期|逾期|烂尾|未回收|遗漏|断线|消失)|设定.{0,3}(矛盾|冲突|硬伤)|世界观.{0,3}(矛盾|冲突)|canon|前后矛盾|自相矛盾|逻辑硬伤/i;
+function auditIssueText(issue) {
+    if (!issue || typeof issue !== "object")
+        return String(issue ?? "");
+    const msg = issue.message;
+    const msgText = typeof msg === "string" ? msg : (msg?.zh || msg?.en || "");
+    return `${issue.category ?? ""} ${msgText}`;
+}
+/** 该 critical 是否是确定性硬伤(配得上 ×16 + 门禁 + 封顶);否则视作 LLM 软 critical,按 warning×5 处理。 */
+function isHardContinuityCritical(issue) {
+    return HARD_CONTINUITY_PATTERNS.test(auditIssueText(issue));
 }
 function structuredQualityScore(report) {
     const candidates = [
