@@ -194,6 +194,18 @@ export class MemoryDB {
       CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(type);
       CREATE INDEX IF NOT EXISTS idx_relations_subject ON relations(subject_id, valid_until_chapter);
       CREATE INDEX IF NOT EXISTS idx_relations_object ON relations(object, object_is_entity, valid_until_chapter);
+
+      -- 锁定事实(canon):一旦确立就不可逆的硬事实(死亡/真实身份/血缘/永久)。绝不作废,是全书"什么不能改"的单一权威源。
+      CREATE TABLE IF NOT EXISTS canon (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        subject TEXT NOT NULL,
+        predicate TEXT NOT NULL,
+        object TEXT NOT NULL,
+        locked_since_chapter INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(subject, predicate)
+      );
+      CREATE INDEX IF NOT EXISTS idx_canon_subject ON canon(subject);
     `);
 
     this.ensureColumn("hooks", "payoff_timing", "TEXT NOT NULL DEFAULT ''");
@@ -515,6 +527,33 @@ export class MemoryDB {
        WHERE subject_id = ? AND predicate = ? AND object <> ? AND valid_until_chapter IS NULL`,
     ).all(rel.subjectId, rel.predicate, rel.object) as Record<string, unknown>[];
     return rows.map((r) => this.mapRelation(r));
+  }
+
+  // ── 锁定事实(canon)·不可变硬事实的单一权威源 ──
+
+  /** 锁定一条不可变 canon 事实。同主同谓只锁第一次确立的值(幂等;后续不同值不覆盖,由 findCanonContradiction 检出冲突)。 */
+  lockCanonFact(subject: string, predicate: string, object: string, chapter: number): { locked: boolean } {
+    const res = this.db.prepare(
+      `INSERT OR IGNORE INTO canon (subject, predicate, object, locked_since_chapter) VALUES (?, ?, ?, ?)`,
+    ).run(subject.trim(), predicate.trim(), object.trim(), Math.max(0, Math.floor(chapter) || 0));
+    return { locked: Number(res.changes || 0) > 0 };
+  }
+
+  /** 全部 canon 事实(给写手注入"不可违反的锁定事实"用,做预防)。 */
+  getCanonFacts(): ReadonlyArray<{ subject: string; predicate: string; object: string; lockedSinceChapter: number }> {
+    const rows = this.db.prepare(
+      `SELECT subject, predicate, object, locked_since_chapter AS lockedSinceChapter FROM canon ORDER BY locked_since_chapter`,
+    ).all() as Record<string, unknown>[];
+    return rows.map((r) => ({ subject: String(r.subject), predicate: String(r.predicate), object: String(r.object), lockedSinceChapter: Number(r.lockedSinceChapter) }));
+  }
+
+  /** 查新事实是否与已锁定 canon 冲突(同主同谓、值不同)。返回被冲突的 canon 事实;无冲突返回 null。 */
+  findCanonContradiction(subject: string, predicate: string, object: string): { subject: string; predicate: string; lockedObject: string; lockedSinceChapter: number } | null {
+    const row = this.db.prepare(
+      `SELECT subject, predicate, object, locked_since_chapter AS lockedSinceChapter FROM canon WHERE subject = ? AND predicate = ? AND object <> ? LIMIT 1`,
+    ).get(subject.trim(), predicate.trim(), object.trim()) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return { subject: String(row.subject), predicate: String(row.predicate), lockedObject: String(row.object), lockedSinceChapter: Number(row.lockedSinceChapter) };
   }
 
   private mapRelation(row: Record<string, unknown>): GraphRelation {

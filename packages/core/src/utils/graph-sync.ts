@@ -117,6 +117,18 @@ export async function syncStoryGraph(params: {
           });
         }
       }
+      // ② canon 权威源:不可变事实 → 锁进 canon(永不作废,跨任意章数都查得到);再查新事实是否违反已锁 canon。
+      if (isImmutableConflict(relToWrite.predicate, relToWrite.object)) {
+        db.lockCanonFact(subject, relToWrite.predicate, relToWrite.object, ch);
+      }
+      const canonConflict = db.findCanonContradiction(subject, relToWrite.predicate, relToWrite.object);
+      if (canonConflict) {
+        contradictions.push({
+          subject, predicate: relToWrite.predicate, oldObject: canonConflict.lockedObject, newObject: relToWrite.object,
+          establishedChapter: canonConflict.lockedSinceChapter, chapter: ch,
+          description: `第${ch}章「${subject}·${relToWrite.predicate}=${relToWrite.object}」违反第${canonConflict.lockedSinceChapter}章锁定的 canon「${canonConflict.lockedObject}」——硬矛盾,请确认。`,
+        });
+      }
       const r = db.addRelation(relToWrite);
       if (r.inserted) relationsAdded++;
       superseded += r.superseded;
