@@ -115,7 +115,7 @@ export default function ImportPage() {
           <div className="imp-hero-top">
             <span className="imp-hero-eyebrow">
               <FileInput className="imp-hero-eyebrow-ico" />
-              素材 · 文风 · 检测一站接入
+              能力概览(操作在下方面板)
             </span>
             <span className="pill imp-verdict" data-state={verdict.state}>
               <span className="dot" aria-hidden />

@@ -91,10 +91,9 @@
   display: inline-flex; align-items: center; gap: 8px;
   padding: 6px 11px 6px 9px; border-radius: var(--r-pill);
   border: 1px solid var(--line-1); background: var(--bg-card);
-  transition: border-color var(--motion-fast) var(--ease-soft),
-              background var(--motion-fast) var(--ease-soft);
+  /* 这 6 条是"能力概览"信息条(role=listitem,无点击),真正操作在下方 CapabilityWorkbench。
+     刻意不加 hover 变色/抬升/指针——避免做成"看着能点其实点不动"的假按钮误导用户。 */
 }
-.cj-import .imp-lane:hover { border-color: var(--line-2); background: var(--bg-hover); }
 .cj-import .imp-lane-ico {
   width: 15px; height: 15px; flex: 0 0 auto; color: var(--brand-500);
 }

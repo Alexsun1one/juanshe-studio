@@ -210,7 +210,7 @@ export default function InsightsPage() {
   const willFollowPct = reader?.summary.willFollowPct ?? null
   const readiness = (() => {
     const gaps: { key: string; gap: number; label: string; tip: string; href: string; cta: string }[] = []
-    if (q > 0 && q < SCORE_HI) gaps.push({ key: "quality", gap: SCORE_HI - q, label: `综合质量 ${q} 未过 ${SCORE_HI} 线`, tip: "把卡分章推到达标,成品才扛得住平台读者", href: "/consistency", cta: "去打磨质量" })
+    if (q > 0 && q < SCORE_HI) gaps.push({ key: "quality", gap: SCORE_HI - q, label: `综合质量 ${q} 分,还差 ${SCORE_HI - q} 分到达标`, tip: "把卡分章推到达标,成品才扛得住平台读者", href: "/consistency", cta: "去打磨质量" })
     if (c > 0 && c < SCORE_HI) gaps.push({ key: "consistency", gap: SCORE_HI - c, label: `一致性 ${c} 仍有连贯漏洞`, tip: "设定/角色/时序的硬伤会劝退追读", href: "/consistency", cta: "去查一致性" })
     if (willFollowPct != null && willFollowPct < 60) gaps.push({ key: "reader", gap: 60 - willFollowPct, label: `愿意追更仅 ${willFollowPct}%`, tip: "追读意愿是连载变现的命脉,先补章末钩子", href: "/insights", cta: "看读者反馈" })
     gaps.sort((a, b) => b.gap - a.gap)
@@ -325,9 +325,9 @@ export default function InsightsPage() {
                 <span className="ins-token-total">{fmt(analytics?.tokenStats?.totalTokens)} <em>tokens</em></span>
               </div>
               <div className="ins-token-stats">
-                <div className="ins-token-stat ts-prompt"><b>{fmt(analytics?.tokenStats?.totalPromptTokens)}</b><span>输入 · prompt</span></div>
-                <div className="ins-token-stat ts-completion"><b>{fmt(analytics?.tokenStats?.totalCompletionTokens)}</b><span>输出 · completion</span></div>
-                <div className="ins-token-stat ts-avg"><b>{fmt(analytics?.tokenStats?.avgTokensPerChapter)}</b><span>章均 token</span></div>
+                <div className="ins-token-stat ts-prompt"><b>{fmt(analytics?.tokenStats?.totalPromptTokens)}</b><span>读入设定</span></div>
+                <div className="ins-token-stat ts-completion"><b>{fmt(analytics?.tokenStats?.totalCompletionTokens)}</b><span>生成正文</span></div>
+                <div className="ins-token-stat ts-avg"><b>{fmt(analytics?.tokenStats?.avgTokensPerChapter)}</b><span>章均用量</span></div>
               </div>
               <div className="ins-chart-box ins-token-chart">
                 {(analytics?.tokenStats?.recentTrend?.length ?? 0) > 0 ? (
