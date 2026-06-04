@@ -31,8 +31,9 @@ export function parseBudgetCapsFromMemo(memoText: string): {
         const n = Number(a[1]);
         if (Number.isInteger(n) && n > 0 && n < 20) return n;
       }
-      // "≤3 个场景" / "3 个有戏人物"
-      const b = text.match(new RegExp(`(?:[≤<]=?|不超过|最多)?\\s*(\\d{1,2})\\s*个?\\s*(?:有戏)?${kind}`));
+      // "≤3 个场景" / "最多 3 个有戏人物" —— 必须带明确的"≤/不超过/最多"等限定词,
+      // 绝不匹配裸数字("第1场景""1场景的描写"这类杂散数字会被误当成上限 → 假阳性)。
+      const b = text.match(new RegExp(`(?:[≤<]=?|不超过|不多于|最多)\\s*(\\d{1,2})\\s*个?\\s*(?:有戏)?${kind}`));
       if (b) {
         const n = Number(b[1]);
         if (Number.isInteger(n) && n > 0 && n < 20) return n;
