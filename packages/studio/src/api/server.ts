@@ -2422,7 +2422,9 @@ function adaptiveRepairInstruction(plan, autoRound, maxAutoRounds) {
 function adaptiveRepairContinuationDecision({ qualityBefore, qualityAfter, targetScore, autoRound, maxAutoRounds, repairProfileAfter }) {
     const before = Number(qualityBefore?.quality?.total ?? qualityBefore?.total ?? 0);
     const after = Number(qualityAfter?.quality?.total ?? qualityAfter?.total ?? 0);
-    const pass = qualityAfter?.quality?.gate?.pass === true && Number.isFinite(after) && after >= targetScore;
+    // "已达标"必须同时满足:门禁过 + 分够 + 没有未清的 critical 硬伤。
+    // 否则会出现"综合分够了就停、但仍留着 critical(如 hook 账没结/禁句/字数)→ 最终被判 audit-failed"的早停 bug。
+    const pass = qualityAfter?.quality?.gate?.pass === true && Number.isFinite(after) && after >= targetScore && !qualityHasCriticalBlocker(qualityAfter);
     if (pass)
         return { continue: false, reason: "已达标", gain: after - before, gap: 0 };
     if (autoRound >= maxAutoRounds)

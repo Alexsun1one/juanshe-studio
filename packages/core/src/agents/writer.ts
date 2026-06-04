@@ -578,7 +578,8 @@ export class WriterAgent extends BaseAgent {
       updatedCharacterMatrix: settlement.updatedCharacterMatrix,
       postWriteErrors,
       postWriteWarnings,
-      hookHealthIssues,
+      // P0-1 计数器升级:observer 确定性数出的"场景/人物超 memo 上限"并进 hookHealthIssues 通道 → auditIssues → 喂门禁/复修(不再只 log)。
+      hookHealthIssues: [...hookHealthIssues, ...settleResult.sceneBudgetIssues],
       tokenUsage,
     };
   }
@@ -707,6 +708,7 @@ export class WriterAgent extends BaseAgent {
       runtimeStateSnapshot?: RuntimeStateSnapshot;
     };
     usage: TokenUsage;
+    sceneBudgetIssues: ReadonlyArray<{ severity: "warning"; category: string; description: string; suggestion: string }>;
   }> {
     // Phase 2a: Observer — extract all facts from the chapter
     const resolvedLang = params.book.language ?? params.genreProfile.language;
@@ -738,7 +740,9 @@ export class WriterAgent extends BaseAgent {
     }
 
     // 确定性兜底:用 observer 的结构化观察数本章场景/有戏人物数,对照 memo「不要做」里的上限(planner 现在会写进去)。
-    // observer 抽取由 LLM 识别、结构化,数它可靠;这是对 prompt 约束 + LLM 审稿主防线的确定性补充。超限记一条可见警告。
+    // observer 抽取由 LLM 识别、结构化,数它可靠;这是对 prompt 约束 + LLM 审稿主防线的确定性补充。
+    // 超限既记可见警告,也产出 warning 级 issue —— 经 hookHealthIssues 通道并进 auditIssues,真正喂给门禁/复修(不再只是 log)。
+    const sceneBudgetIssues: Array<{ severity: "warning"; category: string; description: string; suggestion: string }> = [];
     try {
       const budget = checkSceneCharacterBudget(observations, params.chapterIntent ?? "");
       if (budget.violations.length > 0) {
@@ -746,6 +750,9 @@ export class WriterAgent extends BaseAgent {
           zh: `⚠️ 容量超标(observer 确定性计数,场景 ${budget.sceneCount}/上限 ${budget.sceneCap ?? "—"}、有戏人物 ${budget.characterCount}/上限 ${budget.characterCap ?? "—"}）：${budget.violations.join("；")}`,
           en: `⚠️ Scene/character budget exceeded (scenes ${budget.sceneCount}/${budget.sceneCap ?? "—"}, chars ${budget.characterCount}/${budget.characterCap ?? "—"}): ${budget.violations.join("; ")}`,
         });
+        for (const v of budget.violations) {
+          sceneBudgetIssues.push({ severity: "warning", category: "容量超标", description: v, suggestion: "合并场景、砍掉可有可无的角色，贴合 memo 的场景/人物上限" });
+        }
       }
     } catch { /* 计数失败不影响主流程 */ }
 
@@ -809,6 +816,7 @@ export class WriterAgent extends BaseAgent {
           reason: describeError(error),
         }),
         usage: ZERO_USAGE,
+        sceneBudgetIssues,
       };
     }
 
@@ -851,6 +859,7 @@ export class WriterAgent extends BaseAgent {
     return {
       settlement: mergedSettlement,
       usage: response.usage,
+      sceneBudgetIssues,
     };
   }
 
