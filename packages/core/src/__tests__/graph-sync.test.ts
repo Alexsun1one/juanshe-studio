@@ -62,6 +62,6 @@ describe("syncStoryGraph(Phase 2 · 真相文件 → 活图谱)", () => {
 
   it("无 character_matrix 时安全返回空结果(不抛错)", async () => {
     const res = await syncStoryGraph({ bookDir, chapterNumber: 1, db });
-    expect(res).toEqual({ entitiesUpserted: 0, relationsAdded: 0, superseded: 0 });
+    expect(res).toEqual({ entitiesUpserted: 0, relationsAdded: 0, superseded: 0, contradictions: [] });
   });
 });

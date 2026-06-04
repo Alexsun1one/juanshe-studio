@@ -25,12 +25,13 @@ export interface GraphSyncResult {
 
 const EMPTY_RESULT: GraphSyncResult = { entitiesUpserted: 0, relationsAdded: 0, superseded: 0, contradictions: [] };
 
-// 不可变事实:一旦确立,后续被推翻 = continuity 错误,而非合法状态更新。保守取高置信度类(死亡/血缘/身份/永久不可逆)。
-const IMMUTABLE_PREDICATE = /生死|存活|死活|真实身份|本名|真名|血缘|身世|出身|亲生|父亲|母亲/;
-const IMMUTABLE_OBJECT = /死了?|身亡|去世|逝世|牺牲|遇害|丧生|罹难|已故|永久|截肢|残废|彻底失明|彻底失忆/;
-/** 旧值被新值推翻时,是否属于"不可变矛盾"(而非合法状态更新)。 */
-function isImmutableConflict(predicate: string, oldObject: string): boolean {
-  return IMMUTABLE_PREDICATE.test(predicate) || IMMUTABLE_OBJECT.test(oldObject);
+// 不可变事实由「谓词」判定(生死/血缘/真实身份/身世/永久…),anchored 全词匹配。
+// 绝不靠 object 子串——否则"死巷尽头的破庙""永久客栈""生死未卜"这类地名/描述里的 死/永久 会被误锁进 canon(假阳性,反而制造漂移)。
+// observer 的 [锁定事实] 用的就是这些规范谓词(生死=…/血缘=…/真实身份=…),谓词门控既精准又安全。
+const IMMUTABLE_PREDICATE = /^(生死|存活|死活|真实身份|本名|真名|血缘|身世|出身|亲生|永久|永久状态)$/;
+/** 该谓词是否承载"一旦确立就不可逆"的不可变事实(用于 canon 锁定与矛盾判定)。 */
+function isImmutablePredicate(predicate: string): boolean {
+  return IMMUTABLE_PREDICATE.test(predicate.trim());
 }
 
 /**
@@ -107,27 +108,18 @@ export async function syncStoryGraph(params: {
         subjectId: MemoryDB.entityId(subject), predicate: (fact.predicate || "状态").slice(0, 40), object: object.slice(0, 200),
         objectIsEntity: false, validFromChapter: ch, validUntilChapter: null, sourceChapter: ch, singleValued: true,
       };
-      // 矛盾守门:写入前先查这条会作废哪些现行事实;被推翻的若是"不可变事实"(死亡/血缘/身份/永久),记为硬矛盾(而非合法更新)。
-      for (const old of db.findActiveSupersededBy(relToWrite)) {
-        if (isImmutableConflict(old.predicate, old.object)) {
+      // ② canon 矛盾守门:只对「不可变谓词」(生死/血缘/真实身份…)。先查新值是否违反已锁 canon,再锁定(幂等、首值为准)。
+      // canon 永不作废、跨任意章数都查得到,比"现行 relation 比对"更稳(relation 被作废后仍守得住),且谓词门控杜绝地名误锁。
+      if (isImmutablePredicate(relToWrite.predicate)) {
+        const canonConflict = db.findCanonContradiction(subject, relToWrite.predicate, relToWrite.object);
+        if (canonConflict) {
           contradictions.push({
-            subject, predicate: old.predicate, oldObject: old.object, newObject: relToWrite.object,
-            establishedChapter: old.validFromChapter, chapter: ch,
-            description: `第${ch}章把「${subject}·${old.predicate}」从第${old.validFromChapter}章确立的「${old.object}」改成「${relToWrite.object}」——不可逆事实疑似硬矛盾,请人工/复修确认。`,
+            subject, predicate: relToWrite.predicate, oldObject: canonConflict.lockedObject, newObject: relToWrite.object,
+            establishedChapter: canonConflict.lockedSinceChapter, chapter: ch,
+            description: `第${ch}章「${subject}·${relToWrite.predicate}=${relToWrite.object}」违反第${canonConflict.lockedSinceChapter}章锁定的 canon「${canonConflict.lockedObject}」——硬矛盾,请确认。`,
           });
         }
-      }
-      // ② canon 权威源:不可变事实 → 锁进 canon(永不作废,跨任意章数都查得到);再查新事实是否违反已锁 canon。
-      if (isImmutableConflict(relToWrite.predicate, relToWrite.object)) {
         db.lockCanonFact(subject, relToWrite.predicate, relToWrite.object, ch);
-      }
-      const canonConflict = db.findCanonContradiction(subject, relToWrite.predicate, relToWrite.object);
-      if (canonConflict) {
-        contradictions.push({
-          subject, predicate: relToWrite.predicate, oldObject: canonConflict.lockedObject, newObject: relToWrite.object,
-          establishedChapter: canonConflict.lockedSinceChapter, chapter: ch,
-          description: `第${ch}章「${subject}·${relToWrite.predicate}=${relToWrite.object}」违反第${canonConflict.lockedSinceChapter}章锁定的 canon「${canonConflict.lockedObject}」——硬矛盾,请确认。`,
-        });
       }
       const r = db.addRelation(relToWrite);
       if (r.inserted) relationsAdded++;

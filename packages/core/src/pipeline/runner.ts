@@ -3280,17 +3280,14 @@ ${matrix}`,
           `[graph] 第 ${chapterNumber} 章入图:实体 ${result.entitiesUpserted} · 关系 +${result.relationsAdded} · 矛盾消解 ${result.superseded}`,
         );
       }
-      // ③ 矛盾守门:图谱查出"不可变事实被推翻"的硬矛盾(死亡/血缘/身份/永久)→ 写进本章 auditIssues
-      // (warning 级,喂门禁/复修且 UI 可见;不硬卡,因图谱抽取并非完美,标"疑似"交编辑/复修确认)。
+      // ③ 矛盾守门:图谱查出"不可变事实被推翻"的硬矛盾(canon 违反)→ 记日志。
+      // 注:不在这里写 index.auditIssues —— syncStoryGraphIndex 在主写链保存章节条目之前/之中运行,
+      // 而主链是整文件覆盖 index.json,append 会被 last-writer-wins 抹掉(race + 不可靠)。
+      // 矛盾的主防线是下面 §canon 注入写手做"预防";如需把检测接入复修,应由 gate 侧读图谱(后续)。
       if (result.contradictions.length > 0) {
         for (const c of result.contradictions) {
-          this.config.logger?.warn?.(`[graph] ⚠️ 疑似矛盾:${c.description}`);
+          this.config.logger?.warn?.(`[graph] ⚠️ canon 矛盾:${c.description}`);
         }
-        await this.appendChapterAuditIssues(
-          bookId,
-          chapterNumber,
-          result.contradictions.map((c) => `[warning] 图谱矛盾守门:${c.description}`),
-        ).catch(() => undefined);
       }
     } catch (error) {
       this.config.logger?.warn?.(`[graph] 第 ${chapterNumber} 章入图跳过：${error instanceof Error ? error.message : String(error)}`);

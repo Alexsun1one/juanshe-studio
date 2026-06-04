@@ -223,8 +223,15 @@ async function collectSelectedContext(
       reason: "活的故事知识图谱:本章相关实体的当前状态/关系(确定性,防矛盾、防漂移)。",
       excerpt: formatEntityCardExcerpt(card),
     }));
+    // ② canon 预防:全书已锁定的不可变事实(死亡/血缘/真实身份/永久)——最高优先注入,写手绝不能违反/推翻。
+    const canonEntries = memorySelection.canonFacts.length > 0 ? [{
+      source: "story/graph#canon",
+      reason: "全书已锁定的不可变事实(canon)——绝对不能违反、不能推翻。",
+      excerpt: "【锁定事实·绝不能违反】\n" + memorySelection.canonFacts.map((f) => `- ${f.subject}·${f.predicate} = ${f.object}（第${f.lockedSinceChapter}章锁定,不可逆）`).join("\n"),
+    }] : [];
 
     return [
+      ...canonEntries,
       ...chapterMemoEntry,
       ...entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null),
       ...trailEntries,

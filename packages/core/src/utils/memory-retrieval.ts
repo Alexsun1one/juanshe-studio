@@ -45,6 +45,8 @@ export interface MemorySelection {
   readonly volumeSummaries: ReadonlyArray<VolumeSummarySelection>;
   /** 活的故事知识图谱:本章触及实体的卡片(当前状态 + 关系 + 邻居),图遍历注入用,确定性防矛盾。 */
   readonly entityCards: ReadonlyArray<EntityCard>;
+  /** 全书已锁定的不可变事实(死亡/血缘/真实身份/永久),注入写手做"绝不能违反"的预防。 */
+  readonly canonFacts: ReadonlyArray<{ readonly subject: string; readonly predicate: string; readonly object: string; readonly lockedSinceChapter: number }>;
   readonly dbPath?: string;
 }
 
@@ -144,6 +146,7 @@ export async function retrieveMemorySelection(params: {
       return {
         summaries: pickedSummaries,
         entityCards,
+        canonFacts: memoryDb.getCanonFacts(),
         hooks: selectRelevantHooks(activeHooks, narrativeQueryTerms, params.chapterNumber),
         activeHooks,
         recyclableHooks: computeRecyclableHooks(activeHooks, params.chapterNumber),
@@ -174,6 +177,7 @@ export async function retrieveMemorySelection(params: {
   return {
     summaries: pickedFallbackSummaries,
     entityCards: [], // 无 memory.db(图谱在 SQLite)→ 纯 markdown 回退路径不带实体卡
+    canonFacts: [],
     hooks: selectRelevantHooks(activeHooks, narrativeQueryTerms, params.chapterNumber),
     activeHooks,
     recyclableHooks: computeRecyclableHooks(activeHooks, params.chapterNumber),

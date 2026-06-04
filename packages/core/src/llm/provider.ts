@@ -1178,11 +1178,19 @@ export async function embedTexts(
   if (!baseUrl) throw new Error("embedTexts: 缺少 baseUrl");
   const headers = buildCustomHeaders(client);
   const errorCtx = { baseUrl, model: embeddingModel };
-  const response = await fetchWithProxy(
-    `${baseUrl}/embeddings`,
-    { method: "POST", headers, body: JSON.stringify({ model: embeddingModel, input: [...texts] }) },
-    client.proxyUrl,
-  );
+  // 加超时:嵌入服务(本地 Ollama 等)卡住时绝不能拖死每章 compose——超时即 abort 抛错,上层 rerank 优雅退回纯词面。
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20_000);
+  let response: Awaited<ReturnType<typeof fetchWithProxy>>;
+  try {
+    response = await fetchWithProxy(
+      `${baseUrl}/embeddings`,
+      { method: "POST", headers, body: JSON.stringify({ model: embeddingModel, input: [...texts] }), signal: controller.signal },
+      client.proxyUrl,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
   if (!response.ok) {
     throw wrapLLMError(new Error(await readErrorResponse(response)), errorCtx);
   }
