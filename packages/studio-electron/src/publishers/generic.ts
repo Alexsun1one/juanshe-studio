@@ -73,7 +73,11 @@ export function makeWebNovelPublisher(site: WebNovelSite): PlatformPublisher {
 
       // 2) 进作品的章节管理(先在含书名的卡片上派发 mouseover——有的站按钮 hover 才出现)
       let entered = await ctrl.call<boolean>(
-        `(()=>{ const cards=[...document.querySelectorAll('div,li,tr,section,article')].filter(el=>(el.innerText||'').includes(${j(chapter.bookTitle)}));
+        `(()=>{ const T=${j(chapter.bookTitle)};
+          const all=[...document.querySelectorAll('div,li,tr,section,article')];
+          // 安全:优先「整行精确等于书名」的卡片,避免子串误命中名字更长的别的书;无精确卡才回退子串,保证合法流不破。
+          const exact=all.filter(el=>(el.innerText||'').split('\n').some(t=>t.trim()===T));
+          const cards=exact.length?exact:all.filter(el=>(el.innerText||'').includes(T));
           for(const c of cards.reverse()){ try{ c.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); c.dispatchEvent(new MouseEvent('mouseenter',{bubbles:true})); }catch(e){} }
           return ${anyOf("clickText", site.enterChapterText)}; })()`,
         false,

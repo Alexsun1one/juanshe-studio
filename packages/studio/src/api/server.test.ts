@@ -1636,7 +1636,7 @@ describe("createStudioServer daemon lifecycle", () => {
     const { createStudioServer } = await import("./server.js");
     const app = createStudioServer(cloneProjectConfig() as never, root);
 
-    const first = await app.request("http://localhost/api/v1/services/custom%3ASwitcher/models?apiKey=sk-shared-tail");
+    const first = await app.request("http://localhost/api/v1/services/custom%3ASwitcher/models", { headers: { "x-llm-api-key": "sk-shared-tail" } });
     expect(first.status).toBe(200);
     await expect(first.json()).resolves.toMatchObject({
       models: [{ id: "model-a", name: "model-a" }],
@@ -1651,7 +1651,7 @@ describe("createStudioServer daemon lifecycle", () => {
       },
     }, null, 2), "utf-8");
 
-    const second = await app.request("http://localhost/api/v1/services/custom%3ASwitcher/models?apiKey=sk-shared-tail");
+    const second = await app.request("http://localhost/api/v1/services/custom%3ASwitcher/models", { headers: { "x-llm-api-key": "sk-shared-tail" } });
     expect(second.status).toBe(200);
     await expect(second.json()).resolves.toMatchObject({
       models: [{ id: "model-b", name: "model-b" }],

@@ -28,6 +28,20 @@ function get(platform: string): PlatformPublisher | null {
   return PUBLISHERS[platform] ?? null
 }
 
+/**
+ * 该平台的可信域名(供 BrowserController 限定只在自家站注入页面工具/稿件)。
+ * 各平台 loginUrl 与其作品管理页同域,取 loginUrl 的 host 即可;子域由 isTrusted 的 endsWith 覆盖。
+ * 注:平台跳到任意第三方页(被诱导 / origin 混淆)时,稿件注入会被拒,不外泄。
+ */
+function publisherHosts(pub: PlatformPublisher): string[] {
+  const hosts: string[] = []
+  for (const url of [pub.loginUrl]) {
+    if (!url) continue
+    try { hosts.push(new URL(url).hostname.toLowerCase()) } catch { /* 非法 URL 忽略 */ }
+  }
+  return hosts
+}
+
 function openWindow(pub: PlatformPublisher, visible: boolean): BrowserWindow {
   return new BrowserWindow({
     width: 1180,
@@ -70,7 +84,7 @@ async function status(platform: string): Promise<{ platform: string; loggedIn: b
   const pub = get(platform)
   if (!pub) return { platform, loggedIn: false }
   const win = openWindow(pub, false)
-  const ctrl = new BrowserController(win)
+  const ctrl = new BrowserController(win, publisherHosts(pub))
   try {
     return { platform, loggedIn: await pub.isLoggedIn(ctrl) }
   } catch {
@@ -88,7 +102,7 @@ async function sendDraft(platform: string, chapter: DraftChapter): Promise<Publi
     return { ok: false, platform, message: "缺少标题或正文。" }
   }
   const win = openWindow(pub, false)
-  const ctrl = new BrowserController(win)
+  const ctrl = new BrowserController(win, publisherHosts(pub))
   try {
     if (!(await pub.isLoggedIn(ctrl))) {
       return { ok: false, platform, message: `还没登录 ${pub.name},请先在『连接账号』里登录。` }

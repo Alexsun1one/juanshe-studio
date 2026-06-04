@@ -66,11 +66,22 @@ export class BrowserController {
   readonly win: BrowserWindow
   /** 当前正在自动化的页面(新标签打开时自动切到新页) */
   private cur: WebContents
+  /** 可信域名白名单:只在这些站注入页面工具/稿件。杜绝 origin 混淆——把用户稿件注入到任意/钓鱼页面。 */
+  private readonly allowedHosts: readonly string[]
 
-  constructor(win: BrowserWindow) {
+  constructor(win: BrowserWindow, allowedHosts: readonly string[] = []) {
     this.win = win
     this.cur = win.webContents
+    this.allowedHosts = allowedHosts
     this.track(win.webContents)
+  }
+
+  /** 给定页是否落在可信域名(含子域)内。白名单为空 = 回退允许(兼容旧调用)。 */
+  private isTrusted(wc: WebContents = this.cur): boolean {
+    if (this.allowedHosts.length === 0) return true
+    let host = ""
+    try { host = new URL(wc.getURL()).hostname.toLowerCase() } catch { return false }
+    return this.allowedHosts.some((h) => host === h || host.endsWith("." + h))
   }
 
   get wc(): WebContents {
@@ -84,9 +95,10 @@ export class BrowserController {
       this.cur = child.webContents
       this.track(child.webContents)
     })
-    // 每次 dom-ready 重注入页面工具(导航后 __jp 会丢失)
+    // 每次 dom-ready 重注入页面工具(导航后 __jp 会丢失)——但只在可信域名注入,
+    // 否则跳过:绝不给钓鱼/任意 origin 装上稿件注入能力。
     wc.on("dom-ready", () => {
-      wc.executeJavaScript(HELPER, true).catch(() => {})
+      if (this.isTrusted(wc)) wc.executeJavaScript(HELPER, true).catch(() => {})
     })
   }
 
@@ -99,11 +111,15 @@ export class BrowserController {
 
   /** 手动重注入页面工具(导航/切页后调用一次保险) */
   async inject(): Promise<void> {
+    if (!this.isTrusted()) return
     await this.cur.executeJavaScript(HELPER, true).catch(() => {})
   }
 
   /** 在当前页执行 JS,异常兜底返回 fallback(不抛) */
   async call<T>(expr: string, fallback: T): Promise<T> {
+    // 安全核心:稿件填充就是经 call() 注入页面的。绝不在非可信 origin 执行——
+    // origin 混淆(被诱导跳到任意页)时直接拒绝,用户稿件不会外泄到钓鱼站。
+    if (!this.isTrusted()) return fallback
     try {
       const wrapped = `(()=>{ try { return (${expr}); } catch (e) { return ${JSON.stringify(fallback)}; } })()`
       return (await this.cur.executeJavaScript(wrapped, true)) as T

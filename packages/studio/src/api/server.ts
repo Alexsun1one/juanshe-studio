@@ -14197,7 +14197,9 @@ export function createStudioServer(initialConfig, root) {
         const service = c.req.param("service");
         const refresh = c.req.query("refresh") === "1";
         const secrets = await loadSecrets(root);
-        const apiKey = c.req.query("apiKey") || secrets.services[service]?.apiKey || "";
+        // 安全:API Key 改从请求头读,不再走 query string —— query 会进访问日志/浏览器历史/代理,等于把密钥写在 URL 上泄露。
+        // 主路径仍是后端已存的密钥(secrets);仅"保存前先拉模型列表"这种临时密钥用 header 传。
+        const apiKey = c.req.header("x-llm-api-key") || secrets.services[service]?.apiKey || "";
         const resolvedBaseUrl = await resolveConfiguredServiceBaseUrl(root, service);
         const baseService = isCustomServiceId(service) ? "custom" : service;
         const apiKeyOptional = isApiKeyOptionalForEndpoint({

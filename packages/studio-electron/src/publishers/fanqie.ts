@@ -48,7 +48,12 @@ export const fanqie: PlatformPublisher = {
     // 2) 定位作品进章节管理。多书时「章节管理」需 hover 卡片才出现:在含书名的卡片上派发 mouseover,再点。
     let entered = await ctrl.call<boolean>(
       `(()=>{
-        const cards=[...document.querySelectorAll('div,li,section,article')].filter(el=>(el.innerText||'').includes(${j(chapter.bookTitle)}));
+        const T=${j(chapter.bookTitle)};
+        const all=[...document.querySelectorAll('div,li,section,article')];
+        // 安全:优先「整行精确等于书名」的卡片,避免子串误匹配到名字更长的别的书(如发《三国》却命中《三国演义新传》)。
+        // 只有在一个精确卡都没有时,才回退到旧的子串匹配,保证合法发布流不被改坏。
+        const exact=all.filter(el=>(el.innerText||'').split('\n').some(t=>t.trim()===T));
+        const cards=exact.length?exact:all.filter(el=>(el.innerText||'').includes(T));
         for(const c of cards.reverse()){ try{ c.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); c.dispatchEvent(new MouseEvent('mouseenter',{bubbles:true})); }catch(e){} }
         return window.__jp.clickText('章节管理');
       })()`,
