@@ -147,7 +147,7 @@ export async function retrieveMemorySelection(params: {
         hooks: selectRelevantHooks(activeHooks, narrativeQueryTerms, params.chapterNumber),
         activeHooks,
         recyclableHooks: computeRecyclableHooks(activeHooks, params.chapterNumber),
-        facts: selectRelevantFacts(memoryDb.getCurrentFacts(), factQueryTerms),
+        facts: await pickFacts(memoryDb.getCurrentFacts(), factQueryTerms, semanticQueryText, params.embed),
         volumeSummaries,
         dbPath: join(storyDir, "memory.db"),
       };
@@ -177,7 +177,7 @@ export async function retrieveMemorySelection(params: {
     hooks: selectRelevantHooks(activeHooks, narrativeQueryTerms, params.chapterNumber),
     activeHooks,
     recyclableHooks: computeRecyclableHooks(activeHooks, params.chapterNumber),
-    facts: selectRelevantFacts(facts, factQueryTerms),
+    facts: await pickFacts(facts, factQueryTerms, semanticQueryText, params.embed),
     volumeSummaries,
   };
 }
@@ -433,6 +433,54 @@ async function semanticRerankSummaries(
     candidates: pool.map((entry, index) => ({ lexicalScore: entry.lex, vec: candidateVecs[index] })),
   });
   return ranked.slice(0, limit).map((index) => pool[index]!.summary).sort((a, b) => a.chapter - b.chapter);
+}
+
+/**
+ * 选当前事实:先词面(selectRelevantFacts),配了 embed 再在候选池上做语义重排,
+ * 堵住"本章用词≠事实用词就漏召回"(关键词召回的死穴)。embedding 失败/不可用 → 退回纯词面。
+ */
+async function pickFacts(
+  facts: ReadonlyArray<Fact>,
+  queryTerms: ReadonlyArray<string>,
+  queryText: string,
+  embed?: (texts: ReadonlyArray<string>) => Promise<number[][]>,
+): Promise<Fact[]> {
+  const lexical = selectRelevantFacts(facts, queryTerms);
+  if (!embed || !queryText.trim() || lexical.length <= 1) return lexical;
+  try {
+    const reranked = await semanticRerankFacts(facts, queryTerms, queryText, embed, lexical.length);
+    return reranked ?? lexical;
+  } catch {
+    return lexical;
+  }
+}
+
+async function semanticRerankFacts(
+  facts: ReadonlyArray<Fact>,
+  queryTerms: ReadonlyArray<string>,
+  queryText: string,
+  embed: (texts: ReadonlyArray<string>) => Promise<number[][]>,
+  limit: number,
+): Promise<Fact[] | null> {
+  // 词面候选池(比最终注入宽,给语义重排留空间):按词面命中分取前 24。
+  const pool = facts
+    .map((fact) => {
+      const text = [fact.subject, fact.predicate, fact.object].join(" ");
+      const lex = queryTerms.reduce((s, t) => s + (includesTerm(text, t) ? Math.max(8, t.length * 2) : 0), 1);
+      return { fact, lex, text };
+    })
+    .sort((a, b) => b.lex - a.lex)
+    .slice(0, 24);
+  if (pool.length <= limit) return pool.slice(0, limit).map((e) => e.fact);
+  const vectors = await embed([queryText, ...pool.map((e) => e.text)]);
+  const queryVec = vectors[0];
+  if (!queryVec || queryVec.length === 0) return null; // embedding 不可用 → 上层退回词面
+  const candidateVecs = vectors.slice(1);
+  const ranked = hybridRank({
+    queryVec,
+    candidates: pool.map((e, i) => ({ lexicalScore: e.lex, vec: candidateVecs[i] })),
+  });
+  return ranked.slice(0, limit).map((i) => pool[i]!.fact);
 }
 
 function selectRelevantSummaries(
