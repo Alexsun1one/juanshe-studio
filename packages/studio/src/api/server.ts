@@ -2201,6 +2201,22 @@ function repairHistoryForChapter(runs, bookId, chapterNumber, currentRunId = "",
         .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
         .slice(0, limit);
 }
+// 综合分加权(与 buildChapterQualityPayload 的 rawTotal 公式同源)。权重越高、缺口越大 = 对综合分拖累越大。
+// 字数(length)不再当"质量维度"加权——达标是平台约束、不是优点;字数偏离由 repairLengthInstruction/lengthMode 单独治理。
+const RAW_TOTAL_WEIGHTS = { continuity: 0.28, rhythm: 0.20, reader: 0.20, style: 0.18, readability: 0.14 };
+const METRIC_LABELS = { continuity: "连续性/状态链", rhythm: "节奏", length: "篇幅字数", style: "文笔风格", reader: "读者追更欲", readability: "可读性" };
+// 定向修复核心:按"(目标分−当前分)×权重"算每个维度对综合分的拖累,只返回拖累最大的 top N(值得改的)。
+function weightedRepairTargets(metrics = {}, targetScore = 80, topN = 2) {
+    return Object.keys(RAW_TOTAL_WEIGHTS)
+        .map((key) => {
+            const value = Number(metrics[key] ?? 100);
+            const gap = Math.max(0, targetScore - value);
+            return { key, label: METRIC_LABELS[key] || key, value, weight: RAW_TOTAL_WEIGHTS[key], drag: Number((gap * RAW_TOTAL_WEIGHTS[key]).toFixed(2)) };
+        })
+        .filter((m) => m.drag > 0)
+        .sort((a, b) => b.drag - a.drag)
+        .slice(0, topN);
+}
 function buildRepairLoopProfile(history, qualityPayload, targetScore, text = "") {
     const q = qualityPayload?.quality ?? qualityPayload ?? {};
     const metrics = q.metrics ?? {};
@@ -2232,6 +2248,7 @@ function buildRepairLoopProfile(history, qualityPayload, targetScore, text = "")
         currentChars,
         lengthMode,
         lowMetrics,
+        weightedTargets: weightedRepairTargets(metrics, targetScore, 2),
         priorFailures,
     };
 }
@@ -2245,10 +2262,31 @@ function repairLengthInstruction(profile) {
     return `本章当前 ${profile?.currentChars ?? "--"} 中文字，篇幅基本可用。维持在 ${min}-${max} 中文字，重点修节奏、沉浸感、可读性和读者追更欲。`;
 }
 function repairStrategyInstruction(profile) {
-    const lows = (profile?.lowMetrics || []).map((m) => `${m.key} ${m.value}`).join("、") || "未识别";
-    const mode = profile?.lengthMode === "compress" ? "篇幅过长，先压缩再重排" : (profile?.lengthMode === "expand" ? "篇幅不足，先补有效场景再重排" : "篇幅可用，直接重排节奏和读者钩子");
-    const plateau = profile?.plateau ? "检测到连续复修平台期：禁止只做句子级润色，必须重组段落顺序、场景拍点和冲突推进。" : "未检测到明显平台期：仍需避免重复上一轮无效改法。";
-    return `${mode}。最低项：${lows}。${plateau}`;
+    const targets = profile?.weightedTargets || [];
+    const lengthMode = profile?.lengthMode === "compress"
+        ? "篇幅过长:先压缩超出部分(删重复解释/拖沓过渡),不要扩写"
+        : (profile?.lengthMode === "expand" ? "篇幅不足:补有效场景(动作/对白/阻力),不要灌水" : "篇幅可用,不要为改而改变篇幅");
+    const plateau = profile?.plateau
+        ? "已连续卡在相近分数:对下列维度要换打法(重排该处场景拍点/因果/段落顺序),别再做同义替换。"
+        : "";
+    if (!targets.length) {
+        return `各维度接近达标,只做最小必要的句段微调,其余原文逐段照抄。${lengthMode}。${plateau}`;
+    }
+    const symptom = {
+        continuity: "和前文/设定/人物状态打架的那句、或没结的状态账(伤/债/人情/承诺/暴露)",
+        rhythm: "该爆没爆、该喘没喘、拖沓或平开的那一段",
+        reader: "章末钩子软、主角选择没代价、读者不想点下一章的那几处",
+        style: "句子绕/没画面/花活堆砌、或风格跑偏的那几句",
+        readability: "段落组织乱、模板词、读着卡壳的那几处",
+    };
+    const focus = targets.map((m) => `「${m.label}」(当前 ${m.value} 分,拖累约 ${m.drag};病灶通常在:${symptom[m.key] || "对应维度的具体句段"})`).join("；");
+    return [
+        `本章综合分主要被这些维度拖累(已按 权重×缺口 排序):${focus}。`,
+        `【定向修复·铁律】不要盯着"把维度分数顶上去",要在正文里**定位**上面点到的那几处具体病灶句段,把它们改写到"读者读着不出戏、动机成立、钩子有劲、状态账结清";`,
+        `其余已达标的段落/句子必须原文逐段照抄、一字不改。严禁整章推倒重写`,
+        `——那会破坏已经写好的部分、score 上下乱跳、还更慢。输出仍是完整正文(未改动处照抄即可)。`,
+        `${lengthMode}。${plateau}`,
+    ].join("");
 }
 function repairNextSuggestion(profile, targetScore) {
     if (profile?.lengthMode === "compress")
@@ -2260,13 +2298,15 @@ function repairNextSuggestion(profile, targetScore) {
     return `继续复修会按本轮低项重写：优先处理 ${((profile?.lowMetrics || []).map((m) => m.key).join("、") || "节奏、沉浸感、可读性和读者追更欲")}，目标 ${targetScore}+。`;
 }
 function repairCircuitBreakerDecision(history, targetScore) {
-    const recent = (Array.isArray(history) ? history : []).filter((run) => !repairRunPassed(run, targetScore)).slice(0, 8);
+    // 取样窗口必须 ≥ 最大文本阈值(14),否则文本类熔断永远凑不够次数 = 死代码。
+    const recent = (Array.isArray(history) ? history : []).filter((run) => !repairRunPassed(run, targetScore)).slice(0, 16);
     if (recent.length < 4)
         return { blocked: false };
     const scores = recent.map(repairRunScore).filter((score) => score > 0);
     const failedRuns = recent.filter((run) => run.status === "needs-repair" || run.status === "error" || run.error || run.failureReason || (repairRunScore(run) > 0 && repairRunScore(run) < targetScore));
     const authFailures = failedRuns.filter((run) => /401|未授权|鉴权|api\s*key|API Key|额度|permission|unauthorized/i.test(`${run.error || ""} ${run.failureReason || ""} ${run.currentStage || ""}`));
-    const timeouts = failedRuns.filter((run) => /timeout|timed out|超时|heartbeat/i.test(`${run.error || ""} ${run.failureReason || ""} ${run.currentStage || ""}`));
+    // 把 watchdog 看门狗超时文案("低分复修模型等待超过 X 秒,已自动释放锁")也算进超时类,否则会被误归为"文本写不好"。
+    const timeouts = failedRuns.filter((run) => /timeout|timed out|超时|heartbeat|等待超过|自动释放锁|心跳/i.test(`${run.error || ""} ${run.failureReason || ""} ${run.currentStage || ""}`));
     const infrastructureFailures = failedRuns.filter((run) => /Backend task lost|service restart|服务重启|lost in-memory owner|释放锁|端口|network|连接中断/i.test(`${run.error || ""} ${run.failureReason || ""} ${run.currentStage || ""}`));
     const textFailedRuns = failedRuns.filter((run) => !authFailures.includes(run) && !timeouts.includes(run) && !infrastructureFailures.includes(run));
     const bestScore = scores.length ? Math.max(...scores) : 0;
@@ -2275,8 +2315,10 @@ function repairCircuitBreakerDecision(history, targetScore) {
     if (authFailures.length >= 2) {
         return {
             blocked: true,
+            transient: true, // 基础设施失败(Key/额度),不是"这本书文本写不好";直播/批量可退避重试,UI 应提示修 Key 而非"质量不行"
+            category: "infrastructure",
             reason: "模型鉴权连续失败",
-            message: "同一章已经连续出现模型鉴权/API Key/额度失败。已打开复修断路器，不再自动重试烧 token；请先在 Agent 配置里修好 Key 或换可用模型，再手动重新发起。",
+            message: "同一章已经连续出现模型鉴权/API Key/额度失败。已暂停复修，不再烧 token；这是凭证/额度问题、与本书质量无关——请在 Agent 配置里修好 Key 或换可用模型后重试（直播模式会自动退避重试）。",
             bestScore,
             latestScore,
             attempts: recent.length,
@@ -2285,8 +2327,10 @@ function repairCircuitBreakerDecision(history, targetScore) {
     if (timeouts.length >= 3) {
         return {
             blocked: true,
+            transient: true, // 模型超时是基础设施抖动,不是文本质量差;不应被永久 block,退避后可继续
+            category: "infrastructure",
             reason: "模型超时连续失败",
-            message: "同一章已经多次模型超时。已打开复修断路器，避免继续撞墙；请先换更快模型、降低单章字数，或人工看一眼阻断项。",
+            message: "同一章已经多次模型超时。已暂停复修避免撞墙；这是网络/模型速度问题、与本书质量无关——可换更快模型、降低单章字数后重试（直播模式会自动退避重试）。",
             bestScore,
             latestScore,
             attempts: recent.length,
@@ -2690,7 +2734,7 @@ async function buildPromptGovernanceDigest(root, state, bookId = "", targetScore
     ].join("\n");
     return { bookId, targetScore, pitfalls, wikiLessons, promptWriterDraft, promptReview, promptPatches, summaryMarkdown, qualitySummary: quality?.summary ?? null, generatedAt: new Date().toISOString() };
 }
-async function applyPromptGovernanceDigest(root, state, bookId, digest, targetScore = 90, warnings = []) {
+async function applyPromptGovernanceDigest(root, state, bookId, digest, targetScore = 80, warnings = []) {
     const reviewBase = {
         ...digest,
         promptWriterDraft: digest?.promptWriterDraft || digest?.promptPatches || {},
@@ -3136,7 +3180,9 @@ function computeChapterQualityScore(args) {
     } catch {
         aiTone = clampScore(86 - Math.min(28, aiMarkers * 2));
     }
-    const rawTotal = clampScore(lengthScore * 0.16 + continuityScore * 0.24 + rhythmScore * 0.18 + styleScore * 0.16 + readabilityScore * 0.12 + reader.total * 0.14 - reportPenalty);
+    // 字数不再当"质量维度"加权:达标是约束、不是优点。只在明显偏离区间时作为约束扣分,不奖励"凑够字数"。
+    const lengthPenalty = lengthScore >= 85 ? 0 : Math.min(16, Math.round((85 - lengthScore) * 0.28));
+    const rawTotal = clampScore(continuityScore * 0.28 + rhythmScore * 0.20 + reader.total * 0.20 + styleScore * 0.18 + readabilityScore * 0.14 - reportPenalty - lengthPenalty);
     const blockers = [];
     if (args.status === "state-degraded")
         blockers.push("state-degraded");
@@ -3147,13 +3193,14 @@ function computeChapterQualityScore(args) {
     const tooShortThreshold = target < 1000 ? Math.max(200, target * 0.45) : Math.max(800, target * 0.45);
     if (chineseChars < tooShortThreshold)
         blockers.push("too-short");
+    // 封顶只对"硬伤"成立(状态链断档 / critical 审稿问题)。
+    // 旧逻辑"质量报告这个中间产物没生成 → 全章封顶 88"是机械误伤(报告是流程产物、不是正文质量),
+    // 已移除:缺报告仍由 blocker(missing-quality-report)拦门禁并触发重生,但不再焊死分数(这正是"修半天卡88"的机械成因之一)。
     const gatedTotal = args.status === "state-degraded"
         ? Math.min(rawTotal, 74)
         : criticals
             ? Math.min(rawTotal, 84)
-            : !report
-                ? Math.min(rawTotal, 88)
-                : rawTotal;
+            : rawTotal;
     const total = clampScore(gatedTotal);
     const reasons = [];
     if (args.status === "state-degraded")
@@ -3180,7 +3227,7 @@ function computeChapterQualityScore(args) {
         reasons.push(`读者视角：${risk}`);
     // 门禁阈值:默认 85(=用户在偏好设置看到/批量写作请求的值),可被 args.gateTarget 覆盖。
     // 不再硬编码 90——否则"显示门禁/质量计算"会无视用户配置,与批量写作实际用的阈值不一致。
-    const gateTarget = Number(args.gateTarget) > 0 ? Number(args.gateTarget) : 85;
+    const gateTarget = Number(args.gateTarget) > 0 ? Number(args.gateTarget) : 80;
     if (total < gateTarget && blockers.length === 0)
         blockers.push("quality-below-target");
     return {
@@ -3754,7 +3801,7 @@ async function buildChapterQualityPayload(state, bookId, chapterNumber, contentO
         ? targetOverride
         : Number(book.chapterWordCount || book.targetChapterWords || book.wordCount || 3000);
     const gateOverride = Number(options.gateTarget ?? options.targetScore);
-    const gateTarget = Number.isFinite(gateOverride) && gateOverride > 0 ? gateOverride : 85;
+    const gateTarget = Number.isFinite(gateOverride) && gateOverride > 0 ? gateOverride : 80;
     let quality = computeChapterQualityScore({
         content,
         report,
@@ -3770,7 +3817,7 @@ async function buildChapterQualityPayload(state, bookId, chapterNumber, contentO
     const qScore = Number(quality?.total);
     const governanceRecommendation = buildGovernanceRecommendation({
         score: Number.isFinite(qScore) ? qScore : null,
-        passThreshold: Number(quality?.gate?.target) || 90,
+        passThreshold: Number(quality?.gate?.target) || 80,
     });
     return { bookId, chapterNumber, filename: chapter.filename, title: meta.title || `第 ${chapterNumber} 章`, status: meta.status || "unknown", quality, governanceRecommendation, report, auditIssues: meta.auditIssues || [] };
 }
@@ -7060,8 +7107,21 @@ async function inspectBookFoundationForWriting(state, bookId) {
     const volumeMap = await readOptionalText(join(bookDir, "story", "outline", "volume_map.md")).catch(() => "");
     const unsafeFallback = book?.creationFallback?.safeForWriting !== true && (book?.creationFallback || looksLikeUnsafeFoundationText(storyFrame) || looksLikeUnsafeFoundationText(storyBible) || looksLikeUnsafeFoundationText(characterMatrix));
     const missingFoundation = !storyFrame.trim() || !volumeMap.trim() || !characterMatrix.trim();
-    if (!unsafeFallback && !missingFoundation)
+    if (!unsafeFallback && !missingFoundation) {
+        // 质量闸：若建书复审官判过且未达标（且未人工放行 safeForWriting），阻止写章，避免在弱地基上批量产出
+        if (book?.foundationQuality && book.foundationQuality.pass === false && book?.creationFallback?.safeForWriting !== true) {
+            const weak = (book.foundationQuality.weakDims || []).join("、");
+            return {
+                ok: false,
+                book: { id: bookId, title: book?.title || bookId, status: book?.status || "" },
+                status: "foundation-quality-blocked",
+                error: "作品地基质量未达标（建书复审官判分低于闸值），已阻止写章。",
+                failureReason: `地基质量分 ${book.foundationQuality.score ?? "—"}${weak ? `，最拖分维度：${weak}` : ""}`,
+                suggestion: "点『重新验收地基』让建书复审官定向补强最拖分的维度，或手动改设定后重试；确属人工确认可在 book.json 将 creationFallback.safeForWriting 设为 true。",
+            };
+        }
         return { ok: true, book };
+    }
     const reasons = [];
     if (book?.creationFallback)
         reasons.push("开书模型曾失败，当前作品由本地兜底建档");
@@ -7385,6 +7445,256 @@ async function buildFoundationAssessment(state, bookId) {
         "",
     ].join("\n");
     return { ready, score, modules, blockers, report, platformSubmission };
+}
+// ── 地基质量闸：让"建书复审官"真正跑一次 LLM 质量评审（不是数字数），并支持只补最拖分维度的定向补强 ──
+const FOUNDATION_QUALITY_FLOOR = 80;
+const FOUNDATION_QUALITY_DIMENSIONS = [
+    { key: "differentiation", label: "差异化卖点", weight: 0.16, files: ["outline/story_frame.md", "story_bible.md"], critical: true },
+    { key: "motivation", label: "人物动机闭环", weight: 0.16, files: ["character_matrix.md"], critical: true },
+    { key: "goldenFinger", label: "金手指机制与代价", weight: 0.12, files: ["book_rules.md", "outline/story_frame.md"], critical: false },
+    { key: "hooks", label: "伏笔承重", weight: 0.12, files: ["pending_hooks.md"], critical: false },
+    { key: "serializability", label: "可连载性", weight: 0.16, files: ["outline/volume_map.md"], critical: true },
+    { key: "openingHook", label: "黄金开篇", weight: 0.12, files: ["current_focus.md", "outline/story_frame.md"], critical: false },
+    { key: "consistency", label: "设定一致性", weight: 0.08, files: ["character_matrix.md", "pending_hooks.md"], critical: false },
+    { key: "platformFit", label: "平台读者契合", weight: 0.08, files: ["book_description.md"], critical: false },
+];
+function clampDimScore(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n))
+        return 0;
+    return Math.max(0, Math.min(100, Math.round(n)));
+}
+function foundationFilePathForRel(bookDir, rel) {
+    return rel.startsWith("outline/")
+        ? join(bookDir, "story", "outline", rel.slice("outline/".length))
+        : join(bookDir, "story", rel);
+}
+async function runFoundationQualityReview(state, bookId, options = {}) {
+    const targetScore = Number(options.targetScore) || FOUNDATION_QUALITY_FLOOR;
+    const bookDir = state.bookDir(bookId);
+    const book = await state.loadBookConfig(bookId).catch(() => ({}));
+    const readStory = (rel) => readOptionalText(join(bookDir, "story", rel)).catch(() => "");
+    const [storyFrame, volumeMap, characterMatrix, pendingHooks, bookRules, currentFocus, bookDescription, storyBible] = await Promise.all([
+        readStory("outline/story_frame.md"), readStory("outline/volume_map.md"), readStory("character_matrix.md"),
+        readStory("pending_hooks.md"), readStory("book_rules.md"), readStory("current_focus.md"),
+        readStory("book_description.md"), readStory("story_bible.md"),
+    ]);
+    const corpus = [storyFrame, volumeMap, characterMatrix, pendingHooks, bookRules, currentFocus, bookDescription, storyBible].join("").trim();
+    if (corpus.length < 200)
+        return null; // 地基内容过少，没有可判的实质，交回结构闸
+    let llm, client, model;
+    try {
+        const loadConfig = options.loadConfig;
+        if (typeof loadConfig !== "function")
+            return null;
+        const currentConfig = await loadConfig();
+        llm = resolveAgentRuntimeLLMConfig(currentConfig, ["foundation-reviewer", "auditor", "quality-reporter", "architect"], 0.3);
+        llm.stream = false;
+        model = String(llm.model || currentConfig.llm.model || currentConfig.llm.defaultModel || "");
+        client = createLLMClient(llm);
+    }
+    catch {
+        return null; // 模型不可用 → 返回 null，绝不因评审失败硬卡住地基
+    }
+    const dimList = FOUNDATION_QUALITY_DIMENSIONS.map((d) => `- ${d.key}（${d.label}）`).join("\n");
+    const sys = [
+        "你是长篇连载小说的建书复审官，兼出版总编和连续性工程师。",
+        "只判这套开书地基（故事框架/卷纲/角色矩阵/伏笔池/金手指规则/黄金开篇/平台简介）能不能支撑一本能追读的长篇，不是判它漂不漂亮。",
+        "判断重点：卖点是否清晰且有差异化；角色是否有可反复受压的真实欲望和三层动机；金手指是否有机制、代价、成长边界；伏笔前台后台是否能承重；目标链是否递进、能不能写满目标章数不崩；黄金开篇是否抓人；truth files 是否互相不冲突；是否契合平台读者。",
+        "严格但务实：不放行空泛世界观、不接受'以后再补'的关键动机、不接受没有代价的金手指、不接受互相冲突的设定。但只要地基足以让写手不靠临时编就能开写，就该放行。",
+        "只输出 JSON，不要 Markdown，不要解释过程。",
+    ].join("\n");
+    const user = [
+        `目标分（达标线）：${targetScore}`,
+        `作品：${book.title || bookId}｜题材/平台：${book.genre || ""} / ${book.platform || ""}｜目标章数：${book.targetChapters || ""}`,
+        "请对以下每个维度打 0-100 分，并各给一句具体问题与一句具体改法：",
+        dimList,
+        "",
+        'JSON 结构：{"dimensions":{"<key>":{"score":0-100,"issue":"一句具体问题","fix":"一句具体改法"},...},"blockers":["致命阻断项"],"strengths":["亮点"],"verdict":"pass"|"block","summary":"两三句总评"}',
+        "blockers 只列致命的（空泛世界观、关键动机缺失、金手指无代价、设定硬冲突、无法连载）；没有就给空数组。",
+        "",
+        "【故事框架 story_frame】", (storyFrame || "(空)").slice(0, 4000),
+        "【卷纲 volume_map】", (volumeMap || "(空)").slice(0, 3000),
+        "【角色矩阵 character_matrix】", (characterMatrix || "(空)").slice(0, 4000),
+        "【伏笔池 pending_hooks】", (pendingHooks || "(空)").slice(0, 2000),
+        "【金手指/工程规则 book_rules】", (bookRules || "(空)").slice(0, 2000),
+        "【黄金开篇 current_focus】", (currentFocus || "(空)").slice(0, 1500),
+        "【平台简介 book_description】", (bookDescription || "(空)").slice(0, 1500),
+    ].join("\n");
+    let parsed = null;
+    try {
+        const response = await chatCompletion(client, model, [{ role: "system", content: sys }, { role: "user", content: user }], { temperature: llm.temperature ?? 0.3, maxTokens: 2400 });
+        parsed = extractJsonObject(response?.content || "");
+    }
+    catch {
+        return null;
+    }
+    if (!parsed || typeof parsed !== "object" || !parsed.dimensions)
+        return null;
+    const dims = {};
+    let weightedSum = 0, weightTotal = 0;
+    for (const d of FOUNDATION_QUALITY_DIMENSIONS) {
+        const raw = (parsed.dimensions && parsed.dimensions[d.key]) || {};
+        const score = clampDimScore(raw.score);
+        dims[d.key] = { label: d.label, score, issue: String(raw.issue || "").slice(0, 200), fix: String(raw.fix || "").slice(0, 200), weight: d.weight, critical: !!d.critical };
+        weightedSum += score * d.weight;
+        weightTotal += d.weight;
+    }
+    const score = clampScore(weightTotal ? weightedSum / weightTotal : 0);
+    const blockers = Array.isArray(parsed.blockers) ? parsed.blockers.map(String).filter(Boolean).slice(0, 8) : [];
+    const strengths = Array.isArray(parsed.strengths) ? parsed.strengths.map(String).filter(Boolean).slice(0, 6) : [];
+    const weakDims = FOUNDATION_QUALITY_DIMENSIONS
+        .map((d) => ({ key: d.key, label: d.label, score: dims[d.key].score, drag: Math.max(0, targetScore - dims[d.key].score) * d.weight, critical: !!d.critical }))
+        .filter((x) => x.score < targetScore)
+        .sort((a, b) => b.drag - a.drag);
+    const criticalFail = FOUNDATION_QUALITY_DIMENSIONS.some((d) => d.critical && dims[d.key].score < 60);
+    const verdictBlock = String(parsed.verdict || "").toLowerCase() === "block";
+    const pass = score >= targetScore && blockers.length === 0 && !criticalFail && !verdictBlock;
+    return { score, targetScore, dimensions: dims, blockers, strengths, weakDims, pass, summary: String(parsed.summary || "").slice(0, 600) };
+}
+async function autoRepairFoundationQuality(state, root, bookId, qualityReview, options = {}) {
+    if (!qualityReview || !Array.isArray(qualityReview.weakDims) || !qualityReview.weakDims.length)
+        return [];
+    const targetScore = Number(options.targetScore) || FOUNDATION_QUALITY_FLOOR;
+    const topN = Math.max(1, Math.min(2, Number(options.topN) || 2));
+    const targets = qualityReview.weakDims.slice(0, topN);
+    const bookDir = state.bookDir(bookId);
+    const book = await state.loadBookConfig(bookId).catch(() => ({}));
+    let llm, client, model;
+    try {
+        const loadConfig = options.loadConfig;
+        if (typeof loadConfig !== "function")
+            return [];
+        const currentConfig = await loadConfig();
+        llm = resolveAgentRuntimeLLMConfig(currentConfig, ["architect", "foundation-reviewer", "reviser", "writer"], 0.5);
+        llm.stream = false;
+        model = String(llm.model || currentConfig.llm.model || currentConfig.llm.defaultModel || "");
+        client = createLLMClient(llm);
+    }
+    catch {
+        return [];
+    }
+    const dimDefByKey = new Map(FOUNDATION_QUALITY_DIMENSIONS.map((d) => [d.key, d]));
+    const fileGroups = new Map();
+    for (const t of targets) {
+        const def = dimDefByKey.get(t.key);
+        const rel = (def && def.files || [])[0];
+        if (!rel)
+            continue;
+        if (!fileGroups.has(rel))
+            fileGroups.set(rel, []);
+        fileGroups.get(rel).push({ ...t, def });
+    }
+    const repaired = [];
+    for (const [rel, group] of fileGroups) {
+        const path = foundationFilePathForRel(bookDir, rel);
+        const original = await readOptionalText(path).catch(() => "");
+        if (!original.trim())
+            continue;
+        const dimLines = group.map((g) => `- ${g.label}（当前 ${g.score} 分，目标 ${targetScore}）：问题=${qualityReview.dimensions?.[g.key]?.issue || ""}；改法=${qualityReview.dimensions?.[g.key]?.fix || ""}`).join("\n");
+        const sys = [
+            "你是长篇小说建书复审官的定向补强手。只针对点名的维度提升这份地基文件，其余已达标的内容必须原样保留、格式不变。",
+            "【定向修复铁律】只改与下列维度相关的部分；不要推倒重写整份文件；不要改文件的标题结构、表格列、角色名、卷数范围等既定事实；只让被点名的维度变扎实（更具体、有代价、有差异化、能承重）。",
+            "输出 JSON：{\"content\":\"补强后的完整文件全文(markdown,保持原格式)\",\"changes\":[\"一句话说明改了什么\"]}。content 必须是完整文件，不是片段，不要省略未改动部分。",
+        ].join("\n");
+        const user = [
+            `作品：${book.title || bookId}｜题材/平台：${book.genre || ""}/${book.platform || ""}`,
+            `文件：${rel}`,
+            "需要补强的维度：",
+            dimLines,
+            "",
+            "【当前文件全文】",
+            original.slice(0, 8000),
+        ].join("\n");
+        try {
+            const response = await chatCompletion(client, model, [{ role: "system", content: sys }, { role: "user", content: user }], { temperature: llm.temperature ?? 0.5, maxTokens: 4200 });
+            const parsed = extractJsonObject(response?.content || "");
+            const content = parsed && typeof parsed.content === "string" ? parsed.content.trim() : "";
+            if (content && content.length >= Math.min(original.length * 0.6, 300) && !looksLikeUnsafeFoundationText(content)) {
+                const out = content.endsWith("\n") ? content : content + "\n";
+                await writeFile(path, out, "utf-8");
+                if (rel === "outline/volume_map.md")
+                    await writeFile(join(bookDir, "story", "volume_map.md"), out, "utf-8").catch(() => undefined);
+                repaired.push(...group.map((g) => `质量·${g.label}`));
+            }
+        }
+        catch { /* 单文件补强失败不影响其余 */ }
+    }
+    return repaired;
+}
+async function persistFoundationQuality(state, bookId, payload) {
+    try {
+        const book = await state.loadBookConfig(bookId);
+        const fq = {
+            score: payload.quality?.score ?? null,
+            structuralScore: payload.structural?.score ?? null,
+            pass: payload.quality ? payload.quality.pass : null,
+            ready: !!payload.ready,
+            weakDims: (payload.quality?.weakDims || []).map((d) => d.label),
+            blockers: payload.quality?.blockers || [],
+            dimensions: payload.quality?.dimensions || null,
+            summary: payload.quality?.summary || "",
+            reviewedAt: new Date().toISOString(),
+        };
+        await state.saveBookConfig(bookId, { ...book, foundationQuality: fq, updatedAt: new Date().toISOString() });
+    }
+    catch { /* 持久化失败不致命 */ }
+}
+async function enforceFoundationQualityGate(state, root, bookId, options = {}) {
+    const autoRepair = options.autoRepair !== false;
+    const withQuality = options.withQuality !== false;
+    const book0 = await state.loadBookConfig(bookId).catch(() => ({}));
+    const targetScore = Number(options.targetScore) || Number(book0?.targetScore) || Number(book0?.writing?.targetScore) || FOUNDATION_QUALITY_FLOOR;
+    const maxRounds = Math.max(0, Math.min(2, options.maxRounds ?? 1));
+    let structural = await buildFoundationAssessment(state, bookId);
+    const repaired = [];
+    if (!structural.ready && autoRepair) {
+        const did = await autoRepairFoundation(state, root, bookId, structural).catch(() => []);
+        repaired.push(...did);
+        structural = await buildFoundationAssessment(state, bookId);
+    }
+    const loadConfig = options.loadConfig;
+    let quality = withQuality ? await runFoundationQualityReview(state, bookId, { targetScore, loadConfig }).catch(() => null) : null;
+    let round = 0;
+    while (quality && !quality.pass && autoRepair && round < maxRounds) {
+        const fixed = await autoRepairFoundationQuality(state, root, bookId, quality, { targetScore, loadConfig }).catch(() => []);
+        if (!fixed.length)
+            break;
+        repaired.push(...fixed);
+        const re = await runFoundationQualityReview(state, bookId, { targetScore }).catch(() => null);
+        if (!re)
+            break;
+        quality = re;
+        round++;
+    }
+    const qualityPass = quality ? quality.pass : true; // 模型不可用 → 不因质量硬卡，交回结构闸
+    const ready = structural.ready && qualityPass;
+    await persistFoundationQuality(state, bookId, { structural, quality, ready });
+    return { ready, structural, quality, repaired, repairRounds: round, targetScore, structuralScore: structural.score, qualityScore: quality?.score ?? null, blockers: [...(structural.blockers || []), ...((quality && quality.blockers) || [])] };
+}
+function buildFoundationGateReport(assessment, quality, ready, repaired) {
+    const lines = [assessment?.report || ""];
+    if (quality) {
+        lines.push("", "## 建书复审官·质量评审", "", `- 质量总分：${quality.score} / 达标线 ${quality.targetScore}`, `- 结论：${quality.pass ? "质量达标" : "质量未达标，需补强"}`, "", "### 维度评分", "");
+        for (const d of FOUNDATION_QUALITY_DIMENSIONS) {
+            const dim = quality.dimensions?.[d.key];
+            if (!dim)
+                continue;
+            lines.push(`- ${dim.label}：${dim.score} 分${dim.score < quality.targetScore && dim.issue ? ` · ${dim.issue}` : ""}`);
+        }
+        if (quality.blockers?.length)
+            lines.push("", "### 质量阻断项", "", ...quality.blockers.map((b) => `- ${b}`));
+        if (quality.weakDims?.length && !quality.pass)
+            lines.push("", "### 最拖分维度（定向补强目标）", "", ...quality.weakDims.slice(0, 3).map((d) => `- ${d.label}（${d.score} 分）：${quality.dimensions?.[d.key]?.fix || ""}`));
+        if (quality.summary)
+            lines.push("", `> 总评：${quality.summary}`);
+    }
+    else {
+        lines.push("", "> 质量评审未运行（模型不可用或地基内容过少），当前仅做结构完整性校验。");
+    }
+    if (repaired?.length)
+        lines.push("", "### 本次自动补强", "", ...[...new Set(repaired)].map((r) => `- ${r}`));
+    return lines.join("\n");
 }
 async function loadStudioBookListSummary(state, bookId) {
     const book = await state.loadBookConfig(bookId);
@@ -8060,7 +8370,7 @@ export function createStudioServer(initialConfig, root) {
         }
         return _narrativeCraftCache;
     }
-    function longOutputSafetyContext({ wordCount, chapters = 1, targetScore = 90, mode = "write" } = {}) {
+    function longOutputSafetyContext({ wordCount, chapters = 1, targetScore = 80, mode = "write" } = {}) {
         const targetChars = Number(wordCount || 0);
         const chapterCount = Number(chapters || 1);
         const needsGuard = targetChars >= 2800 || chapterCount > 1 || mode !== "write";
@@ -8297,7 +8607,7 @@ export function createStudioServer(initialConfig, root) {
         const hardBlockers = blockers.filter((b) => String(b) !== "quality-below-target");
         return hardBlockers.length === 0;
     }
-    async function markChapterReadyIfQualityPassed(bookId, chapterNumber, qualityPayload, targetScore = 90, reason = "质量 Gate 已达标，自动恢复章节状态") {
+    async function markChapterReadyIfQualityPassed(bookId, chapterNumber, qualityPayload, targetScore = 80, reason = "质量 Gate 已达标，自动恢复章节状态") {
         if (!Number.isInteger(chapterNumber) || chapterNumber <= 0)
             return false;
         if (!qualityGateActuallyPassed(qualityPayload?.quality, targetScore))
@@ -9734,6 +10044,10 @@ export function createStudioServer(initialConfig, root) {
 	                    foundationReady: foundationAssessment?.ready ?? false,
 	                    foundationScore: foundationAssessment?.score ?? 0,
 	                    foundationModules: foundationAssessment?.modules ?? [],
+	                    foundationQualityScore: book?.foundationQuality?.score ?? null,
+	                    foundationQualityPass: book?.foundationQuality?.pass ?? null,
+	                    foundationWeakDims: book?.foundationQuality?.weakDims ?? [],
+	                    foundationQualitySummary: book?.foundationQuality?.summary ?? "",
 	                    rules: [bookRules, pendingHooks].filter(Boolean).join("\n\n---\n\n"),
 	                    report: [latestReport, agentState, agentTimeline].filter(Boolean).join("\n\n---\n\n"),
 	                    stateTimeline: [agentState, agentTimeline, agentVault.timeline].filter(Boolean).join("\n\n---\n\n"),
@@ -9750,15 +10064,17 @@ export function createStudioServer(initialConfig, root) {
     app.post("/api/v1/books/:id/foundation/validate", async (c) => {
         const id = c.req.param("id");
         try {
-            let assessment = await buildFoundationAssessment(state, id);
             const autoRepair = c.req.query("repair") !== "0";
-            let repaired = [];
-            if (!assessment.ready && autoRepair) {
-                repaired = await autoRepairFoundation(state, root, id, assessment);
-                assessment = await buildFoundationAssessment(state, id);
-            }
+            const withQuality = c.req.query("quality") !== "0";
+            const gate = await enforceFoundationQualityGate(state, root, id, { autoRepair, withQuality, loadConfig: loadCurrentProjectConfig });
+            const assessment = gate.structural;
+            const quality = gate.quality;
+            const report = buildFoundationGateReport(assessment, quality, gate.ready, gate.repaired);
+            const richAssessment = { ...assessment, report };
+            const qualityScore = gate.qualityScore;
+            const weak = (quality?.weakDims || []).map((d) => `${d.label}(${d.score})`);
             const book = await state.loadBookConfig(id);
-            if (assessment.ready) {
+            if (gate.ready) {
                 const updated = {
                     ...book,
                     status: book.status === "needs-foundation" ? "active" : book.status,
@@ -9768,6 +10084,7 @@ export function createStudioServer(initialConfig, root) {
                         safeForWriting: true,
                         foundationValidatedAt: new Date().toISOString(),
                         foundationScore: assessment.score,
+                        foundationQualityScore: qualityScore,
                     },
                 };
                 await state.saveBookConfig(id, updated);
@@ -9775,24 +10092,33 @@ export function createStudioServer(initialConfig, root) {
                     bookId: id,
                     agent: "foundation-reviewer",
                     agentLabel: "建书复审官",
-                    stage: `地基验收通过：${assessment.score} 分，可以写书`,
+                    stage: `地基通过：结构 ${assessment.score} · 质量 ${qualityScore ?? "—"} 分，可以写书`,
                     score: assessment.score,
-                    repaired,
+                    qualityScore,
+                    repaired: gate.repaired,
                 });
-                broadcast("foundation:validated", { bookId: id, score: assessment.score, ready: true, repaired });
-                return c.json({ ok: true, ready: true, score: assessment.score, repaired, assessment, book: updated });
+                broadcast("foundation:validated", { bookId: id, score: assessment.score, qualityScore, ready: true, repaired: gate.repaired });
+                return c.json({ ok: true, ready: true, score: assessment.score, qualityScore, repaired: gate.repaired, assessment: richAssessment, qualityReview: quality, book: updated });
+            }
+            // 未通过：若是质量未达标，把状态压回 needs-foundation 以拦截写章
+            let updated = book;
+            if (quality && !quality.pass && book.status && book.status !== "needs-foundation") {
+                updated = { ...book, status: "needs-foundation", updatedAt: new Date().toISOString() };
+                await state.saveBookConfig(id, updated);
             }
             await appendBookAgentEvent(root, id, "foundation:blocked", {
                 bookId: id,
                 agent: "foundation-reviewer",
                 agentLabel: "建书复审官",
-                stage: `地基验收未通过：${assessment.score} 分`,
+                stage: `地基未通过：结构 ${assessment.score} · 质量 ${qualityScore ?? "—"} 分`,
                 score: assessment.score,
-                repaired,
-                blockers: assessment.blockers,
+                qualityScore,
+                repaired: gate.repaired,
+                blockers: gate.blockers,
+                weakDims: weak,
             });
-            broadcast("foundation:blocked", { bookId: id, score: assessment.score, ready: false, repaired, blockers: assessment.blockers });
-            return c.json({ ok: true, ready: false, score: assessment.score, repaired, assessment });
+            broadcast("foundation:blocked", { bookId: id, score: assessment.score, qualityScore, ready: false, repaired: gate.repaired, blockers: gate.blockers, weakDims: weak });
+            return c.json({ ok: true, ready: false, score: assessment.score, qualityScore, repaired: gate.repaired, assessment: richAssessment, qualityReview: quality });
         }
         catch (error) {
             return c.json({ ok: false, error: String(error) }, 500);
@@ -10242,6 +10568,38 @@ export function createStudioServer(initialConfig, root) {
                     void appendActivityLog(root, "book:reference-save-warn", { bookId: createdBookId, agent: "architect", stage: "参考文件存档失败", error: e instanceof Error ? e.message : String(e) });
                 }
             }
+            // 地基质量闸：架构师建完后，让建书复审官真打分（不是数字数）。质量不达标→拦成 needs-foundation，不进入写章。
+            try {
+                const gate = await enforceFoundationQualityGate(state, root, createdBookId, { autoRepair: true, maxRounds: 1, loadConfig: loadCurrentProjectConfig });
+                if (!gate.ready && gate.quality && !gate.quality.pass) {
+                    const weak = (gate.quality.weakDims || []).map((d) => `${d.label}(${d.score})`).join("、");
+                    const blockedStage = `地基质量未达标：结构 ${gate.structuralScore} · 质量 ${gate.qualityScore} 分`;
+                    const blockedReason = `建书复审官判定地基质量不足${weak ? `（最拖分：${weak}）` : (gate.quality.blockers.length ? `（${gate.quality.blockers.join("；")}）` : "")}，已拦截，未进入写章。`;
+                    updateBookCreateStatus(createdBookId, {
+                        allowCreate: true,
+                        status: "needs-foundation",
+                        stage: blockedStage,
+                        agent: "foundation-reviewer",
+                        agentLabel: "建书复审官",
+                        failureReason: blockedReason,
+                        suggestion: "点『重新验收地基』让建书复审官定向补强最拖分的维度，或手动改设定后重试。",
+                        ...(book ? { book } : {}),
+                    });
+                    await updateTaskRun(root, run.id, {
+                        bookId: createdBookId,
+                        status: "error",
+                        completed: 0,
+                        currentAgent: "foundation-reviewer",
+                        currentStage: blockedStage,
+                        failureReason: blockedReason,
+                        suggestion: "点『重新验收地基』让建书复审官定向补强最拖分的维度，或手动改设定后重试。",
+                        results: [{ type: "book", bookId: createdBookId, needsFoundation: true, qualityBlocked: true }],
+                    }, { kind: "book:needs-foundation", agent: "foundation-reviewer", stage: blockedStage, failureReason: blockedReason });
+                    broadcast("book:needs-foundation", { bookId: createdBookId, runId: run.id, ...(book ? { book } : {}), needsFoundation: true, qualityScore: gate.qualityScore, failureReason: blockedReason });
+                    return;
+                }
+            }
+            catch { /* 质量闸故障绝不破坏建书主流程，落回 created */ }
             updateBookCreateStatus(createdBookId, {
                 allowCreate: true,
                 status: "created",
@@ -11552,8 +11910,8 @@ export function createStudioServer(initialConfig, root) {
                                 role: "system",
                                 content: [
                                     "你是长篇小说低分章节修复总编，兼任状态交接官。只输出紧凑 JSON，不要 Markdown，不要解释过程。",
-                                    "目标：一次成稿把本章修到 90+ 发布级。必须逐条处理 quality.reasons 和 gate.blockers。",
-                                    "这是低分复修任务，不是点评任务。你必须改写并返回完整章节正文，不能只复述建议、不能返回原文、不能只做同义替换。",
+                                    "目标：把本章修到目标分发布级。【定向修复铁律】只改对综合分拖累最大的维度(见下方策略指令里点名的维度)对应的句段；其余已达标的段落必须原文逐段照抄、一字不改，严禁为了『全改一遍』而推倒重写好的部分（那会破坏已写好内容、分数乱跳、还更慢）。",
+                                    "这是低分复修任务，不是点评任务。revised 字段必须是完整章节正文（改动处改、未改处照抄原文），不能只复述建议、不能只做同义替换。",
                                     "这是质量自适应复修：系统会根据复审分数决定是否允许下一轮。你不能假设还有下一轮，必须在本次 revised 里直接解决最低分指标。",
                                     "如果上一轮修复失败，必须显式吸收上一轮失败原因，优先修复阻断项；不要重复上一轮无效策略。",
                                     "系统会传入 repairProfile。若 plateau 为 true，说明已经连续卡在相近分数，禁止继续小修小补，必须重排场景拍点、因果链和段落节奏。",
@@ -12770,7 +13128,9 @@ export function createStudioServer(initialConfig, root) {
         const fromChapter = body.fromChapter == null ? undefined : Math.max(1, Number(body.fromChapter) || 0) || undefined;
         const toChapter = body.toChapter == null ? undefined : Math.max(1, Number(body.toChapter) || 0) || undefined;
         const rangeTotal = fromChapter && toChapter && toChapter >= fromChapter ? (toChapter - fromChapter + 1) : 0;
-        const total = Math.max(1, Math.min(100, rangeTotal || Number(body.chapters) || 1));
+        // 直播/无人值守模式:章数上限放宽到 1000、永不硬停(低分接受继续写)、不被旧章门禁拦截。
+        const livestream = body.livestream === true || body.neverStop === true;
+        const total = Math.max(1, Math.min(livestream ? 1000 : 100, rangeTotal || Number(body.chapters) || 1));
         const wordCount = Number(body.wordCount ?? body.targetWordsPerChapter) || undefined;
         const _batchBook = await state.loadBookConfig(id).catch(() => null);
         const _batchBookScore = Number(_batchBook?.targetScore || _batchBook?.writing?.targetScore) || 0;
@@ -12780,7 +13140,7 @@ export function createStudioServer(initialConfig, root) {
         // 轻中重档位:连续写也读 body.mode + 激活等级 → 限档(与单章 write-next 一致;未指定 mode = 既有 max 行为)
         const _activationForBatch = await loadActivation(root).catch(() => null);
         const batchWriteIntensity = resolveWriteIntensity(body.mode, _activationForBatch?.tier);
-        if (body.ignoreExistingQualityGate !== true) {
+        if (body.ignoreExistingQualityGate !== true && !livestream) {
             const qualityBlocker = await findExistingQualityGateBlocker(id, targetScore);
             if (qualityBlocker) {
                 const payload = qualityGateBlockedPayload(id, qualityBlocker, targetScore, "write-batch");
@@ -12797,6 +13157,7 @@ export function createStudioServer(initialConfig, root) {
         broadcast("batch:start", { bookId: id, runId: run.id, total, fromChapter, toChapter, wordCount, targetScore, targetQuality: targetScore, maxRewritesPerChapter, autoRepair });
         (async () => {
             const results = [];
+            let consecutiveErrors = 0; // 直播模式:连续瞬时错误计数,达上限才真放弃
             const platformContext = await bookPlatformExternalContext(id);
             for (let i = 0; i < total; i++) {
                 try {
@@ -12825,6 +13186,7 @@ export function createStudioServer(initialConfig, root) {
                     let gate = await evaluateGeneratedChapterGate(id, result, targetScore, { targetWordCount: wordCount });
                     let finalResult = gate.result;
                     results.push(finalResult);
+                    consecutiveErrors = 0; // 本章写出来了,API 正常,瞬时错误计数清零
                     if (gate.needsRepair && autoRepair && Number(result.chapterNumber || 0)) {
                         const startPayload = { bookId: id, runId: run.id, chapterNumber: result.chapterNumber, index: i + 1, total, targetScore, scoreBefore: gate.score, agent: "reviser", agentLabel: "修稿师", stage: `第 ${result.chapterNumber} 章未过 ${targetScore}+，自动复修后再写下一章` };
                         void appendBookAgentEvent(root, id, "batch:auto-repair:start", startPayload);
@@ -12860,6 +13222,23 @@ export function createStudioServer(initialConfig, root) {
                         results[results.length - 1] = finalResult;
                     }
                     if (gate.needsRepair) {
+                        if (livestream) {
+                            // 直播/无人值守:绝不停。接受当前最好版本(已落库)、继续下一章。
+                            // 诚实标记 belowTarget(不是假装"人工 approved"):这些章会被 repair-quality-batch(按章号范围扫,不看状态)找到重修,
+                            // UI 也能据 belowTarget 显示真相,而不是被当成已确认合格章静默滑坡。
+                            try {
+                                const _idx = await state.loadChapterIndex(id).catch(() => []);
+                                const _list = Array.isArray(_idx) ? _idx : [];
+                                const _cn = Number(result.chapterNumber || 0);
+                                await state.saveChapterIndex(id, _list.map((ch) => (Number(ch.number ?? ch.chapterNumber) === _cn ? { ...ch, status: "approved", belowTarget: true, acceptedScore: gate.score ?? null, targetScore } : ch)));
+                            }
+                            catch { /* 标记失败不影响继续写 */ }
+                            const acc = { bookId: id, runId: run.id, ...finalResult, index: i + 1, total, score: gate.score, targetScore, acceptedBelowTarget: true };
+                            void appendBookAgentEvent(root, id, "write:accepted-below-target", { ...acc, agent: "quality-reporter", agentLabel: "质量报告官", stage: `第 ${result.chapterNumber} 章 ${gate.score ?? "--"} 分未达 ${targetScore}，直播模式已接受、继续下一章` });
+                            void updateTaskRun(root, run.id, { status: i + 1 >= total ? "done" : "running", completed: results.length, currentAgent: "quality-reporter", currentStage: `第 ${result.chapterNumber} 章已接受(${gate.score ?? "--"}分)，继续下一章` }, { kind: "write:accepted-below-target", stage: `第 ${result.chapterNumber} 章已接受继续`, agent: "quality-reporter", scoreAfter: gate.score });
+                            broadcast("write:accepted-below-target", acc);
+                            continue; // 关键:不 return,继续写下一章
+                        }
                         const payload = { bookId: id, runId: run.id, ...finalResult, index: i + 1, total, targetScore, failureReason: gate.failureReason, suggestion: gate.suggestion };
                         void appendBookAgentEvent(root, id, "write:needs-repair", payload);
                         void updateTaskRun(root, run.id, { status: "needs-repair", completed: results.length, currentAgent: "quality-reporter", currentStage: `第 ${result.chapterNumber} 章未过质量 Gate，暂停批量写作`, results, failureReason: gate.failureReason, suggestion: gate.suggestion }, { kind: "write:needs-repair", stage: `第 ${result.chapterNumber} 章未过质量 Gate，暂停批量写作`, agent: "quality-reporter", scoreAfter: gate.score });
@@ -12899,6 +13278,17 @@ export function createStudioServer(initialConfig, root) {
                     if (await broadcastStoppedIfCancelled(run.id, id))
                         return;
                     const error = e instanceof Error ? e.message : String(e);
+                    // 直播/无人值守:DeepSeek 超时/限流/网络抖动等瞬时错误 → 退避后重试本章,不终止整批。
+                    // 连续 5 次仍失败才认定是真问题(key 失效/额度耗尽)放弃。
+                    if (livestream && ++consecutiveErrors <= 5) {
+                        const backoff = Math.min(30000, 4000 * consecutiveErrors);
+                        void appendBookAgentEvent(root, id, "batch:transient-error", { runId: run.id, error, index: i + 1, total, retry: consecutiveErrors, agent: "guardian", agentLabel: "守护进程", stage: `第 ${i + 1} 章出错(${error.slice(0, 50)})，直播模式退避 ${Math.round(backoff / 1000)}s 重试 ${consecutiveErrors}/5` });
+                        broadcast("batch:transient-error", { bookId: id, runId: run.id, error, index: i + 1, total, retry: consecutiveErrors });
+                        void updateTaskRun(root, run.id, { status: "running", currentAgent: "guardian", currentStage: `第 ${i + 1} 章瞬时出错，退避重试 ${consecutiveErrors}/5`, completed: results.length }, { kind: "batch:transient-error", stage: `重试 ${consecutiveErrors}/5`, agent: "guardian", error });
+                        await new Promise((r) => setTimeout(r, backoff));
+                        i--; // 重试同一章位,不消耗章数预算
+                        continue;
+                    }
                     const failure = failureInfoForActivity("batch:error", { error, index: i + 1, total });
                     void appendBookAgentEvent(root, id, "batch:error", { runId: run.id, error, index: i + 1, total, failureReason: failure.reason, impact: failure.impact, suggestion: failure.suggestion });
                     void updateTaskRun(root, run.id, { status: "error", error, failureReason: failure.reason, suggestion: failure.suggestion, completed: results.length, currentStage: `第 ${i + 1}/${total} 章失败`, results }, { kind: "batch:error", stage: `第 ${i + 1}/${total} 章失败`, agent: "writer", error, failureReason: failure.reason });
