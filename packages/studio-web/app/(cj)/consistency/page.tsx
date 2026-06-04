@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { fetchChapters, fetchQuality } from "@/lib/api/client"
 import type { QualityMetrics } from "@/lib/api/types"
 import { useWorkspace } from "@/lib/workspace-context"
+import { blockerLabel, blockerLabels } from "@/lib/blocker-labels"
 import { CjPlaceholder } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { AgentPixel } from "@/components/design/agent-pixel"
@@ -41,7 +42,7 @@ function qualityPrompt(scan: Scan) {
     ].join("\n")
   }
 
-  const blockers = q.gate?.blockers?.length ? q.gate.blockers.join("；") : "无阻塞项"
+  const blockers = q.gate?.blockers?.length ? blockerLabels(q.gate.blockers).join("；") : "无阻塞项"
   const dims = DIMS.map(({ key, label }) => `${label}:${Math.round(Number(q[key] ?? 0))}`).join(" / ")
   return [
     `请修复第 ${scan.num} 章《${scan.title}》的质量问题。`,
@@ -134,7 +135,7 @@ export default function ConsistencyPage() {
             <span className="pill" data-state="warn"><span className="dot" />门禁 {q.gate?.target ?? 85}</span>
           </div>
           {blockers.length > 0
-            ? <div className="blk">{blockers.map((b, i) => <span className="tag warn" key={i}>{b}</span>)}</div>
+            ? <div className="blk">{blockers.map((b, i) => <span className="tag warn" key={i}>{blockerLabel(b)}</span>)}</div>
             : <div className="id">未过门禁,但无具名阻塞项 — 拉齐下方最低维度即可达标。</div>}
           {q.gate?.repairStrategy && <div className="gate-note">修复策略 · {q.gate.repairStrategy}</div>}
           <div className="dims">

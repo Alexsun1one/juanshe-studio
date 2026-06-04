@@ -1885,6 +1885,10 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   z-index: 1;
   display: block;
   object-fit: contain;
+  /* 关键修复:任何道具都不得高过容器(减去底部 ~13px 锚距)。书架/书柜这类偏高的图原来按宽度定尺寸、height:auto,
+     在矮容器里会从顶部溢出(实测溢出上百 px,且容器 overflow:visible 不裁剪)。max-height 让它自动缩到容器内、按比例收窄,
+     小道具(猫/绿植/信)远低于此上限不受影响。% 相对场景高度,自适应任意容器,不挑页面。 */
+  max-height: calc(100% - 16px);
   filter: var(--brand-asset-filter, saturate(1)) drop-shadow(0 7px 12px rgba(74, 58, 36, 0.14));
 }
 .eps-prop {

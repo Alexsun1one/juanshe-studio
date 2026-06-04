@@ -35,6 +35,7 @@ import {
   Radar,
   Search,
   Send,
+  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   Sun,
@@ -115,6 +116,7 @@ const NAV: NavGroup[] = [
       { href: "/publish", label: "发布管理", icon: Send, pixelKind: "publish" },
       { href: "/insights", label: "洞察中心", icon: Activity, pixelKind: "insights" },
       { href: "/detect", label: "检测台", icon: Radar, pixelKind: "detect" },
+      { href: "/consistency", label: "一致性扫描", icon: ShieldCheck },
     ],
   },
   {

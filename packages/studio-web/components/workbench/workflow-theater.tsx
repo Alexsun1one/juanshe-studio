@@ -370,6 +370,8 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
   // 计时:第一次 isRunning=true 开始计时;只在 mode 变 closed 时重置,
   // 不再因为 isRunning 短暂掉 false 就清零(那会让计时器在阶段切换间频繁归零)
   const startedAt = React.useRef<number | null>(null)
+  // 记住"当前在第几步 + 何时切到这步",用于在焦点条显示"本阶段已用时 Ns"(会跳的数字 = 最强的"没卡住"信号)。
+  const stageTrackRef = React.useRef<{ idx: number; at: number }>({ idx: -1, at: 0 })
   const [elapsed, setElapsed] = React.useState<string>("00:00")
   React.useEffect(() => {
     if (isRunning && startedAt.current === null) startedAt.current = Date.now()
@@ -445,6 +447,14 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
   const currentStep = currentStepIdx >= 0 ? stepStatuses[currentStepIdx] : undefined
   const nextStep = nextStepIdx >= 0 ? stepStatuses[nextStepIdx] : undefined
   const doneCount = stepStatuses.filter((s) => s.status === "done").length
+  // 本阶段已用时(秒):阶段一变就把"起算时刻"重置。组件每秒重渲(elapsed tick)→ 这个数字会持续跳动,
+  // 让审稿/复核这种"无正文流"的阶段也明确"在动",而不是被误判成卡死。
+  if (currentStepIdx !== stageTrackRef.current.idx) {
+    stageTrackRef.current = { idx: currentStepIdx, at: Date.now() }
+  }
+  const stageSeconds = currentStepIdx >= 0
+    ? Math.max(0, Math.floor((Date.now() - stageTrackRef.current.at) / 1000))
+    : 0
 
   // 拆段;只把"已稳定"的段交给 typewriter 不太现实(typewriter 拿到的是累计 full text)
   // 直接用累计 text 拆 → 渲染多个 <p>。最后一段会有 caret。
@@ -557,11 +567,13 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
         {/* ─── 当前角色聚焦条 — 压成一行,挪到 pipeline 下面紧贴 ───── */}
         <div className="theater-focus">
           {currentStep ? (
-            <div className="tf-strip" style={{ ["--c" as string]: currentFid ? agentColor(currentFid) : "var(--brand-500)" }}>
+            // key 跟随当前步:阶段一变就重挂载 → 触发一次 enter 动画(整条闪一下),让"切到下一步"被眼睛抓住。
+            <div key={currentStepIdx} className="tf-strip" style={{ ["--c" as string]: currentFid ? agentColor(currentFid) : "var(--brand-500)" }}>
               {currentFid && <span className="tf-strip-avatar"><AgentPixel id={currentFid} size={28} ariaLabel={nameOf(currentFid)} /></span>}
               <span className="tf-strip-step">第 {currentStepIdx + 1}/{PIPELINE_STEPS.length} 步</span>
               <span className="tf-strip-name">{currentFid ? nameOf(currentFid) : currentStep.step.label}</span>
-              <span className="tf-strip-doing">正在 <b>{currentStep.step.label}</b></span>
+              <span className="tf-strip-doing">正在 <b>{currentStep.step.label}</b><span className="tf-dots" aria-hidden><i /><i /><i /></span></span>
+              <span className="tf-strip-secs" title="本阶段已用时 · 数字在跳=正在运行,没有卡住">{stageSeconds}s</span>
               <span className="tf-strip-hint">{activity.currentText || currentStep.step.hint}</span>
               {nextStep && (
                 <span className="tf-strip-next">

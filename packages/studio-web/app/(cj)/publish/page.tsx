@@ -164,6 +164,9 @@ export default function PublishPage() {
             <div className="page-sub">
               《{activeTitle ?? "—"}》多平台变现 —— 取最新成稿,按公众号 / 小红书 / 知乎 / X / Newsletter 格式发布。
             </div>
+            <div className="page-sub" style={{ opacity: 0.62 }}>
+              本页管「发布进度与平台频道」 · 单篇排版格式去「平台导出」、成品总览去「内容库」。
+            </div>
           </div>
           <button type="button" className="btn primary pub-head-cta" onClick={() => router.push("/compose")}>
             <Send size={13} /> 去多平台创作

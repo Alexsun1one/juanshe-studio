@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import { useT, useLocale } from "@/lib/i18n"
 import { useStudio } from "@/lib/studio-context"
 import { createAutoRun, validateBookFoundation } from "@/lib/api/client"
+import { blockerLabel } from "@/lib/blocker-labels"
 import type { BookFoundationValidateResult } from "@/lib/api/types"
 import { useOutline, useProjectPrefs } from "@/hooks/use-studio"
 import { useToast } from "@/hooks/use-toast"
@@ -362,7 +363,7 @@ function foundationBlockers(gate: BookFoundationValidateResult) {
   const blockers = gate.blockers.length
     ? gate.blockers
     : gate.assessment?.blockers ?? []
-  return blockers.slice(0, 3).join("；")
+  return blockers.slice(0, 3).map(blockerLabel).join("；")
 }
 
 function ChapterStatusBadge({ status }: { status: string }) {

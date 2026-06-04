@@ -206,7 +206,7 @@ export default function KnowledgePage() {
             <span className="kg-headline-sub">
               <span className="bk">《{active?.title.zh ?? "—"}》</span>
               <span className="sep" aria-hidden />
-              角色 / 派系 / 关系全景
+              角色社交网 · 派系阵营与人物关系（区别于「故事图谱」的全实体自动图）
               {graph?.updatedAt ? (
                 <>
                   <span className="sep" aria-hidden />

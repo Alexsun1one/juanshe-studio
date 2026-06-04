@@ -333,6 +333,41 @@
   margin: 0 4px;
 }
 .theater-focus .tf-strip-next > span:first-child { color: #6E5BFA; margin-right: 4px; }
+
+/* 切阶段时整条闪入一下(key 变→remount→重放),让"进了下一步"被眼睛抓住,而不是悄无声息地换。 */
+.theater-focus .tf-strip { animation: tf-strip-enter .5s cubic-bezier(.16, 1, .3, 1); }
+@keyframes tf-strip-enter {
+  0%   { background: color-mix(in srgb, var(--c, #6E5BFA) 40%, transparent); transform: translateX(-7px); opacity: .3; }
+  60%  { background: color-mix(in srgb, var(--c, #6E5BFA) 22%, transparent); }
+  100% { background: color-mix(in srgb, var(--c, #6E5BFA) 10%, transparent); transform: none; opacity: 1; }
+}
+/* "正在 X" 后面跳动的三个点 —— 持续运动 = 明确"在干活",尤其救审稿/复核这种无正文流的阶段。 */
+.theater-focus .tf-dots { display: inline-flex; align-items: flex-end; gap: 2px; margin-left: 4px; }
+.theater-focus .tf-dots i {
+  width: 3px; height: 3px; border-radius: 50%;
+  background: color-mix(in srgb, var(--c, #6E5BFA) 62%, white);
+  animation: tf-dot-blink 1.2s ease-in-out infinite;
+}
+.theater-focus .tf-dots i:nth-child(2) { animation-delay: .18s; }
+.theater-focus .tf-dots i:nth-child(3) { animation-delay: .36s; }
+@keyframes tf-dot-blink {
+  0%, 75%, 100% { opacity: .22; transform: translateY(0); }
+  38%           { opacity: 1; transform: translateY(-3px); }
+}
+/* 本阶段已用时秒数:一个会跳的数字,是用户判断"没卡死"最直接的证据。 */
+.theater-focus .tf-strip-secs {
+  font-family: var(--font-num, ui-monospace, monospace);
+  font-size: 11px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--c, #6E5BFA) 58%, white);
+  background: color-mix(in srgb, var(--c, #6E5BFA) 14%, transparent);
+  padding: 2px 7px; border-radius: 999px;
+  flex-shrink: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .theater-focus .tf-strip { animation: none; }
+  .theater-focus .tf-dots i { animation: none; opacity: .7; transform: none; }
+}
 /* 旧 tf-now / tf-next 选择器已废弃,JSX 全部用 tf-strip。死代码清除 */
 .theater-focus .tf-idle {
   padding: 14px 18px;

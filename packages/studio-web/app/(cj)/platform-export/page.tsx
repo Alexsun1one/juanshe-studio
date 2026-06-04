@@ -333,6 +333,9 @@ export default function PlatformExportPage() {
             <div className="page-sub pe-sub">
               一份正文，按目标平台即时排版预览，复制即成品——公众号/知乎富文本、小红书/X 纯文本带话题，粘进编辑器无需二次排版。
             </div>
+            <div className="page-sub pe-sub" style={{ opacity: 0.62 }}>
+              本页只管「单篇排版导出」 · 成品总览去「内容库」、发布进度与平台频道去「发布管理」。
+            </div>
           </div>
 
           <div className="pe-export-group">

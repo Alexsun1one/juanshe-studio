@@ -42,6 +42,7 @@ const ROUTES: Route[] = [
   { href: "/publish", label: "发布管理", pixelKind: "publish", keywords: "publish fabu" },
   { href: "/insights", label: "洞察中心", pixelKind: "insights", keywords: "insights dongcha" },
   { href: "/detect", label: "检测台", pixelKind: "detect", keywords: "detect jiance" },
+  { href: "/consistency", label: "一致性扫描", keywords: "consistency yizhixing shangjia gate jiancha" },
   { href: "/runs", label: "运行台", pixelKind: "runs", keywords: "runs yunxing" },
   { href: "/system", label: "系统与智能体", pixelKind: "system", keywords: "system xitong agent" },
   { href: "/agents", label: "Agent 实验室", pixelKind: "agents", keywords: "agents shiyanshi" },

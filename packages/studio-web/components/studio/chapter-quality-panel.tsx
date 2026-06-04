@@ -4,6 +4,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 import { useStudio } from "@/lib/studio-context"
 import { useChapterQualityRaw } from "@/hooks/use-studio"
+import { blockerLabels } from "@/lib/blocker-labels"
 
 /** 9 维评分的中文名 + 出版级硬门槛（仅作配色参考） */
 const DIM: { key: string; label: string; floor: number }[] = [
@@ -152,7 +153,7 @@ export function ChapterQualityPanel() {
       {/* 阻断项 / 原因 */}
       {blockers.length > 0 && (
         <div className="text-status-warning mt-2 text-[10.5px] leading-snug">
-          阻断：{blockers.join(" · ")}
+          阻断：{blockerLabels(blockers).join(" · ")}
         </div>
       )}
       {reasons.length > 0 && (

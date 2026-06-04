@@ -230,6 +230,9 @@ export default function LibraryPage() {
             <div className="lib-headline-sub">
               <EarnPath current="asset" />
             </div>
+            <div className="page-sub" style={{ opacity: 0.62 }}>
+              本页汇总「成品 + 章节」资产总览 · 单篇排版去「平台导出」、发布上架去「发布管理」。
+            </div>
           </div>
           <div className="lib-head-act" role="group" aria-label="可变现下一步">
             {tab === "drafts" ? (

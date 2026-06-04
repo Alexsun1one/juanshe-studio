@@ -36,6 +36,7 @@ import {
 } from "@/lib/api/client"
 import type { BookSummary } from "@/lib/api/types"
 import { ENDPOINTS } from "@/lib/api/types"
+import { blockerLabels } from "@/lib/blocker-labels"
 import { useWorkspace } from "@/lib/workspace-context"
 import { getBookReadiness } from "@/lib/studio/book-readiness"
 import { AgentPixel } from "@/components/design/agent-pixel"
@@ -361,7 +362,7 @@ export default function BooksPage() {
       } else {
         toast.message("地基仍有缺口", {
           description:
-            res.blockers?.slice(0, 2).join(" · ") ||
+            blockerLabels(res.blockers).slice(0, 2).join(" · ") ||
             "请到大纲页补齐设定后再续写。",
         })
       }

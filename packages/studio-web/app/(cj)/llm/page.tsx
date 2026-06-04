@@ -51,7 +51,7 @@ import { PixelBadge } from "@/components/design/pixel-badge"
 import { KpiChip, FoldCard } from "@/components/design/kit"
 import "./llm.css"
 
-type Preset = { id: string; name: string; baseUrl: string; model: string; hint: string }
+type Preset = { id: string; name: string; baseUrl: string; model: string; hint: string; cost?: string }
 type LLMConfirmAction = {
   title: string
   description: string
@@ -62,13 +62,13 @@ type LLMConfirmAction = {
 
 // 预填网址 + 默认模型 —— 用户只需粘一个 Key 即可。
 const PRESETS: Preset[] = [
-  { id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat", hint: "深度求索 · 高性价比" },
-  { id: "openai", name: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o", hint: "GPT-4o / o 系列" },
-  { id: "moonshot", name: "Moonshot · Kimi", baseUrl: "https://api.moonshot.cn/v1", model: "moonshot-v1-32k", hint: "月之暗面 · 长上下文" },
-  { id: "zhipu", name: "智谱 GLM", baseUrl: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-plus", hint: "清华智谱" },
-  { id: "qwen", name: "通义千问", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus", hint: "阿里 · OpenAI 兼容" },
-  { id: "siliconflow", name: "硅基流动", baseUrl: "https://api.siliconflow.cn/v1", model: "deepseek-ai/DeepSeek-V3", hint: "多模型聚合" },
-  { id: "openrouter", name: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o", hint: "全球模型聚合" },
+  { id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat", hint: "深度求索 · 高性价比", cost: "成本极低" },
+  { id: "openai", name: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o", hint: "GPT-4o / o 系列", cost: "成本偏高" },
+  { id: "moonshot", name: "Moonshot · Kimi", baseUrl: "https://api.moonshot.cn/v1", model: "moonshot-v1-32k", hint: "月之暗面 · 长上下文", cost: "成本适中" },
+  { id: "zhipu", name: "智谱 GLM", baseUrl: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-plus", hint: "清华智谱", cost: "成本适中" },
+  { id: "qwen", name: "通义千问", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus", hint: "阿里 · OpenAI 兼容", cost: "成本适中" },
+  { id: "siliconflow", name: "硅基流动", baseUrl: "https://api.siliconflow.cn/v1", model: "deepseek-ai/DeepSeek-V3", hint: "多模型聚合", cost: "随模型而定" },
+  { id: "openrouter", name: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o", hint: "全球模型聚合", cost: "随模型而定" },
   { id: "custom", name: "自定义", baseUrl: "", model: "", hint: "手填地址与模型" },
 ]
 
@@ -113,6 +113,17 @@ function connStatus(p: LLMProvider, tested: { ok: boolean; latencyMs: number } |
   return { tone: "pending", label: "待测试" }
 }
 
+// 把后端原始连通错误翻成"作者能照做的一句话":别只丢一个 401/ECONNREFUSED 给非技术用户。
+function describeConnError(raw?: string): string {
+  const e = String(raw ?? "").toLowerCase()
+  if (/401|403|unauthor|invalid.*(key|api)|api.?key|forbidden|no permission/.test(e)) return "API Key 可能无效或没权限 — 请核对密钥是否复制完整、是否已开通该模型"
+  if (/429|rate|quota|insufficient|balance|余额|欠费|exceed/.test(e)) return "额度不足或被限流 — 请检查账户余额 / 充值,或稍后再试"
+  if (/timeout|etimedout|econnrefused|enotfound|econnreset|network|fetch failed|socket|dns|getaddrinfo/.test(e)) return "连不上服务器 — 请检查网络 / 代理是否开启,或服务地址是否正确"
+  if (/404|not found|no such model|model.*(not|unknown|invalid)|unsupported model/.test(e)) return "地址或模型名可能不对 — 请核对服务地址与默认模型名"
+  if (/cors|mixed content|ssl|certificate/.test(e)) return "证书 / 跨域问题 — 请确认服务地址用的是 https 且可直连"
+  return raw ? `服务返回:${raw}` : "未知错误 — 可检查密钥、网络、服务地址与模型名"
+}
+
 export default function LLMConfigPage() {
   const { data: providers, mutate, isLoading } = useSWR("llm-providers", fetchLLMProviders)
   const [testing, setTesting] = React.useState<Record<string, boolean>>({})
@@ -148,12 +159,12 @@ export default function LLMConfigPage() {
       const r = await testLLMProvider(id)
       setResults((s) => ({ ...s, [id]: r }))
       if (r.ok) toast.success(`连通成功 · ${r.latencyMs}ms`)
-      else toast.error(`连通失败:${r.error ?? "未知错误"}`)
+      else toast.error("连通失败", { description: describeConnError(r.error) })
       mutate()
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setResults((s) => ({ ...s, [id]: { ok: false, latencyMs: 0, error: msg } }))
-      toast.error(`测试失败:${msg}`)
+      toast.error("测试失败", { description: describeConnError(msg) })
     } finally {
       setTesting((t) => ({ ...t, [id]: false }))
     }
@@ -232,7 +243,7 @@ export default function LLMConfigPage() {
       await mutate()
       await executeTest(created.id)
     } catch (e) {
-      toast.error(`保存失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("保存失败", { description: describeConnError(e instanceof Error ? e.message : String(e)) })
     } finally {
       setSaving(false)
     }
@@ -456,7 +467,7 @@ export default function LLMConfigPage() {
                       <span className="llm-preset-ic" aria-hidden><Ico size={15} /></span>
                       <span className="llm-preset-text">
                         <span className="pn">{p.name}</span>
-                        <span className="ph">{p.hint}</span>
+                        <span className="ph">{p.hint}{p.cost ? <em className="llm-preset-cost"> · {p.cost}</em> : null}</span>
                       </span>
                     </button>
                   )
@@ -471,20 +482,38 @@ export default function LLMConfigPage() {
                   </label>
                   <input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如 DeepSeek" />
                 </div>
-                <div className="llm-fld">
-                  <label>
-                    <span className="llm-fld-ic" aria-hidden><Link2 size={13} /></span>
-                    服务地址 (Base URL) <span className="req">*</span>
-                  </label>
-                  <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.deepseek.com/v1" />
-                </div>
-                <div className="llm-fld">
-                  <label>
-                    <span className="llm-fld-ic" aria-hidden><Cpu size={13} /></span>
-                    默认模型 <span className="req">*</span>
-                  </label>
-                  <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="deepseek-chat" />
-                </div>
+                {preset.id === "custom" ? (
+                  <>
+                    <div className="llm-fld">
+                      <label>
+                        <span className="llm-fld-ic" aria-hidden><Link2 size={13} /></span>
+                        服务地址 (Base URL) <span className="req">*</span>
+                      </label>
+                      <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.deepseek.com/v1" />
+                    </div>
+                    <div className="llm-fld">
+                      <label>
+                        <span className="llm-fld-ic" aria-hidden><Cpu size={13} /></span>
+                        默认模型 <span className="req">*</span>
+                      </label>
+                      <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="deepseek-chat" />
+                    </div>
+                  </>
+                ) : (
+                  // 选了预设时,地址与模型已自动配好,普通作者无需关心这两个技术字段——
+                  // 只读摘要给个确认即可,把焦点收窄到"贴 API Key 就能用"。要改去「自定义」。
+                  <div className="llm-fld llm-fld-auto">
+                    <label>
+                      <span className="llm-fld-ic" aria-hidden><Cpu size={13} /></span>
+                      已自动配置
+                    </label>
+                    <div className="llm-auto-summary" title={`服务地址 ${baseUrl}`}>
+                      模型 <b>{model}</b>
+                      <span className="llm-auto-url">{baseUrl}</span>
+                      <span className="llm-auto-tip">需自定义地址/模型?选上方「自定义」</span>
+                    </div>
+                  </div>
+                )}
                 <div className="llm-fld">
                   <label>
                     <span className="llm-fld-ic" aria-hidden><KeyRound size={13} /></span>
