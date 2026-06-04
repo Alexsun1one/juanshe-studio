@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { BookConfig } from "../models/book.js";
 import type { ChapterMeta } from "../models/chapter.js";
 import { bootstrapStructuredStateFromMarkdown, resolveDurableStoryProgress } from "./state-bootstrap.js";
+import { atomicWriteFile } from "../utils/fs-atomic.js";
 
 export class StateManager {
   /** Books actively being written by this process — used for same-process stale lock detection. */
@@ -265,12 +266,62 @@ export class StateManager {
 
   async loadChapterIndex(bookId: string): Promise<ReadonlyArray<ChapterMeta>> {
     const indexPath = join(this.bookDir(bookId), "chapters", "index.json");
+    let raw: string;
     try {
-      const raw = await readFile(indexPath, "utf-8");
+      raw = await readFile(indexPath, "utf-8");
+    } catch {
+      return []; // 文件不存在 = 正常的"还没有章节",不是损坏
+    }
+    try {
       return JSON.parse(raw);
+    } catch {
+      // index.json 损坏(半截 / 非法 JSON)绝不能静默当成"没有章节" —— 否则整本书会在 UI 里凭空消失,
+      // 而 chapters/*.md 其实都还在盘上。备份坏文件,再从磁盘真实存在的章节文件重建最小索引,书至少不丢。
+      try {
+        await writeFile(`${indexPath}.corrupt-${process.pid}`, raw, "utf-8");
+      } catch { /* 备份失败忽略 */ }
+      const rebuilt = await this.rebuildChapterIndexFromDisk(bookId).catch(() => [] as ChapterMeta[]);
+      if (rebuilt.length > 0) {
+        await this.saveChapterIndex(bookId, rebuilt).catch(() => undefined); // 原子写回干净 index
+      }
+      return rebuilt;
+    }
+  }
+
+  /** index.json 损坏时的兜底:扫 chapters/*.md 重建最小章节索引(number/title/status),避免整本书"消失"。 */
+  private async rebuildChapterIndexFromDisk(bookId: string): Promise<ChapterMeta[]> {
+    const chaptersDir = join(this.bookDir(bookId), "chapters");
+    let files: string[];
+    try {
+      files = await readdir(chaptersDir);
     } catch {
       return [];
     }
+    const mdFiles = files.filter((f) => f.endsWith(".md") && /\d{1,4}/.test(f)).sort();
+    const now = new Date().toISOString();
+    const metas: ChapterMeta[] = [];
+    for (const f of mdFiles) {
+      const m = f.match(/(\d{1,4})/);
+      if (!m) continue;
+      const number = Number(m[1]);
+      if (!Number.isInteger(number) || number < 1) continue;
+      let title = "";
+      try {
+        const body = await readFile(join(chaptersDir, f), "utf-8");
+        title = body.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? "";
+      } catch { /* 读不到正文就留空标题 */ }
+      metas.push({
+        number,
+        title: title || `第 ${number} 章`,
+        status: "ready-for-review",
+        wordCount: 0,
+        createdAt: now,
+        updatedAt: now,
+        auditIssues: [],
+        lengthWarnings: [],
+      });
+    }
+    return metas;
   }
 
   async saveChapterIndex(
@@ -286,10 +337,9 @@ export class StateManager {
   ): Promise<void> {
     const chaptersDir = join(bookDir, "chapters");
     await mkdir(chaptersDir, { recursive: true });
-    await writeFile(
+    await atomicWriteFile(
       join(chaptersDir, "index.json"),
       JSON.stringify(index, null, 2),
-      "utf-8",
     );
   }
 

@@ -144,6 +144,10 @@ export class PlannerAgent extends BaseAgent {
       currentFocus: seedMaterials.currentFocus,
       storyFrame: seedMaterials.storyBible,
       recyclableHooks: memorySelection.recyclableHooks,
+      // P1-6: 把"语义召回的历史相关章"和"当前卷纲节点"喂进 memo —— planner 原来只看最近 3 章,
+      // 导致长线被遗忘、爽点/冲突跨卷重复、跑题。现在它能看到早年埋的线和本卷该往哪收。
+      recalledSummaries: renderSummarySnapshot(memorySelection.summaries, input.book.language ?? "zh"),
+      volumeDirection: String(outlineNode ?? ""),
       // Phase hotfix 4: thread book language through so the planner uses
       // English prompts (system + user template + golden opening guidance)
       // for English books instead of always-Chinese.
@@ -194,6 +198,8 @@ export class PlannerAgent extends BaseAgent {
     readonly currentFocus?: string;
     readonly storyFrame?: string;
     readonly recyclableHooks?: ReadonlyArray<StoredHook>;
+    readonly recalledSummaries?: string;
+    readonly volumeDirection?: string;
     readonly language?: "zh" | "en";
   }): Promise<ChapterMemo> {
     const [characterMatrix, subplotBoard, emotionalArcs, pendingHooks, bookRulesRaw] = await Promise.all([
@@ -234,6 +240,8 @@ export class PlannerAgent extends BaseAgent {
         input.chapterNumber,
         language,
       ),
+      recalledSummaries: input.recalledSummaries ?? "",
+      volumeDirection: input.volumeDirection ?? "",
       isGoldenOpening: input.isGoldenOpening,
       bookRulesRelevant: bookRulesRaw.trim().length > 0 ? bookRulesRaw.trim() : noBookRules,
       brief: input.brief ?? "",

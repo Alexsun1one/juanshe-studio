@@ -122,8 +122,14 @@ export class ArchitectAgent extends BaseAgent {
       await readGenreProfile(this.ctx.projectRoot, book.genre);
     const resolvedLanguage = book.language ?? gp.language;
 
-    const contextBlock = externalContext
-      ? `\n\n## 外部指令\n以下是来自外部系统的创作指令，请将其融入设定中：\n\n${externalContext}\n`
+    // brief 预算:外部指令(用户 brief)无上限拼进 system prompt 会挤占小输出模型本就紧张的 token 预算 → 正文被截断缺段。
+    // 提炼要点即可、不需逐字照搬;过长则截断并提示模型自行提炼。
+    const briefBudget = 3000;
+    const trimmedExternal = externalContext && externalContext.length > briefBudget
+      ? `${externalContext.slice(0, briefBudget)}\n（……外部指令较长，以上为要点；请提炼为设定，不要逐字照抄，也不要因为它长就少写后面的 SECTION。）`
+      : externalContext;
+    const contextBlock = trimmedExternal
+      ? `\n\n## 外部指令\n以下是来自外部系统的创作指令，请提炼融入设定（不要逐字照搬）：\n\n${trimmedExternal}\n`
       : "";
     const reviewFeedbackBlock = this.buildReviewFeedbackBlock(reviewFeedback, resolvedLanguage);
     const revisePrompt = options?.reviseFrom
@@ -158,16 +164,16 @@ export class ArchitectAgent extends BaseAgent {
     // 于是 parseSections 报"缺必需段落",新建书随机失败。两道防线:
     //   1) requireComplete=true → provider 层流中断不再吞半截,先整段重跑(最多 2 次),仍不全才抛;
     //   2) 本循环 → 缺段(模型漏写/写错段名)带补段提示重发;流中断/超时彻底失败则整段重生成。
+    // deepseek 等"输出上限 ~8k token"的模型一次吐不完整份 ~1.8 万字基础设定 → 必然截断缺段。
+    // 修法:累积式补缺段——把每次响应解析到的 SECTION 并入累积表(已有好段不被空补丁覆盖),
+    // 只对"还缺的那几段"追问(不整篇重来、不回灌上次长输出),凑齐即交付。小输出模型也能分批写完、不丢已写好的部分。
     const MAX_FOUNDATION_ATTEMPTS = 3;
-    let repairFollowup: { assistant: string; instruction: string } | null = null;
+    const accumulated = new Map<string, string>();
+    let missingInstruction: string | null = null;
     let lastErr: unknown;
     for (let attempt = 0; attempt <= MAX_FOUNDATION_ATTEMPTS; attempt++) {
-      const messages: LLMMessage[] = repairFollowup
-        ? [
-            ...baseMessages,
-            { role: "assistant", content: repairFollowup.assistant },
-            { role: "user", content: repairFollowup.instruction },
-          ]
+      const messages: LLMMessage[] = missingInstruction
+        ? [...baseMessages, { role: "user", content: missingInstruction }]
         : baseMessages;
       let response;
       try {
@@ -176,28 +182,37 @@ export class ArchitectAgent extends BaseAgent {
           requireComplete: true,
         });
       } catch (e) {
-        // chat 层(流中断/超时)内部重试耗尽后抛出 → 整段重生成,不做补段拼接(半截内容已不可信)。
+        // chat 层(流中断/超时)内部重试耗尽后抛出 → 重试;累积表保留,已写好的段不丢。
         lastErr = e;
-        repairFollowup = null;
         if (attempt >= MAX_FOUNDATION_ATTEMPTS) break;
         this.ctx.logger?.warn(
-          `架构师生成中断(${String((e as Error)?.message ?? e).slice(0, 80)}),整段重试 ${attempt + 1}/${MAX_FOUNDATION_ATTEMPTS}`,
+          `架构师生成中断(${String((e as Error)?.message ?? e).slice(0, 80)}),重试 ${attempt + 1}/${MAX_FOUNDATION_ATTEMPTS}`,
         );
         continue;
       }
+      // 并入本次解析到的段:非空、且累积表里这段还空时才收(避免后续短补丁覆盖已写好的长段)。
+      for (const [key, value] of this.extractSectionMap(response.content)) {
+        if (value && value.trim() && !(accumulated.get(key) ?? "").trim()) {
+          accumulated.set(key, value);
+        }
+      }
+      // 用累积内容重建后尝试解析:必填段齐了就成功交付。
+      const synthetic = [...accumulated.entries()]
+        .map(([key, value]) => `=== SECTION: ${key} ===\n${value}`)
+        .join("\n\n");
       try {
-        return this.parseSections(response.content, resolvedLanguage);
+        return this.parseSections(synthetic, resolvedLanguage);
       } catch (e) {
         // 只有"缺段"这类可补救错误才重试;其它解析错误(如角色块格式坏)直接抛。
         lastErr = e;
         const msg = e instanceof Error ? e.message : String(e);
         if (!/missing required section/i.test(msg) || attempt >= MAX_FOUNDATION_ATTEMPTS) throw e;
         const missing = msg.replace(/^[^:]*:\s*/, "");
-        this.ctx.logger?.warn(`架构师输出缺段(${missing}),自动补段重试 ${attempt + 1}/${MAX_FOUNDATION_ATTEMPTS}`);
-        const instruction = resolvedLanguage === "en"
-          ? `Your previous output is missing required section(s): ${missing}. Re-output the COMPLETE foundation with ALL required sections present. Each section MUST start on its own line exactly like "=== SECTION: story_frame ===" using these EXACT English keys: story_frame, volume_map, roles, book_rules, pending_hooks. Do NOT translate the section keys to other languages. Keep the good parts, add the missing one(s), output the full set again — nothing else.`
-          : `你上一次输出缺少必需段落:${missing}。请重新输出**完整**基础设定,五个必需段落一个都不能少。每段必须用单独一行 "=== SECTION: story_frame ===" 这样开头,且段名必须用这几个**英文 key 原样**:story_frame、volume_map、roles、book_rules、pending_hooks(不要把段名翻成中文)。保留已写好的部分、补上缺的,重新输出完整全套,别的话都不要。`;
-        repairFollowup = { assistant: response.content, instruction };
+        const have = [...accumulated.keys()].join(", ") || "（无）";
+        this.ctx.logger?.warn(`架构师缺段(${missing}),只补缺段重试 ${attempt + 1}/${MAX_FOUNDATION_ATTEMPTS}`);
+        missingInstruction = resolvedLanguage === "en"
+          ? `You already produced these sections: ${have}. Now output ONLY the missing section(s): ${missing}. Each must start on its own line exactly like "=== SECTION: story_frame ===" using the EXACT English keys (story_frame, volume_map, roles, book_rules, pending_hooks). Output ONLY the missing section(s) in full — do NOT rewrite the ones you already wrote, do NOT translate the keys, nothing else.`
+          : `你已经写好了这几段:${have}。现在**只**补这几段:${missing}。每段用单独一行 "=== SECTION: story_frame ===" 这样开头,段名用英文 key 原样(story_frame、volume_map、roles、book_rules、pending_hooks)。**只输出缺的这几段、写完整**,不要重写已有的、不要翻译段名,别的话都不要。`;
       }
     }
     throw lastErr;
@@ -642,11 +657,11 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
   // -------------------------------------------------------------------------
   // Parsing
   // -------------------------------------------------------------------------
-  private parseSections(content: string, language: "zh" | "en"): ArchitectOutput {
+  // 把 === SECTION: X === 文本解析成 key→内容 的 Map(不做必填校验,供累积式补缺段复用)。
+  private extractSectionMap(content: string): Map<string, string> {
     const parsedSections = new Map<string, string>();
     const sectionPattern = /^\s*===\s*SECTION\s*[：:]\s*([^\n=]+?)\s*===\s*$/gim;
     const matches = [...content.matchAll(sectionPattern)];
-
     for (let i = 0; i < matches.length; i++) {
       const match = matches[i]!;
       const rawName = match[1] ?? "";
@@ -655,6 +670,10 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
       const normalizedName = this.resolveSectionKey(rawName);
       parsedSections.set(normalizedName, content.slice(start, end).trim());
     }
+    return parsedSections;
+  }
+  private parseSections(content: string, language: "zh" | "en"): ArchitectOutput {
+    const parsedSections = this.extractSectionMap(content);
 
     // Phase 5 new sections take precedence.
     const storyFrame = parsedSections.get("story_frame") ?? "";

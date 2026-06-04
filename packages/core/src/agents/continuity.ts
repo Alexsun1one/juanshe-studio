@@ -718,7 +718,9 @@ ${hooksBlock}${volumeSummariesBlock}${subplotBlock}${emotionalBlock}${matrixBloc
     return {
       passed: false,
       issues: [{
-        severity: "critical",
+        // 解析失败是"审稿这次没跑成"的基础设施/格式问题,不是正文连续性问题。
+        // 标 info(不计入 critical),否则会让模型一次没吐出合法 JSON 就被当成连续性 critical:-16、封顶,误杀好章。
+        severity: "info",
         category: language === "en" ? "System Error" : "系统错误",
         description: language === "en"
           ? "Audit output format was invalid and could not be parsed as JSON."

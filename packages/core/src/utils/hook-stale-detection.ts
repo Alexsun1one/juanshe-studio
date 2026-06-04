@@ -71,9 +71,13 @@ export function computeHookDiagnostics(params: {
   for (const hook of hooks) {
     const halfLife = resolveHalfLifeChapters(hook as StoredHook);
     const plantedChapter = Math.max(0, hook.startChapter);
-    const distance = Math.max(0, currentChapter - plantedChapter);
+    // 沉默距离从"最后一次推进"算起,而非埋设章——否则一直在推进的慢热主线钩子,一到半衰期就被误判过期,
+    // 触发审稿官 critical、连续性 -16、总分封顶,逼出对健康伏笔的无意义返工(假阳性卡分的主因之一)。
+    const lastAdvanced = Math.max(0, Number((hook as StoredHook).lastAdvancedChapter) || 0);
+    const lastActiveChapter = Math.max(plantedChapter, lastAdvanced);
+    const distance = Math.max(0, currentChapter - lastActiveChapter);
 
-    // Stale: past half-life AND not resolved AND actually planted
+    // Stale: past half-life since last ADVANCE AND not resolved AND actually planted
     // (startChapter > 0 — a seed with startChapter 0 is a pre-planting seed).
     const stale = !isResolved(hook)
       && plantedChapter > 0

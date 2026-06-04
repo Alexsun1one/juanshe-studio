@@ -41,25 +41,39 @@ export async function validateChapterTruthPersistence(params: {
   readonly persistenceOutput: WriteChapterOutput;
   readonly auditResult: AuditResult;
 }> {
-  let validation: ValidationResult;
+  let validation: ValidationResult | null = null;
   let chapterStatus: "state-degraded" | null = null;
   let degradedIssues: ReadonlyArray<AuditIssue> = [];
   let persistenceOutput = params.persistenceOutput;
   let auditResult = params.auditResult;
 
-  try {
-    validation = await params.validator.validate(
-      params.content,
-      params.chapterNumber,
-      params.previousTruth.oldState,
-      persistenceOutput.updatedState,
-      params.previousTruth.oldHooks,
-      persistenceOutput.updatedHooks,
-      params.language,
-      params.authorityContext,
-    );
-  } catch (error) {
-    params.logger?.warn(`State validation error for chapter ${params.chapterNumber}: ${String(error)}`);
+  // 状态校验抛错往往是基础设施抖动(模型超时/空响应/偶发非结构化输出),与正文连续性无关。
+  // 先重试几次再判 —— 单次抖动就把好章封顶 74 是"修半天卡分"的机械成因之一;只有持续失败才降级。
+  let validateError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      validation = await params.validator.validate(
+        params.content,
+        params.chapterNumber,
+        params.previousTruth.oldState,
+        persistenceOutput.updatedState,
+        params.previousTruth.oldHooks,
+        persistenceOutput.updatedHooks,
+        params.language,
+        params.authorityContext,
+      );
+      validateError = null;
+      break;
+    } catch (error) {
+      validateError = error;
+      params.logger?.warn(`State validation error (attempt ${attempt + 1}/3) for chapter ${params.chapterNumber}: ${String(error)}`);
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
+    }
+  }
+  if (!validation) {
+    // 重试仍失败 = 基础设施持续不可用。安全回滚旧 state(避免用未校验的新 state 污染),标 warning(非"真矛盾");
+    // 仍走 state-degraded 以触发回滚,但 errorIssue 是 warning,下游据此知道这是"校验没跑成"而非正文坏。
+    const error = validateError;
     const errorDescription = params.language === "en"
       ? `State validation unavailable: ${String(error)}`
       : `状态校验不可用：${String(error)}`;

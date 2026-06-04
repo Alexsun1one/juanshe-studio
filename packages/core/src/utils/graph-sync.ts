@@ -67,13 +67,20 @@ export async function syncStoryGraph(params: {
       }
     }
 
-    // 2) 当前状态事实 → 已知实体的硬状态(单值)。只挂在"已是实体"的主语上,避免造出「主角/当前位置」之类垃圾节点。
+    // 2) 当前状态事实 → 硬状态。主角的状态 fact 主语常是字面 "protagonist"——
+    // 原逻辑因它不是已知实体而整条跳过,导致主角的伤/债/约束/位置永远进不了"自有真相源"图谱(连续性丢分的根因之一)。
+    // 这里把 protagonist/主角 这类别名规范到一个"主角"实体上(没有就建),让主角硬状态至少可查、可回灌给写手。
+    const PROTAGONIST_STATE_ALIASES = new Set(["protagonist", "主角", "主人公", "主角色", "the protagonist"]);
     const stateMd = await readFile(join(storyDir, "current_state.md"), "utf-8").catch(() => "");
     for (const fact of parseCurrentStateFacts(stateMd, ch)) {
-      const subject = (fact.subject || "").trim();
+      let subject = (fact.subject || "").trim();
       const object = String(fact.object || "").trim();
       if (!subject || !object) continue;
-      if (!db.getEntity(subject)) continue; // 非已知实体 → 跳过,保持图谱干净
+      if (PROTAGONIST_STATE_ALIASES.has(subject.toLowerCase())) {
+        subject = "主角";
+        if (!db.getEntity(subject)) db.upsertEntity({ name: subject, type: "person", chapter: ch });
+      }
+      if (!db.getEntity(subject)) continue; // 其它非已知实体仍跳过,保持图谱干净
       const r = db.addRelation({
         subjectId: MemoryDB.entityId(subject), predicate: (fact.predicate || "状态").slice(0, 40), object: object.slice(0, 200),
         objectIsEntity: false, validFromChapter: ch, validUntilChapter: null, sourceChapter: ch, singleValued: true,

@@ -42,6 +42,7 @@ import {
   sanitizeNarrativeEvidenceBlock,
 } from "../utils/narrative-control.js";
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
+import { atomicWriteFile } from "../utils/fs-atomic.js";
 import { join } from "node:path";
 import {
   readStoryFrame,
@@ -867,15 +868,16 @@ export class WriterAgent extends BaseAgent {
       language,
     );
 
+    // 正文不可再生:先原子写正文(确保它完整落盘),再写真相文件;每个文件都走原子写,杜绝崩溃/断电写一半。
+    await atomicWriteFile(join(chaptersDir, filename), chapterContent);
     const writes: Array<Promise<void>> = [
-      writeFile(join(chaptersDir, filename), chapterContent, "utf-8"),
-      writeFile(join(storyDir, "current_state.md"), runtimeStateArtifacts?.currentStateMarkdown ?? output.updatedState, "utf-8"),
-      writeFile(join(storyDir, "pending_hooks.md"), runtimeStateArtifacts?.hooksMarkdown ?? output.updatedHooks, "utf-8"),
+      atomicWriteFile(join(storyDir, "current_state.md"), runtimeStateArtifacts?.currentStateMarkdown ?? output.updatedState),
+      atomicWriteFile(join(storyDir, "pending_hooks.md"), runtimeStateArtifacts?.hooksMarkdown ?? output.updatedHooks),
     ];
 
     if (runtimeStateArtifacts?.chapterSummariesMarkdown) {
       writes.push(
-        writeFile(join(storyDir, "chapter_summaries.md"), runtimeStateArtifacts.chapterSummariesMarkdown, "utf-8"),
+        atomicWriteFile(join(storyDir, "chapter_summaries.md"), runtimeStateArtifacts.chapterSummariesMarkdown),
       );
     }
 
@@ -885,7 +887,7 @@ export class WriterAgent extends BaseAgent {
 
     if (numericalSystem) {
       writes.push(
-        writeFile(join(storyDir, "particle_ledger.md"), output.updatedLedger, "utf-8"),
+        atomicWriteFile(join(storyDir, "particle_ledger.md"), output.updatedLedger),
       );
     }
 
