@@ -8623,6 +8623,11 @@ export function createStudioServer(initialConfig, root) {
         current.status = "ready-for-review";
         current.auditIssues = [];
         current.updatedAt = new Date().toISOString();
+        // 章已复修达标:清掉"直播低分接受"残留标记。否则 belowTarget 会一直挂着,
+        // 让 findExistingQualityGateBlocker 永远重查这章(即便它现在分数够了),
+        // 是死锁/误拦的根源。达标即"诚实合格",这些字段必须一并清除。
+        delete current.belowTarget;
+        delete current.acceptedScore;
         await state.saveChapterIndex(bookId, chapters);
         const payload = { bookId, chapterNumber, agent: "quality-reporter", agentLabel: "质量报告官", stage: reason, scoreAfter: qualityPayload?.quality?.total };
         void appendBookAgentEvent(root, bookId, "quality-gate:auto-heal", payload);
@@ -8682,13 +8687,16 @@ export function createStudioServer(initialConfig, root) {
             chapterNumber: Number(chapter.chapterNumber ?? chapter.number ?? 0),
             title: chapter.title || "",
             status: chapter.status || "unknown",
+            // 必须把 belowTarget 带进投影,否则下面"approved 但 belowTarget 重查"的判断永远读到 undefined、形同虚设。
+            belowTarget: chapter.belowTarget === true,
         }))
             .filter((chapter) => Number.isInteger(chapter.chapterNumber) && chapter.chapterNumber > 0 && chapter.chapterNumber < beforeChapter)
             .sort((left, right) => left.chapterNumber - right.chapterNumber);
         for (const chapter of chapters) {
             // approved/ready 状态的章节已被人工确认通过，直接跳过质量检查——
             // 不跳过会导致旧 gate.pass=false 字段(按旧阈值存储)永远拦住续写。
-            if (chapter.status === "approved" || chapter.status === "ready" || chapter.status === "published") continue;
+            // approved/ready 跳过门禁——但"直播低分接受(belowTarget)"的伪 approved 必须重查,否则永久绕过门禁、质量滑坡。
+            if (((chapter.status === "approved" || chapter.status === "ready") && chapter.belowTarget !== true) || chapter.status === "published") continue;
             const payload = await buildChapterQualityPayload(state, bookId, chapter.chapterNumber).catch((error) => ({
                 bookId,
                 chapterNumber: chapter.chapterNumber,

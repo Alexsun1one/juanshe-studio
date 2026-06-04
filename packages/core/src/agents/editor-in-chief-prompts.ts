@@ -128,7 +128,7 @@ export function buildEditorInChiefUserMessage(s: EditorInChiefSignals): string {
   if (s.aiTone != null) {
     const floor = s.aiToneFloor ?? DEFAULT_AI_TONE_FLOOR;
     lines.push(
-      `【人味指数·正则粗筛】${fmtNum(s.aiTone)} / 100(参考线 ${floor};${s.aiTone < floor ? "偏低:请你读上下文确认是否真有 AI 腔——可能是高频好词误伤,也可能真空洞" : "正则未报警"})`,
+      `【人味指数】${fmtNum(s.aiTone)} / 100(红线 ${floor};${s.aiTone < floor ? "低于红线:AI 痕迹过重,必须返工去 AI 味" : "达标"})`,
     );
   }
   lines.push(`【字数】${s.wordCount} / 目标 ${s.targetWordCount}`);
@@ -210,35 +210,25 @@ export function parseEditorialVerdict(
         .slice(0, 6)
     : [];
   const risks = strList(obj.risks, 3);
-  // AI 味:正则人味指数只是"嫌疑线索",不是硬门禁——正则会冤枉高频好词(忽然/猛地),也会漏掉没踩词的通篇空洞,
-  // 真正判 AI 腔要总编读上下文(总编已在 user 消息里看到该指数)。
-  // 只有"严重过低"(egregious,红线再下探 25 分)才作为兜底强制返工;红线~严重之间仅作风险提示,尊重总编裁决。
+  // AI 味硬门禁:人味指数低于红线阈值 → 强制返工 + 派 polisher 去 AI 味。
+  // 即使 LLM 总编判了 pass、即使总分够,AI 痕迹过重也是不可放行的红线(本产品对"人味"要求极高,宁可误伤也不放过 AI 腔)。
   const aiToneFloor = opts.aiToneFloor ?? DEFAULT_AI_TONE_FLOOR;
-  const aiToneHardFloor = Math.max(0, aiToneFloor - 25);
   const aiToneNum =
     typeof opts.aiTone === "number" && Number.isFinite(opts.aiTone) ? opts.aiTone : null;
-  const aiToneEgregious = aiToneNum !== null && aiToneNum < aiToneHardFloor;
-  const aiToneSuspect = aiToneNum !== null && aiToneNum < aiToneFloor && !aiToneEgregious;
+  const aiToneBelowFloor = aiToneNum !== null && aiToneNum < aiToneFloor;
   let mutableRisks = risks;
-  if (aiToneEgregious) {
-    // 严重过低 → 兜底强制返工 + 派 polisher 去 AI 味。
+  if (aiToneBelowFloor) {
     verdict = "rework";
     if (!reworkTargets.some((t) => t.agent === "polisher")) {
       reworkTargets = [
         ...reworkTargets,
         {
           agent: "polisher",
-          what: `人味指数 ${Math.round(aiToneNum as number)} 严重过低(< ${aiToneHardFloor}),做去 AI 味润色(打散等长段落、删套话与公式化转折、把"直白命名情绪"改成可观察的动作/感官、替换陈词意象)`,
+          what: `人味指数 ${Math.round(aiToneNum as number)} 低于红线 ${aiToneFloor},做去 AI 味润色(打散等长段落、删套话与公式化转折、把"直白命名情绪"改成可观察的动作/感官、替换陈词意象)`,
         },
       ];
     }
-    const aiRisk = `AI 痕迹过重(人味 ${Math.round(aiToneNum as number)} < ${aiToneHardFloor}),未达签发标准`;
-    if (!mutableRisks.includes(aiRisk)) {
-      mutableRisks = [aiRisk, ...mutableRisks].slice(0, 3);
-    }
-  } else if (aiToneSuspect) {
-    // 红线~严重之间:只提示、不强制返工——尊重总编读完上下文的裁决(总编若自判 rework 仍生效)。
-    const aiRisk = `正则人味指数偏低(${Math.round(aiToneNum as number)} < ${aiToneFloor}),请确认是否真有 AI 腔(可能是高频好词误伤)`;
+    const aiRisk = `AI 痕迹过重(人味 ${Math.round(aiToneNum as number)} < ${aiToneFloor}),未达签发标准`;
     if (!mutableRisks.includes(aiRisk)) {
       mutableRisks = [aiRisk, ...mutableRisks].slice(0, 3);
     }

@@ -5,6 +5,7 @@ import type { BookRules } from "../models/book-rules.js";
 import { buildWriterSystemPrompt, type FanficContext } from "./writer-prompts.js";
 import { buildSettlerSystemPrompt, buildSettlerUserPrompt } from "./settler-prompts.js";
 import { buildObserverSystemPrompt, buildObserverUserPrompt } from "./observer-prompts.js";
+import { parseObserverLockedFacts, mergeLockedFactsMarkdown, type LockedFact } from "../utils/locked-facts.js";
 import { parseSettlerDeltaOutput } from "./settler-delta-parser.js";
 import { parseSettlementOutput } from "./settler-parser.js";
 import { readGenreProfile, readBookRules } from "./rules-reader.js";
@@ -165,6 +166,8 @@ export interface WriteChapterOutput {
     readonly suggestion: string;
   }>;
   readonly tokenUsage?: TokenUsage;
+  /** 本章 observer 抽取的"锁定事实"(不可变硬事实:死亡/真实身份/血缘/永久),由 saveChapter 合并进 story/locked_facts.md → graph-sync 锁进 canon。 */
+  readonly lockedFacts?: ReadonlyArray<LockedFact>;
 }
 
 export class WriterAgent extends BaseAgent {
@@ -581,6 +584,7 @@ export class WriterAgent extends BaseAgent {
       // P0-1 计数器升级:observer 确定性数出的"场景/人物超 memo 上限"并进 hookHealthIssues 通道 → auditIssues → 喂门禁/复修(不再只 log)。
       hookHealthIssues: [...hookHealthIssues, ...settleResult.sceneBudgetIssues],
       tokenUsage,
+      lockedFacts: settleResult.lockedFacts,
     };
   }
 
@@ -675,6 +679,7 @@ export class WriterAgent extends BaseAgent {
       postWriteErrors: [],
       postWriteWarnings: [],
       tokenUsage: settleResult.usage,
+      lockedFacts: settleResult.lockedFacts,
     };
   }
 
@@ -709,6 +714,7 @@ export class WriterAgent extends BaseAgent {
     };
     usage: TokenUsage;
     sceneBudgetIssues: ReadonlyArray<{ severity: "warning"; category: string; description: string; suggestion: string }>;
+    lockedFacts: ReadonlyArray<LockedFact>;
   }> {
     // Phase 2a: Observer — extract all facts from the chapter
     const resolvedLang = params.book.language ?? params.genreProfile.language;
@@ -738,6 +744,11 @@ export class WriterAgent extends BaseAgent {
         reason: describeError(error),
       });
     }
+
+    // 确定性解析 observer [锁定事实] 块 → 本章不可变硬事实(死亡/真实身份/血缘/永久)。
+    // 这是 canon 唯一可信的结构化源(详见 utils/locked-facts.ts);saveChapter 据此维护 story/locked_facts.md,
+    // graph-sync 再把它锁进 canon、做跨章硬矛盾检测。只认 observer 结构化输出,绝不从散文真相文件猜测(防假锁)。
+    const lockedFacts = parseObserverLockedFacts(observations, params.chapterNumber);
 
     // 确定性兜底:用 observer 的结构化观察数本章场景/有戏人物数,对照 memo「不要做」里的上限(planner 现在会写进去)。
     // observer 抽取由 LLM 识别、结构化,数它可靠;这是对 prompt 约束 + LLM 审稿主防线的确定性补充。
@@ -817,6 +828,7 @@ export class WriterAgent extends BaseAgent {
         }),
         usage: ZERO_USAGE,
         sceneBudgetIssues,
+        lockedFacts, // observer 在 settler 之前已跑完,锁定事实依旧有效,settler 失败不该丢掉它。
       };
     }
 
@@ -860,6 +872,7 @@ export class WriterAgent extends BaseAgent {
       settlement: mergedSettlement,
       usage: response.usage,
       sceneBudgetIssues,
+      lockedFacts,
     };
   }
 
@@ -896,6 +909,17 @@ export class WriterAgent extends BaseAgent {
       atomicWriteFile(join(storyDir, "current_state.md"), runtimeStateArtifacts?.currentStateMarkdown ?? output.updatedState),
       atomicWriteFile(join(storyDir, "pending_hooks.md"), runtimeStateArtifacts?.hooksMarkdown ?? output.updatedHooks),
     ];
+
+    // 锁定事实(canon 源):把本章 observer 抽取的不可变硬事实合并进 story/locked_facts.md(幂等、跨章累积),
+    // graph-sync 随后据此把 canon 锁进图谱并做跨章硬矛盾检测。observer 本章没抽到锁定事实则不动文件。
+    if (output.lockedFacts !== undefined) {
+      const lockedPath = join(storyDir, "locked_facts.md");
+      const existingLocked = await readFile(lockedPath, "utf-8").catch(() => "");
+      const mergedLocked = mergeLockedFactsMarkdown(existingLocked, output.lockedFacts, output.chapterNumber);
+      if (mergedLocked && mergedLocked !== existingLocked) {
+        writes.push(atomicWriteFile(lockedPath, mergedLocked));
+      }
+    }
 
     if (runtimeStateArtifacts?.chapterSummariesMarkdown) {
       writes.push(

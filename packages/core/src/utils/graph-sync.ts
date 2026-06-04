@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { MemoryDB } from "../state/memory-db.js";
 import { parseCharacterMatrix } from "../knowledge/character-matrix.js";
 import { parseCurrentStateFacts } from "./story-markdown.js";
+import { parseLockedFactsFile } from "./locked-facts.js";
 
 /** 一条结构化矛盾:新章在推翻一条已确立的"不可变事实"(死亡/血缘/身份/永久),不是合法状态更新。 */
 export interface GraphContradiction {
@@ -124,6 +125,32 @@ export async function syncStoryGraph(params: {
       const r = db.addRelation(relToWrite);
       if (r.inserted) relationsAdded++;
       superseded += r.superseded;
+    }
+
+    // 3) 锁定事实文件 → canon。observer 抽取的不可变硬事实(死亡/真实身份/血缘/永久)是 canon 唯一可信结构化源:
+    //    current_state.md 只有可变的"当前X"字段、character_matrix.md 把这些埋在散文里,都不能确定性抽取(散文抽取会假锁)。
+    //    详见 utils/locked-facts.ts。只处理"本章新锁定"的事实(避免每章重复报旧矛盾);canon 表 INSERT OR IGNORE 负责跨章累积、首值不可逆。
+    const lockedMd = await readFile(join(storyDir, "locked_facts.md"), "utf-8").catch(() => "");
+    for (const fact of parseLockedFactsFile(lockedMd)) {
+      if (fact.chapter !== ch) continue;
+      const subject = fact.subject.trim();
+      const predicate = fact.predicate.trim().slice(0, 40);
+      const object = fact.object.trim().slice(0, 200);
+      if (!subject || !predicate || !object) continue;
+      // 锁定事实的主语是真实角色名(canon 主体,必须可查):没有实体就建一个,再锁。
+      if (!db.getEntity(subject)) {
+        db.upsertEntity({ name: subject, type: "person", chapter: ch });
+        entitiesUpserted++;
+      }
+      const canonConflict = db.findCanonContradiction(subject, predicate, object);
+      if (canonConflict) {
+        contradictions.push({
+          subject, predicate, oldObject: canonConflict.lockedObject, newObject: object,
+          establishedChapter: canonConflict.lockedSinceChapter, chapter: ch,
+          description: `第${ch}章「${subject}·${predicate}=${object}」违反第${canonConflict.lockedSinceChapter}章锁定的 canon「${canonConflict.lockedObject}」——硬矛盾,请确认。`,
+        });
+      }
+      db.lockCanonFact(subject, predicate, object, ch);
     }
 
     return { entitiesUpserted, relationsAdded, superseded, contradictions };

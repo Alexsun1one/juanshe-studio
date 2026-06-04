@@ -271,10 +271,19 @@ export function extractQueryTerms(goal: string, outlineNode: string | undefined,
   ]).slice(0, 12);
 }
 
+let warnedMemoryDbUnavailable = false;
 function openMemoryDB(bookDir: string): MemoryDB | null {
   try {
     return new MemoryDB(bookDir);
-  } catch {
+  } catch (error) {
+    // SQLite(node:sqlite,Node 22+)不可用时,canon 锁定/矛盾守门/图谱记忆会整条静默退化到 markdown 兜底。
+    // 至少 warn 一次,否则用户完全无法察觉"连续性预防已关闭"(老 Node 环境的高危静默失效)。
+    if (!warnedMemoryDbUnavailable) {
+      warnedMemoryDbUnavailable = true;
+      console.warn(
+        `[memory] SQLite 记忆库不可用,canon/矛盾守门/图谱召回已退化到 markdown 兜底(连续性预防能力下降)。原因:${(error as Error)?.message ?? error}`,
+      );
+    }
     return null;
   }
 }
@@ -432,6 +441,9 @@ async function semanticRerankSummaries(
   const queryVec = vectors[0];
   if (!queryVec || queryVec.length === 0) return null; // embedding 不可用 → 上层退回词面
   const candidateVecs = vectors.slice(1);
+  // embedding 服务可能少返向量(超时/部分失败):向量数与候选池不齐时 candidateVecs[i]=undefined,
+  // 传进 hybridRank 会让 cosine 的 .length 崩或排序静默错乱。数量不齐就整体退回词面(上层 ?? lexical)。
+  if (candidateVecs.length !== pool.length) return null;
   const ranked = hybridRank({
     queryVec,
     candidates: pool.map((entry, index) => ({ lexicalScore: entry.lex, vec: candidateVecs[index] })),
@@ -480,6 +492,8 @@ async function semanticRerankFacts(
   const queryVec = vectors[0];
   if (!queryVec || queryVec.length === 0) return null; // embedding 不可用 → 上层退回词面
   const candidateVecs = vectors.slice(1);
+  // 同上:向量数与候选池不齐(embedding 少返)就退回词面,避免 undefined 向量进 hybridRank。
+  if (candidateVecs.length !== pool.length) return null;
   const ranked = hybridRank({
     queryVec,
     candidates: pool.map((e, i) => ({ lexicalScore: e.lex, vec: candidateVecs[i] })),

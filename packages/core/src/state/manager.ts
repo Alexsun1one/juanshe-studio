@@ -297,11 +297,13 @@ export class StateManager {
     } catch {
       return [];
     }
-    const mdFiles = files.filter((f) => f.endsWith(".md") && /\d{1,4}/.test(f)).sort();
+    // 章节文件名是 padStart(4) 的章号前缀(如 0001_标题.md);≥5 位章号不能用 \d{1,4} 截断(会把 12345 取成 1234),
+    // 锚定到整段数字前缀;并按解析出的数字"数值排序"(而非字典序,否则 10000 会排在 2000 前)。
+    const mdFiles = files.filter((f) => f.endsWith(".md") && /^\d+[_-]/.test(f));
     const now = new Date().toISOString();
     const metas: ChapterMeta[] = [];
     for (const f of mdFiles) {
-      const m = f.match(/(\d{1,4})/);
+      const m = f.match(/^(\d+)/);
       if (!m) continue;
       const number = Number(m[1]);
       if (!Number.isInteger(number) || number < 1) continue;
@@ -321,6 +323,7 @@ export class StateManager {
         lengthWarnings: [],
       });
     }
+    metas.sort((a, b) => a.number - b.number);
     return metas;
   }
 

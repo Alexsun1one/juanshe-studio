@@ -224,10 +224,13 @@ async function collectSelectedContext(
       excerpt: formatEntityCardExcerpt(card),
     }));
     // ② canon 预防:全书已锁定的不可变事实(死亡/血缘/真实身份/永久)——最高优先注入,写手绝不能违反/推翻。
-    const canonEntries = memorySelection.canonFacts.length > 0 ? [{
+    // 防御性上限:canon 是最高优先级"绝不违反"块,但若病态地累积上百条,无界注入会挤爆 prompt。
+    // 取最近锁定的 120 条(现实里 canon 远小于此,不会丢事实;只挡住失控膨胀)。
+    const canonForInjection = memorySelection.canonFacts.slice(-120);
+    const canonEntries = canonForInjection.length > 0 ? [{
       source: "story/graph#canon",
       reason: "全书已锁定的不可变事实(canon)——绝对不能违反、不能推翻。",
-      excerpt: "【锁定事实·绝不能违反】\n" + memorySelection.canonFacts.map((f) => `- ${f.subject}·${f.predicate} = ${f.object}（第${f.lockedSinceChapter}章锁定,不可逆）`).join("\n"),
+      excerpt: "【锁定事实·绝不能违反】\n" + canonForInjection.map((f) => `- ${f.subject}·${f.predicate} = ${f.object}（第${f.lockedSinceChapter}章锁定,不可逆）`).join("\n"),
     }] : [];
 
     return [
