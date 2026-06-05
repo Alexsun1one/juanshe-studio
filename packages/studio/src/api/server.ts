@@ -2348,7 +2348,7 @@ function repairCircuitBreakerDecision(history, targetScore) {
     }
     return { blocked: false, bestScore, latestScore, attempts: recent.length, textAttempts: textFailedRuns.length, ignoredInfrastructureFailures: infrastructureFailures.length };
 }
-function qualityHasCriticalBlocker(qualityPayload) {
+export function qualityHasCriticalBlocker(qualityPayload) {
     const q = qualityPayload?.quality ?? qualityPayload ?? {};
     const blockers = q.gate?.blockers ?? [];
     const reasons = q.reasons ?? [];

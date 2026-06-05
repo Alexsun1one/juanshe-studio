@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isHardContinuityCritical, computeChapterQualityScore } from "./server.js";
+import { isHardContinuityCritical, computeChapterQualityScore, qualityHasCriticalBlocker } from "./server.js";
 
 // Path B 回归测试:critical 分级(硬伤 ×16+门禁+封顶 / LLM 软 critical ×5)。
 // 这块没有专门测试时,对抗审查抓到过假阴性(审稿官写"牺牲/殒命"漏网)+ 复修空转两个真 bug,
@@ -80,5 +80,35 @@ describe("computeChapterQualityScore · Path B 端到端", () => {
     expect(r.stats.hardCriticals).toBe(0);
     expect(r.metrics.continuity).toBeGreaterThanOrEqual(90);
     expect(r.gate.blockers).not.toContain("critical-audit");
+  });
+});
+
+describe("qualityHasCriticalBlocker · 自动复修只认硬伤(Path B bug#2 回归)", () => {
+  it("硬伤(critical-audit blocker)→ true", () => {
+    expect(qualityHasCriticalBlocker({ gate: { blockers: ["critical-audit"] }, reasons: [], stats: { hardCriticals: 1, softCriticals: 0, criticals: 1 } })).toBe(true);
+  });
+  it("纯软 critical → false:不再让自动复修永远 pass=false 空转(这正是修复点)", () => {
+    expect(qualityHasCriticalBlocker({
+      gate: { blockers: [] },
+      reasons: ["2 条疑似问题会影响连续性或阅读信任,建议核查。"],
+      stats: { hardCriticals: 0, softCriticals: 2, criticals: 2 },
+    })).toBe(false);
+  });
+  it("硬伤 reason(blocker 为空但 reason 含'硬伤')→ true", () => {
+    expect(qualityHasCriticalBlocker({
+      gate: { blockers: [] },
+      reasons: ["1 条硬伤(死亡/血缘/身份/时间线/设定矛盾)必须优先修。"],
+      stats: { hardCriticals: 1 },
+    })).toBe(true);
+  });
+  it("state-degraded → true", () => {
+    expect(qualityHasCriticalBlocker({ gate: { blockers: ["state-degraded"] }, reasons: [], stats: { hardCriticals: 0 } })).toBe(true);
+  });
+  it("旧 payload(无 hardCriticals 字段)回退到总数 criticals", () => {
+    expect(qualityHasCriticalBlocker({ gate: { blockers: [] }, reasons: [], stats: { criticals: 1 } })).toBe(true);
+    expect(qualityHasCriticalBlocker({ gate: { blockers: [] }, reasons: [], stats: { criticals: 0 } })).toBe(false);
+  });
+  it("接受 {quality:{...}} 外层包装", () => {
+    expect(qualityHasCriticalBlocker({ quality: { gate: { blockers: [] }, reasons: [], stats: { hardCriticals: 0, softCriticals: 1 } } })).toBe(false);
   });
 });
