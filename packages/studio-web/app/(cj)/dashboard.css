@@ -77,6 +77,19 @@
   background: color-mix(in oklab, var(--brand-500) 12%, transparent);
   color: var(--brand-600);
 }
+/* 低分章就地修复:暖橙描边 pill,醒目但不报警;紧贴分数右侧,点一下就派修稿师复修 */
+.cj-dashboard .ds-repair {
+  align-self: center; margin-left: 10px;
+  padding: 5px 13px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; white-space: nowrap; cursor: pointer;
+  color: var(--warn-600, var(--warn-500));
+  background: color-mix(in oklab, var(--warn-500) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--warn-500) 34%, transparent);
+  transition: background var(--motion-fast, .15s) var(--ease-soft, ease), transform var(--motion-fast, .15s) var(--ease-soft, ease);
+}
+.cj-dashboard .ds-repair:hover { background: color-mix(in oklab, var(--warn-500) 20%, transparent); }
+.cj-dashboard .ds-repair:active { transform: translateY(1px); }
+.cj-dashboard .ds-repair:disabled { opacity: 0.6; cursor: default; transform: none; }
 
 /* 顶部质量行 — 五维细分 chip + 运行指标,一行铺开,横线分隔,数据原地变化 */
 .cj-dashboard .dash-quality {

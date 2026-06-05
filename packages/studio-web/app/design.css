@@ -1188,6 +1188,7 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
    `.app button { padding:0; background:none; ... }`(0,1,1)顶掉的样式。 */
 .topbar .search-box {
   flex: 1;
+  min-width: 0; /* 让灵活的搜索框吸收窄宽挤压(已有 ellipsis),而非把右侧状态条/头像挤出裁切 */
   max-width: 520px;
   margin: 0 auto;
   display: flex; align-items: center; gap: 8px;
@@ -1217,8 +1218,10 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
 .cmdk-ico { width: 18px; height: 18px; flex: 0 0 18px; opacity: 0.92; shape-rendering: geometricPrecision; image-rendering: auto; }
 .cmdk-current { margin-left: auto; font-size: 10.5px; font-weight: 700; color: var(--brand-600); background: color-mix(in oklab, var(--brand-500) 12%, transparent); padding: 1px 7px; border-radius: 999px; }
 .cmdk-running { margin-left: 6px; font-size: 10.5px; font-weight: 600; color: var(--ok-600, var(--ok-500)); }
+/* 动作/角色项右侧的次要说明(去工作台续写 / 主角…)——靠右、淡墨,不抢主标题 */
+.cmdk-hint { margin-left: auto; padding-left: 12px; font-size: 11px; font-weight: 400; color: var(--ink-400); white-space: nowrap; }
 
-.tb-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.tb-right { display: flex; align-items: center; gap: 12px; margin-left: auto; flex-shrink: 0; }
 .sync-chip {
   display: flex; align-items: center; gap: 7px;
   font-size: 12.5px; color: var(--ink-600);
@@ -1235,6 +1238,8 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   padding: 5px 10px;
   border-radius: var(--r-pill);
   font-weight: 600;
+  white-space: nowrap; /* 窄宽下绝不竖向折行成一条发胖的绿块 */
+  flex-shrink: 0;
 }
 .env-chip .dot {
   width: 6px; height: 6px; border-radius: 50%;
@@ -1394,6 +1399,22 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--ink-500);
+}
+/* 运行状态按钮 —— 把"N 个任务运行中"从死文字变成可点的跨页入口(→ 运行台) */
+.desktop-status-tasks {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: none; background: none; padding: 2px 6px;
+  margin: -2px -2px -2px -4px; border-radius: var(--r-sm, 6px);
+  font: inherit; color: inherit; cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft);
+}
+.desktop-status-tasks:hover { background: var(--bg-hover); color: var(--ink-600); }
+.desktop-status-tasks:focus-visible { outline: none; box-shadow: var(--ring); }
+.desktop-status-tasks.is-running { color: var(--ok-600); font-weight: 600; }
+.desktop-status-runs-dot {
+  width: 6px; height: 6px; border-radius: 999px; background: var(--ok-500);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ok-500) 18%, transparent);
+  animation: cj-breath 2s var(--ease-soft) infinite;
 }
 
 @media (max-width: 760px) {
@@ -2216,6 +2237,17 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
 .app .tk-ellipsis { color: var(--tk-punct); }                    /* 破折/省略:中性灰 */
 .app .tk-interjection { color: var(--tk-interjection); }         /* 叹词:玫瑰红 */
 .app .tk-thought { color: var(--tk-thought); font-style: italic; } /* 心理独白:静蓝 + 斜体 */
+/* 可点的人物/地点 —— 静止态与普通高亮无异(不打扰阅读);hover 才显"可点":下划线跟随本色 + 手型 */
+.app .tk-entity {
+  cursor: pointer; border-radius: 3px; padding: 0 1px;
+  text-decoration: underline dotted transparent; text-underline-offset: 3px;
+  transition: background var(--motion-fast, .15s) var(--ease-soft, ease),
+              text-decoration-color var(--motion-fast, .15s) var(--ease-soft, ease);
+}
+.app .tk-entity:hover {
+  text-decoration: underline solid currentColor;
+  background: color-mix(in oklab, currentColor 9%, transparent);
+}
 
 /* 会员等级徽章(顶栏作者名旁;Normal 不显示)—— 等级编进激活码,见 lib/use-author-name / login */
 .app .tier-badge {

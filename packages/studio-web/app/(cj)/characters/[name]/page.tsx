@@ -32,6 +32,16 @@ export default function EntityDetailPage() {
   )
 
   const goEntity = (n: string) => router.push(`/characters/${encodeURIComponent(n)}`)
+  // ③ 角色页反链:点出场章号直接回到该章沉浸阅读 —— 省掉"这人到底哪章出现过"的来回翻找
+  const goChapter = (n: number) => { if (n > 0) router.push(`/immersive?chapter=${n}`) }
+  const chapterLink = (n: number) =>
+    n > 0 ? (
+      <button type="button" className="e-ch-link num v-brand" onClick={() => goChapter(n)} title={`回到第 ${n} 章阅读`}>
+        {n}
+      </button>
+    ) : (
+      <b className="num v-brand">?</b>
+    )
 
   const outgoing = (data?.relations ?? []).filter((r) => !r.incoming)
   const incoming = (data?.relations ?? []).filter((r) => r.incoming)
@@ -70,7 +80,7 @@ export default function EntityDetailPage() {
               {data.entity.summary && <p className="e-summary">{data.entity.summary}</p>}
               <div className="e-facts">
                 {data.entity.aliases && <span className="e-fact">别名 · {data.entity.aliases}</span>}
-                <span className="e-fact">出场 · 第 <b className="num v-brand">{data.entity.firstChapter || "?"}</b>–<b className="num v-brand">{data.entity.lastChapter || "?"}</b> 章</span>
+                <span className="e-fact">出场 · 第 {chapterLink(data.entity.firstChapter)}–{chapterLink(data.entity.lastChapter)} 章</span>
                 <span className="e-fact"><Network size={11} /> <b className="num v-rose">{data.relations.length}</b> 关系 · <b className="num v-brand">{data.neighbors.length}</b> 邻居</span>
                 {data.source && <span className="e-fact">来源 · {data.source}</span>}
               </div>

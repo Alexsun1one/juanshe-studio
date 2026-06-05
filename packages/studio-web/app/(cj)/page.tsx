@@ -16,6 +16,7 @@ import {
   startWriteNextChapter,
   stopBookWorkflow,
   approveQualifyingChapters,
+  repairLowScore,
 } from "@/lib/api/client"
 import { useWorkspace } from "@/lib/workspace-context"
 import { NewBookDialog } from "@/components/workbench/new-book-dialog"
@@ -160,6 +161,11 @@ export default function CjDashboard() {
   // 首页写作器接入实时流式:正在写就把写手逐字正文打出来,而不是停在已保存的上一章。
   const live = useLiveRun(bookId)
   const proseDict = useEntityDict(bookId) // 人物/地点字典(story-graph),供正文语义分色
+  // 读到的人物/地点就地一点直达实体页 —— 减少"想查谁就得离开当前页去翻"的上下文切换负担
+  const goEntity = React.useCallback(
+    (name: string) => router.push(`/characters/${encodeURIComponent(name)}`),
+    [router],
+  )
   // 优雅逐字:无论上游一次推多少,前端都一个字一个字吐出来
   const typed = useTypewriter(live.text, live.active)
   // 实时流水线状态机:哪个 agent 已完成 / 正在跑 / 待命
@@ -278,6 +284,31 @@ export default function CjDashboard() {
         onApproveQualifying: bookId ? async () => { await approveQualifyingChapters(bookId, { targetScore: targetQuality }) } : undefined,
         bookId: bookId ?? undefined,
       })) toast.error(`触发失败:${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+  // 低分章一键复修:把"分数没到 → 我该怎么办"从"自己去翻流程"降成"就地点一下"。
+  // 会触发真实写作流水线(消耗 token),所以仅在未达标时暴露、需用户显式点击;后端自带防重复 + 熔断。
+  const onRepair = async () => {
+    if (!bookId) return
+    if (isRunning) {
+      toast.info("正在写作中", { description: "等当前章节写完,或先停止工作流,再复修本章。" })
+      return
+    }
+    setBusy(true)
+    try {
+      await repairLowScore(bookId, curChapter, { targetScore: targetQuality })
+      setPreparing(true)
+      toast.success(`已派修稿师复修第 ${curChapter} 章…`, {
+        description: `按 ${targetQuality} 分门槛复修,改完自动复验;修不到门槛不会硬放行。`,
+      })
+      run.refresh()
+    } catch (e) {
+      if (!showWriteBlockToast(e, {
+        onConfigureLlm: () => router.push("/llm"),
+        bookId: bookId ?? undefined,
+      })) toast.error(`复修触发失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBusy(false)
     }
@@ -450,6 +481,18 @@ export default function CjDashboard() {
               <span className="ds-grade">{quality?.band ?? gradeOf(overall)}</span>
             ) : null}
           </div>
+          {/* 低分章就地修复:分数没达标时,"修复"按钮直接长在分数旁,不必去翻一致性扫描/连续写流程 */}
+          {overall > 0 && overall < targetQuality && !isRunning && (
+            <button
+              type="button"
+              className="ds-repair"
+              onClick={onRepair}
+              disabled={busy}
+              title={`第 ${curChapter} 章 ${overall} 分未达 ${targetQuality} 分门槛 —— 派修稿师复修(会调用写作流水线、消耗 token)`}
+            >
+              {busy ? "复修中…" : "修复本章"}
+            </button>
+          )}
         </div>
         <div className="dash-meta">
           <span className="meta-cell">
@@ -561,9 +604,9 @@ export default function CjDashboard() {
               ) : manuscript?.paragraphs?.length ? (
                 manuscript.paragraphs.slice(0, 9).map((p, i) =>
                   p.quote ? (
-                    <p key={i}><span className="accent">{renderProse(p.zh, proseDict, `q${i}-`)}</span></p>
+                    <p key={i}><span className="accent">{renderProse(p.zh, proseDict, `q${i}-`, goEntity)}</span></p>
                   ) : (
-                    <p key={i}>{renderProse(p.zh, proseDict, `p${i}-`)}</p>
+                    <p key={i}>{renderProse(p.zh, proseDict, `p${i}-`, goEntity)}</p>
                   ),
                 )
               ) : (

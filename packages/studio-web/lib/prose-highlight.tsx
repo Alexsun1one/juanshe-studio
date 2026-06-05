@@ -160,17 +160,34 @@ export function tokenizeProse(text: string, dict?: EntityDict | null): ProseToke
   return out
 }
 
-/** 渲染为带语义 class 的 React 节点(default 不包 span,避免无谓 DOM) */
+/** 人物/地点点击回调:把"读到谁 → 想查谁"的上下文切换,从「离开当前页去翻」降成「就地一点」。 */
+export type EntityClick = (name: string, kind: "person" | "place") => void
+
+/** 渲染为带语义 class 的 React 节点(default 不包 span,避免无谓 DOM)。
+ *  传入 onEntity 时,已知人物/地点会变成可点的就地跳转(纯导航,不改变内联阅读排版)。 */
 export function renderProse(
   text: string,
   dict?: EntityDict | null,
   keyPrefix = "",
+  onEntity?: EntityClick | null,
 ): React.ReactNode[] {
-  return tokenizeProse(text, dict).map((tk, i) =>
-    tk.kind === "default"
-      ? <React.Fragment key={keyPrefix + i}>{tk.text}</React.Fragment>
-      : <span key={keyPrefix + i} className={`tk tk-${tk.kind}`}>{tk.text}</span>,
-  )
+  return tokenizeProse(text, dict).map((tk, i) => {
+    if (tk.kind === "default") return <React.Fragment key={keyPrefix + i}>{tk.text}</React.Fragment>
+    if (onEntity && (tk.kind === "person" || tk.kind === "place")) {
+      const name = tk.text
+      const kind = tk.kind
+      return (
+        <span
+          key={keyPrefix + i}
+          className={`tk tk-${kind} tk-entity`}
+          role="link"
+          title={`查看「${name}」`}
+          onClick={() => onEntity(name, kind)}
+        >{name}</span>
+      )
+    }
+    return <span key={keyPrefix + i} className={`tk tk-${tk.kind}`}>{tk.text}</span>
+  })
 }
 
 const SOFT_SWR = { revalidateOnFocus: false, dedupingInterval: 60_000, shouldRetryOnError: false }

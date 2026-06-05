@@ -275,6 +275,16 @@ export function triggerReview(
   return postJSON(ENDPOINTS.chapterReview(bookId, chapterNum))
 }
 
+/** 低分章一键复修:派修稿师按质量门槛复修指定章,复修后自动复验(后端自带防重复点击 + 熔断)。
+ *  会调用真实写作流水线、消耗 token —— UI 侧只在分数未达标时暴露,且需用户显式点击。 */
+export function repairLowScore(
+  bookId: string,
+  chapterNum: number,
+  body: { targetScore?: number } = {},
+): Promise<{ ok?: true; runId?: string; status?: string }> {
+  return postJSON(ENDPOINTS.chapterRepairLowScore(bookId, chapterNum), body)
+}
+
 export function triggerPublish(
   bookId: string,
   chapterNum: number,

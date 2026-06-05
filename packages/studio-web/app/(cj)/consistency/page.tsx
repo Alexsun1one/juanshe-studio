@@ -3,9 +3,9 @@
 import * as React from "react"
 import useSWR from "swr"
 import Link from "next/link"
-import { AlertTriangle, CheckCircle2, Copy, ExternalLink, FileWarning, ShieldCheck } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Copy, ExternalLink, FileWarning, ShieldCheck, Wrench } from "lucide-react"
 import { toast } from "sonner"
-import { fetchChapters, fetchQuality } from "@/lib/api/client"
+import { fetchChapters, fetchQuality, repairLowScore } from "@/lib/api/client"
 import type { QualityMetrics } from "@/lib/api/types"
 import { useWorkspace } from "@/lib/workspace-context"
 import { blockerLabel, blockerLabels } from "@/lib/blocker-labels"
@@ -114,6 +114,24 @@ export default function ConsistencyPage() {
     }
   }
 
+  // 上架闸里就地一键复修:点哪章修哪章,不必跳别处或手动喂提示词。
+  // 会触发真实写作流水线(耗 token);后端自带防重复 + 熔断,UI 侧一次只允许一章在修,避免并发烧 token。
+  const [repairing, setRepairing] = React.useState<number | null>(null)
+  const onRepair = async (scan: Scan & { q: QualityMetrics }) => {
+    if (!bookId || repairing !== null) return
+    setRepairing(scan.num)
+    try {
+      await repairLowScore(bookId, scan.num, { targetScore: scan.q.gate?.target })
+      toast.success(`已派修稿师复修第 ${scan.num} 章…`, {
+        description: "复修后自动复验质量;过一会儿回来刷新看新分。",
+      })
+    } catch (e) {
+      toast.error(`复修触发失败:${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setRepairing(null)
+    }
+  }
+
   // 按严重度分组:卡门禁(最该动手)→ 已达标(轻量收束)→ 报告缺失(补做)。组内保持新章在前。
   const failRows = rows.filter((s) => !s.q.gate?.pass)
   const passRows = rows.filter((s) => s.q.gate?.pass)
@@ -145,8 +163,17 @@ export default function ConsistencyPage() {
             })}
           </div>
           <div className="row-actions">
+            <button
+              type="button"
+              className="btn sm primary"
+              onClick={() => onRepair(s)}
+              disabled={repairing !== null}
+              title={`派修稿师把第 ${s.num} 章复修到 ${q.gate?.target ?? 85} 分门槛 —— 会调用写作流水线、消耗 token`}
+            >
+              <Wrench size={12} /> {repairing === s.num ? "复修中…" : "修复本章"}
+            </button>
             <Link className="btn sm" href={`/editor?chapter=${s.num}`}><ExternalLink size={12} /> 打开章节</Link>
-            <button type="button" className="btn sm primary" onClick={() => copyPrompt(s)}><Copy size={12} /> 复制修复提示</button>
+            <button type="button" className="btn sm" onClick={() => copyPrompt(s)}><Copy size={12} /> 复制提示词</button>
           </div>
         </div>
         <div className="right">

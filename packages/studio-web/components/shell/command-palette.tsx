@@ -1,15 +1,21 @@
 "use client"
 
 /**
- * CommandPalette —— 全局 ⌘K 搜索/跳转面板。
+ * CommandPalette —— 全局 ⌘K 命令中枢(搜索 / 跳转 / 动作)。
  *
- * 修复:顶栏那个"搜索作品、章节…⌘K"以前只是个死 div(无法输入、点了没反应)。
- * 现在它是真入口:⌘K 或点击都打开本面板,可搜索并跳转到任意页面、切换作品。
+ * 设计:命令面板是"按钮可以出现在任意页面"的最佳载体——一个作者无论身处哪一页,
+ * 都该能一键够到核心动词:写下一章、查质量门、导出/发布,以及直接跳到某个角色。
+ *
+ * 历史:顶栏那个"搜索作品、章节…⌘K"以前只是死 div;后来变成真入口但只能跳页面/切书,
+ * 搜角色名(如「沈砚」)会落空、与占位文案承诺不符。本次补上「动作」「角色」两组,
+ * 并把占位文案改成与实际能力一致。
  */
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import useSWR from "swr"
 import { useWorkspace } from "@/lib/workspace-context"
+import { fetchCast } from "@/lib/api/client"
 import { PixelBadge, type PixelBadgeKind } from "@/components/design/pixel-badge"
 import {
   CommandDialog,
@@ -52,6 +58,16 @@ const ROUTES: Route[] = [
   { href: "/shortcuts", label: "快捷键", pixelKind: "shortcuts", keywords: "shortcuts kuaijiejian" },
 ]
 
+/** 当前作品的核心动作 —— 让"写 / 验 / 发"这些动词从任意页面都能一键触达。
+ *  注意:都是安全的导航,不在面板里直接触发真实 LLM 写作(写作仍由工作台显式确认)。 */
+type BookAction = { href: string; label: string; hint: string; pixelKind: PixelBadgeKind; keywords: string }
+
+const BOOK_ACTIONS: BookAction[] = [
+  { href: "/", label: "写下一章", hint: "去工作台续写", pixelKind: "workbench", keywords: "xie write continue 续写 继续创作 下一章 写作" },
+  { href: "/consistency", label: "质量门 · 一致性", hint: "上架闸 / 修复低分章", pixelKind: "detect", keywords: "zhiliang gate xiufu 质量 修复 低分 一致性 上架 矛盾" },
+  { href: "/publish", label: "导出 / 发布", hint: "导出稿件 · 发到平台", pixelKind: "publish", keywords: "daochu fabu export publish 导出 发布 平台" },
+]
+
 export function CommandPalette({
   open,
   onOpenChange,
@@ -73,17 +89,87 @@ export function CommandPalette({
   const titleOf = (t: string | { zh: string; en: string } | undefined): string =>
     typeof t === "string" ? t : (t?.zh ?? "")
 
+  // 当前作品的角色 —— 仅在面板打开时懒加载,失败/空都安全降级(不渲染该组)。
+  const { data: cast } = useSWR(
+    open && bookId ? ["cmdk-cast", bookId] : null,
+    () => fetchCast(bookId),
+  )
+  const bookLabel = titleOf(books.find((b) => b.id === bookId)?.title) || "当前作品"
+
+  // ② 数字快速跳读:直接输入章号 → 一键读/编该章(超出当前书章数则不提示,避免跳到空章)
+  const [query, setQuery] = React.useState("")
+  const chapterCount = books.find((b) => b.id === bookId)?.chapterCount ?? 0
+  const typedN = /^\s*\d{1,4}\s*$/.test(query) ? parseInt(query.trim(), 10) : NaN
+  const jumpChapter =
+    bookId && Number.isFinite(typedN) && typedN >= 1 && (chapterCount === 0 || typedN <= chapterCount)
+      ? typedN
+      : null
+
   return (
     <CommandDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="搜索 / 跳转"
-      description="搜索页面、作品,快速跳转"
+      title="搜索 / 跳转 / 动作"
+      description="搜索动作、角色、页面、作品,快速跳转"
       className="cj-cmdk"
     >
-      <CommandInput placeholder="搜索页面、作品… 输入关键词" />
+      <CommandInput
+        placeholder="搜索动作、角色、页面、作品,或输入章号直达…"
+        value={query}
+        onValueChange={setQuery}
+      />
       <CommandList>
         <CommandEmpty>没有匹配项</CommandEmpty>
+        {jumpChapter !== null && (
+          <CommandGroup heading="跳转章节">
+            <CommandItem
+              value={`阅读第${jumpChapter}章 read chapter ${jumpChapter}`}
+              onSelect={() => go(`/immersive?chapter=${jumpChapter}`)}
+            >
+              <PixelBadge kind="editor" size={18} className="cmdk-ico" />
+              <span>阅读第 {jumpChapter} 章</span>
+              <span className="cmdk-hint">全屏沉浸阅读</span>
+            </CommandItem>
+            <CommandItem
+              value={`编辑第${jumpChapter}章 edit chapter ${jumpChapter}`}
+              onSelect={() => go(`/editor?chapter=${jumpChapter}`)}
+            >
+              <PixelBadge kind="editor" size={18} className="cmdk-ico" />
+              <span>编辑第 {jumpChapter} 章</span>
+              <span className="cmdk-hint">进章节编辑</span>
+            </CommandItem>
+          </CommandGroup>
+        )}
+        {bookId && (
+          <CommandGroup heading={`动作 · ${bookLabel}`}>
+            {BOOK_ACTIONS.map((a) => (
+              <CommandItem
+                key={`action-${a.href}-${a.label}`}
+                value={`${a.label} ${a.keywords}`}
+                onSelect={() => go(a.href)}
+              >
+                <PixelBadge kind={a.pixelKind} size={18} className="cmdk-ico" />
+                <span>{a.label}</span>
+                <span className="cmdk-hint">{a.hint}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+        {cast && cast.length > 0 && (
+          <CommandGroup heading={`角色 · ${bookLabel}`}>
+            {cast.slice(0, 14).map((c) => (
+              <CommandItem
+                key={`cast-${c.id}`}
+                value={`角色 ${titleOf(c.name)} ${c.id} ${titleOf(c.role)}`}
+                onSelect={() => go(`/characters/${encodeURIComponent(c.id)}`)}
+              >
+                <PixelBadge kind="characters" size={18} className="cmdk-ico" />
+                <span>{titleOf(c.name)}</span>
+                {titleOf(c.role) && <span className="cmdk-hint">{titleOf(c.role)}</span>}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
         <CommandGroup heading="页面">
           {ROUTES.map((r) => (
             <CommandItem
@@ -101,7 +187,7 @@ export function CommandPalette({
             {books.map((b) => (
               <CommandItem
                 key={b.id}
-                value={`book ${titleOf(b.title)}`}
+                value={`book 作品 ${titleOf(b.title)}`}
                 onSelect={() => pickBook(b.id)}
               >
                 <PixelBadge kind="library" size={18} className="cmdk-ico" />

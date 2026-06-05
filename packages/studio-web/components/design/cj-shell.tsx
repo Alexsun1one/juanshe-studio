@@ -238,6 +238,7 @@ export function CjShell({ children }: { children: React.ReactNode }) {
 }
 
 function CjStatusBar({ routeSection }: { routeSection: string }) {
+  const router = useRouter()
   const { books, bookId } = useWorkspace()
   const activeBook = books.find((b) => b.id === bookId)
   const runningCount = books.filter((b) => b.autoRunning).length
@@ -254,7 +255,16 @@ function CjStatusBar({ routeSection }: { routeSection: string }) {
         <span className="desktop-status-book" title={bookTitle}>{bookTitle}</span>
       </div>
       <div className="desktop-status-right">
-        <span>{runningCount > 0 ? `${runningCount} 个任务运行中` : "智能体待命"}</span>
+        {/* 运行状态不只是文字 —— 写作进行时,任意页面都能点它跳进并行运行台查看/控制 */}
+        <button
+          type="button"
+          className={`desktop-status-tasks${runningCount > 0 ? " is-running" : ""}`}
+          onClick={() => router.push("/runs")}
+          title={runningCount > 0 ? "查看并行运行台" : "打开运行台"}
+        >
+          {runningCount > 0 && <span className="desktop-status-runs-dot" aria-hidden />}
+          {runningCount > 0 ? `${runningCount} 个任务运行中` : "智能体待命"}
+        </button>
         <span>⌘K 搜索</span>
         <span>API 4569</span>
       </div>
@@ -543,7 +553,7 @@ function CjTopbar() {
 
       <button type="button" className="search-box" onClick={() => setCmdkOpen(true)} title="搜索 / 跳转 (⌘K)">
         <Search size={14} />
-        <span className="search-box-text">搜索作品、章节、角色、素材、知识…</span>
+        <span className="search-box-text">搜索动作、角色、页面、作品…</span>
         <span className="kbd">⌘K</span>
       </button>
       <CommandPalette open={cmdkOpen} onOpenChange={setCmdkOpen} />

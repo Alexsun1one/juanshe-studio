@@ -64,6 +64,9 @@
 .cj-entity .e-rel-obj { color: var(--ink-900); font-weight: 600; }
 .cj-entity .e-rel-obj.link { background: none; border: none; padding: 0; cursor: pointer; color: var(--brand-600, var(--brand-500)); font: inherit; font-weight: 600; transition: color var(--motion-fast, 150ms) var(--ease-soft, ease); }
 .cj-entity .e-rel-obj.link:hover { text-decoration: underline; text-underline-offset: 2px; }
+/* 出场章号反链:看起来仍是品牌色数字,hover 才显"可点回该章" */
+.cj-entity .e-ch-link { background: none; border: none; padding: 0; cursor: pointer; font: inherit; transition: color var(--motion-fast, 150ms) var(--ease-soft, ease); }
+.cj-entity .e-ch-link:hover { text-decoration: underline; text-underline-offset: 2px; }
 .cj-entity .e-rel-self { color: var(--ink-400); font-size: 10.5px; font-weight: 600; margin-left: auto; padding: 1px 8px; border-radius: var(--r-pill); background: var(--bg-sunken); }
 
 .cj-entity .e-neighbors { display: flex; flex-wrap: wrap; gap: 8px; }

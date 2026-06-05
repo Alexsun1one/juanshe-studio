@@ -907,6 +907,8 @@ export const ENDPOINTS = {
     `/api/v1/books/${id}/chapters/${num}/pause`,
   chapterRewrite: (id: string, num: number) =>
     `/api/v1/books/${id}/chapters/${num}/rewrite`,
+  chapterRepairLowScore: (id: string, num: number) =>
+    `/api/v1/books/${id}/chapters/${num}/repair-low-score`,
   chapterReview: (id: string, num: number) =>
     `/api/v1/books/${id}/chapters/${num}/review`,
   /** 本章修订快照(写手原稿→定稿 + 每轮修复的 before/after),供评审视图做 diff */
