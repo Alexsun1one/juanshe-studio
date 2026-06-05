@@ -3130,7 +3130,7 @@ function computeVoiceAdherence(chapterProfile, bookProfile) {
     ];
     return parts.reduce((a, b) => a + b, 0) / parts.length;
 }
-function computeChapterQualityScore(args) {
+export function computeChapterQualityScore(args) {
     const content = normalizeMarkdownText(args.content);
     const report = normalizeMarkdownText(args.report);
     const chineseChars = countZhChars(content);
@@ -3383,7 +3383,7 @@ function auditIssueText(issue) {
  * 命中硬伤词 → 硬;否则若是明确的写作 craft 点评 → 软;**含糊一律按硬**。
  * 一致性是头号诉求——宁可让疑似矛盾留硬桶(绝不放过),只把"明显主观 craft"降软。这样审稿官不认识的措辞默认硬,杜绝假阴性放过真矛盾。
  */
-function isHardContinuityCritical(issue) {
+export function isHardContinuityCritical(issue) {
     const text = auditIssueText(issue);
     if (HARD_CONTINUITY_PATTERNS.test(text))
         return true;
