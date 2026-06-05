@@ -39,7 +39,8 @@ function chTag(status: string): { state: string; label: string } {
   if (/draft|queued|todo|pending|outlin/.test(s)) return { state: "draft", label: "待写" }
   return { state: "pending", label: "构想" }
 }
-const isDone = (s: string) => /done|published|complete|finished/.test((s || "").toLowerCase())
+// review(写完待批准)计入"已写进度",否则全书待批准时进度惊吓性归零;chTag 仍单独显示"待审"区分审批态
+const isDone = (s: string) => /done|published|complete|finished|review/.test((s || "").toLowerCase())
 
 function downloadText(filename: string, text: string) {
   const blob = new Blob([text], { type: "text/markdown;charset=utf-8" })

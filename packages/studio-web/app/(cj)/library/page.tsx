@@ -165,7 +165,8 @@ export default function LibraryPage() {
 
   const chapterStats = React.useMemo(() => {
     const words = chapters.reduce((sum, c) => sum + (c.words ?? 0), 0)
-    const finished = chapters.filter((c) => c.status === "published" || c.status === "done").length
+    // review(写完待批准)也算"已写产出"——否则全书待批准时这里惊吓性显示 0;待审/已批准的区分交给工作台「批准达标」CTA
+    const finished = chapters.filter((c) => c.status === "published" || c.status === "done" || c.status === "review").length
     return { total: chapters.length, finished, words }
   }, [chapters])
 

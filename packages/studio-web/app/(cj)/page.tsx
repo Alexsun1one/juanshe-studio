@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import useSWR from "swr"
+import useSWR, { mutate } from "swr"
 import { toast } from "sonner"
 import {
   fetchAgents,
@@ -339,6 +339,30 @@ export default function CjDashboard() {
       setBusy(false)
     }
   }
+  // 批准达标章:把原先只藏在"写作受阻 toast"里的批准动作摆成台面按钮。只批准达标的(未达门槛的会提示复修)。
+  // 纯状态变更不消耗 token,但仍改书稿状态,故由用户显式点击。
+  const onApprove = async () => {
+    if (!bookId) return
+    setBusy(true)
+    try {
+      const res = await approveQualifyingChapters(bookId, { targetScore: targetQuality })
+      const n = res.approved?.length ?? 0
+      if (n > 0) {
+        const rest = reviewCount - n
+        toast.success(`已批准 ${n} 章达标稿`, {
+          description: rest > 0 ? `还有 ${rest} 章没到 ${targetQuality} 分门槛,复修达标后再批准。` : "本批待审章已全部达标并批准。",
+        })
+      } else {
+        toast.info("暂无达标章可批准", { description: `待审章都还没到 ${targetQuality} 分门槛,先点「修复本章」复修再批准。` })
+      }
+      mutate(["chapters", bookId])
+      run.refresh()
+    } catch (e) {
+      toast.error(`批准失败:${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
   // 连续写 N 章:每章按质量门槛把关,不达标即停(不会硬往下写,避免"写到100章才发现第10章没过")
   const onBatch = async () => {
     if (!bookId) return
@@ -426,6 +450,8 @@ export default function CjDashboard() {
   const dialFill = ((overall / 100) * 264).toFixed(0)
 
   const curChapterRow = chapters?.find((c) => c.num === curChapter)
+  // 写完待批准的章数(status="review")——驱动「批准达标章」CTA,把原先只藏在写作受阻 toast 里的批准动作摆到台面
+  const reviewCount = chapters?.filter((c) => c.status === "review").length ?? 0
   const targetWords = prefs?.defaultRun.targetWordsPerChapter ?? 5000
   // 有效门槛:用户在写作器里改了就用 batchScore,否则跟着项目默认走
   const prefDefaultQuality = prefs?.defaultRun.targetQuality ?? 90
@@ -621,6 +647,17 @@ export default function CjDashboard() {
                     disabled={busy}
                   >
                     停止
+                  </button>
+                )}
+                {reviewCount > 0 && !isRunning && (
+                  <button
+                    type="button"
+                    className="ctrl approve"
+                    onClick={onApprove}
+                    disabled={busy}
+                    title={`${reviewCount} 章写完待批准 —— 批准达标的(未达门槛会提示复修);纯状态变更,不耗 token`}
+                  >
+                    批准达标 <span className="ctrl-badge">{reviewCount}</span>
                   </button>
                 )}
                 <Link href={immersiveHref} className="ctrl">全屏沉浸</Link>

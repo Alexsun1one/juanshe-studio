@@ -1404,7 +1404,9 @@ function normalizeChapterStatus(
 ): Chapter["status"] {
   const raw = text(value).toLowerCase()
   if (["published", "released"].includes(raw)) return "published"
-  if (["review", "reviewing", "qa"].includes(raw)) return "review"
+  // ready-for-review(后端待批准态)以前没被收进 review → 掉进下方 words>0 兜底被误标 "done",
+  // 导致待审章在 UI 上显示成"完成"、还被计进 finished/已发布数。收齐变体,让"待审"真正区别于 done。
+  if (["review", "reviewing", "qa", "ready-for-review", "ready_for_review", "ready", "needs-review", "pending-review", "awaiting-review"].includes(raw)) return "review"
   if (["running", "active", "writing", "in_progress"].includes(raw)) return "writing"
   if (["queued", "pending", "waiting"].includes(raw)) return "queued"
   if (["done", "complete", "completed", "approved", "finished"].includes(raw)) return "done"
