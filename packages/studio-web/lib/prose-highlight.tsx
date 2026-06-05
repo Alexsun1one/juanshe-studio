@@ -180,7 +180,6 @@ export function renderProse(
         <span
           key={keyPrefix + i}
           className={`tk tk-${kind} tk-entity`}
-          role="link"
           title={`查看「${name}」`}
           onClick={() => onEntity(name, kind)}
         >{name}</span>
