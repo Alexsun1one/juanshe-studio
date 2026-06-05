@@ -1301,3 +1301,65 @@ describe("computeRecyclableHooks", () => {
     expect(result.map((h) => h.hookId)).toEqual(["H-worst", "H-mid", "H-mild"]);
   });
 });
+
+describe("retrieveMemorySelection · 语义重排健壮性(embedding 出错绝不拖垮写作主链)", () => {
+  let probeRoot: string | undefined;
+  afterEach(async () => {
+    if (probeRoot) await rm(probeRoot, { recursive: true, force: true }).catch(() => undefined);
+    probeRoot = undefined;
+  });
+
+  async function seedBookWithSummaries() {
+    probeRoot = await mkdtemp(join(tmpdir(), "autow-rerank-robust-"));
+    const bookDir = join(probeRoot, "book");
+    await mkdir(join(bookDir, "story"), { recursive: true });
+    const db = new MemoryDB(bookDir);
+    try {
+      for (let ch = 1; ch <= 8; ch++) {
+        db.upsertSummary({
+          chapter: ch,
+          title: `师债回响 ${ch}`,
+          characters: "林月",
+          events: "林月回到师债线,商会路线施压",
+          stateChanges: "态度变硬",
+          hookActivity: "师债推进",
+          mood: "紧绷",
+          chapterType: "mainline",
+        });
+      }
+    } finally {
+      db.close();
+    }
+    return bookDir;
+  }
+
+  const params = (bookDir: string, embed?: (t: ReadonlyArray<string>) => Promise<number[][]>) => ({
+    bookDir,
+    chapterNumber: 10,
+    goal: "把注意力拉回师债主线",
+    mustKeep: ["林月不会放弃师债。"],
+    embed,
+  });
+
+  sqliteIt("embedding 少返向量(数量与候选池不齐)→ 不崩,安全退回词面,结果与不传 embed 等价", async () => {
+    const bookDir = await seedBookWithSummaries();
+    // 恶意 embed:无论喂多少文本,只返回 3 个向量 → candidateVecs 数与 pool 不齐,触发护栏。
+    const buggyEmbed = async (_texts: ReadonlyArray<string>) => [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]];
+    const withBuggy = await retrieveMemorySelection(params(bookDir, buggyEmbed));
+    const withoutEmbed = await retrieveMemorySelection(params(bookDir));
+    // 没崩 + 仍召回摘要;且退回的词面结果与"根本不传 embed"一致(护栏 = 完全退化)。
+    expect(withBuggy.summaries.length).toBeGreaterThan(0);
+    expect(withBuggy.summaries.map((s) => s.chapter)).toEqual(withoutEmbed.summaries.map((s) => s.chapter));
+  });
+
+  sqliteIt("embedding 抛错 → 不崩,退回词面(语义层任何异常不许影响写作主链)", async () => {
+    const bookDir = await seedBookWithSummaries();
+    const throwingEmbed = async (_texts: ReadonlyArray<string>): Promise<number[][]> => {
+      throw new Error("ollama down");
+    };
+    const withThrow = await retrieveMemorySelection(params(bookDir, throwingEmbed));
+    const withoutEmbed = await retrieveMemorySelection(params(bookDir));
+    expect(withThrow.summaries.length).toBeGreaterThan(0);
+    expect(withThrow.summaries.map((s) => s.chapter)).toEqual(withoutEmbed.summaries.map((s) => s.chapter));
+  });
+});
