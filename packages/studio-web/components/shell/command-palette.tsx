@@ -63,6 +63,7 @@ const ROUTES: Route[] = [
 type BookAction = { href: string; label: string; hint: string; pixelKind: PixelBadgeKind; keywords: string }
 
 const BOOK_ACTIONS: BookAction[] = [
+  { href: "/?new=1", label: "新建一本书", hint: "开建书向导", pixelKind: "library", keywords: "xinjian new book create 新建 建书 开新书 写新书" },
   { href: "/", label: "写下一章", hint: "去工作台续写", pixelKind: "workbench", keywords: "xie write continue 续写 继续创作 下一章 写作" },
   { href: "/consistency", label: "质量门 · 一致性", hint: "上架闸 / 修复低分章", pixelKind: "detect", keywords: "zhiliang gate xiufu 质量 修复 低分 一致性 上架 矛盾" },
   { href: "/publish", label: "导出 / 发布", hint: "导出稿件 · 发到平台", pixelKind: "publish", keywords: "daochu fabu export publish 导出 发布 平台" },

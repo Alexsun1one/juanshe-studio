@@ -214,6 +214,15 @@ export default function CjDashboard() {
   const [confirmAction, setConfirmAction] = React.useState<DashboardWorkflowAction | null>(null)
   // 新建书向导:工作台直接打开,不再跳 /books
   const [newBookOpen, setNewBookOpen] = React.useState(false)
+  // 深链 /?new=1:从任意页(⌘K「新建一本书」/ 书架「新建一本」)一键直达并自动开建书弹窗,
+  // 省掉"跳到工作台后还得再找一次新建一本"的第二下点击。开后清掉 query,避免刷新/返回重复弹。
+  React.useEffect(() => {
+    if (typeof window === "undefined") return
+    if (new URLSearchParams(window.location.search).get("new") === "1") {
+      setNewBookOpen(true)
+      window.history.replaceState(null, "", window.location.pathname)
+    }
+  }, [])
 
   // 「续写一开,创作流程自动进入剧场态」的 ref(effect 在 isRunning 派生之后再注册,避免 TDZ)
   const agentsFlowRef = React.useRef<HTMLDivElement | null>(null)

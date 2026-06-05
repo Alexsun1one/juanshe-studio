@@ -483,7 +483,7 @@ export default function BooksPage() {
               每本作品的生命周期一目了然——建书中、卡住、失败、需补地基都能就地补救,无需进编辑器排查。
             </div>
           </div>
-          <Link href="/" className="btn primary bk-head-cta">
+          <Link href="/?new=1" className="btn primary bk-head-cta">
             <span aria-hidden>+</span> 新建一本
           </Link>
         </div>
@@ -555,7 +555,7 @@ export default function BooksPage() {
                 <div className="empty-title">书架还在等第一本长卷</div>
                 <div className="empty-desc">在工作台用「新建书」向导创建第一部作品,这里会汇总每本书的状态。</div>
                 <div className="empty-actions">
-                  <Link href="/" className="btn primary">
+                  <Link href="/?new=1" className="btn primary">
                     去工作台新建
                   </Link>
                 </div>

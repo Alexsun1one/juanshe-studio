@@ -42,6 +42,13 @@ export default function EntityDetailPage() {
     ) : (
       <b className="num v-brand">?</b>
     )
+  // 状态/关系里的「自第 X 章」也做成可点回读,角色页每个章节引用都能直达
+  const sinceLink = (n: number, prefix = "") =>
+    n > 0 ? (
+      <button type="button" className="e-since e-since-link" onClick={() => goChapter(n)} title={`回到第 ${n} 章阅读`}>
+        {prefix}{formatChapter(n)}
+      </button>
+    ) : null
 
   const outgoing = (data?.relations ?? []).filter((r) => !r.incoming)
   const incoming = (data?.relations ?? []).filter((r) => r.incoming)
@@ -96,7 +103,7 @@ export default function EntityDetailPage() {
                     <div className="e-state-row" key={i}>
                       <span className="e-state-k">{predicateLabel(s.predicate)}</span>
                       <span className="e-state-v">{s.object}</span>
-                      {s.sinceChapter > 0 && <span className="e-since">自{formatChapter(s.sinceChapter)}</span>}
+                      {sinceLink(s.sinceChapter, "自")}
                     </div>
                   ))}
                 </div>
@@ -113,7 +120,7 @@ export default function EntityDetailPage() {
                   {r.objectIsEntity
                     ? <button type="button" className="e-rel-obj link" onClick={() => goEntity(r.object)}>{r.object}</button>
                     : <span className="e-rel-obj">{r.object}</span>}
-                  {r.sinceChapter > 0 && <span className="e-since">{formatChapter(r.sinceChapter)}</span>}
+                  {sinceLink(r.sinceChapter)}
                 </div>
               ))}
               {incoming.map((r, i) => (

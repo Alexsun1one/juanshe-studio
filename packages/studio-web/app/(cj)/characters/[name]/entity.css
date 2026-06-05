@@ -67,6 +67,9 @@
 /* 出场章号反链:看起来仍是品牌色数字,hover 才显"可点回该章" */
 .cj-entity .e-ch-link { background: none; border: none; padding: 0; cursor: pointer; font: inherit; transition: color var(--motion-fast, 150ms) var(--ease-soft, ease); }
 .cj-entity .e-ch-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+/* 「自第 X 章」可点回读:静止态仍是 muted 小数字(继承 .e-since),hover 才显可点 */
+.cj-entity .e-since-link { background: none; border: none; padding: 0; cursor: pointer; line-height: inherit; transition: color var(--motion-fast, 150ms) var(--ease-soft, ease); }
+.cj-entity .e-since-link:hover { color: var(--brand-600, var(--brand-500)); text-decoration: underline; text-underline-offset: 2px; }
 .cj-entity .e-rel-self { color: var(--ink-400); font-size: 10.5px; font-weight: 600; margin-left: auto; padding: 1px 8px; border-radius: var(--r-pill); background: var(--bg-sunken); }
 
 .cj-entity .e-neighbors { display: flex; flex-wrap: wrap; gap: 8px; }
