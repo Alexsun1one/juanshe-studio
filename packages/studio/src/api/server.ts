@@ -2353,9 +2353,11 @@ function qualityHasCriticalBlocker(qualityPayload) {
     const blockers = q.gate?.blockers ?? [];
     const reasons = q.reasons ?? [];
     const stats = q.stats ?? {};
-    return Number(stats.criticals || 0) > 0
-        || blockers.some((item) => /critical|严重|硬伤|状态|state/i.test(String(item)))
-        || reasons.some((item) => /critical|严重|硬伤|状态不可信|状态链/i.test(String(item)));
+    // Path B:只认"硬伤"critical(死亡/矛盾等确定性硬伤),软 critical 不再当硬阻断——否则一条 LLM 软 critical
+    // 会让自动复修链 pass=false 永远 continue 空转复修(与门禁脱节)。hardCriticals 缺失(旧 payload)才回退总数。
+    return Number(stats.hardCriticals ?? stats.criticals ?? 0) > 0
+        || blockers.some((item) => /critical-audit|state-degraded|状态/i.test(String(item)))
+        || reasons.some((item) => /硬伤|状态不可信|状态链/i.test(String(item)));
 }
 function adaptiveRepairRoundPlan(profile, qualityPayload, targetScore, requestedMaxRounds, envMaxRounds, adaptiveEnabled = true) {
     const q = qualityPayload?.quality ?? qualityPayload ?? {};
@@ -3264,6 +3266,8 @@ function computeChapterQualityScore(args) {
             sensoryAnchors,
             emotionTurns,
             criticals,
+            hardCriticals,
+            softCriticals,
             warnings: warningCount,
             targetWordCount: target,
         },
@@ -3357,17 +3361,35 @@ function auditIssueSeverity(issue) {
 // 只有"确定性硬伤"才配 ×16 重罚 + critical 门禁 + 84 封顶;LLM 自评的"软 critical"(措辞泛、主观)按 warning×5 轻推。
 // 既不放过真矛盾(连续性=头号诉求),又不让一条 LLM 主观 critical 把好章焊死在 84 分(就是"修 5 轮卡 82/84"的机械成因)。
 // 硬伤特征:死亡/复活、血缘身世、真实身份、时间线断裂、能力凭空、伏笔超期烂尾、设定/世界观/canon 硬冲突、前后矛盾、逻辑硬伤。
-const HARD_CONTINUITY_PATTERNS = /死(亡|了|去|于)|身亡|丧命|遇害|复活|还魂|死而复生|起死回生|血缘|身世|亲生|生父|生母|亲爹|亲娘|兄妹|兄弟|姐妹|姐弟|血亲|真实身份|真名|本名|真身|冒名|顶替|时间线|时序|时间.{0,4}矛盾|前后.{0,3}(时间|日期)|凭空|无中生有|突然(会|能|拥有|掌握|具备)|能力.{0,6}(矛盾|凭空|无来由|前文)|武功.{0,4}(凭空|矛盾)|伏笔.{0,6}(超期|逾期|烂尾|未回收|遗漏|断线|消失)|设定.{0,3}(矛盾|冲突|硬伤)|世界观.{0,3}(矛盾|冲突)|canon|前后矛盾|自相矛盾|逻辑硬伤/i;
+// 硬伤特征(确定性连续性/事实错误)。死亡/矛盾用宽同义词族——审稿官实际会写"牺牲/殒命/相悖/对不上",不是只写标签词。
+const HARD_CONTINUITY_PATTERNS = /死(亡|了|去|于)|身亡|丧命|遇害|遇难|牺牲|殒命|阵亡|身故|罹难|断气|咽气|复活|还魂|死而复生|起死回生|血缘|身世|亲生|生父|生母|亲爹|亲娘|血亲|真实身份|真名|本名|真身|冒名|顶替|时间线|时序|时间.{0,5}(矛盾|对不上|错位|不符|颠倒)|日期.{0,5}(对不上|不符|矛盾)|前后.{0,3}(时间|日期)|凭空|无中生有|突然(会|能|拥有|掌握|具备|多了)|能力.{0,6}(矛盾|凭空|无来由|前文|没提)|武功.{0,4}(凭空|矛盾)|招式.{0,4}(凭空|没提)|伏笔.{0,8}(超期|逾期|烂尾|未回收|没回收|未交代|没下文|遗漏|断线|消失)|设定.{0,4}(矛盾|冲突|硬伤|相悖|不符)|世界观.{0,4}(矛盾|冲突|相悖)|规则.{0,4}(矛盾|相悖)|canon|前后(矛盾|不符|不一致)|自相矛盾|逻辑(硬伤|断裂|不通|矛盾)|相悖|对不上|说不通|retcon|dead|died|killed|resurrect|revive|timeline|contradict|inconsisten|plot ?hole/i;
+// 明确的"主观写作 craft 点评"(节奏/文笔/沉浸/对话自然度…)——被审稿官误标 critical 是"卡84"的常见成因,降为软。
+const SOFT_CRAFT_PATTERNS = /节奏|拖沓|拖|平淡|张力|文笔|用词|遣词|词汇|描写|画面|沉浸|代入|套话|金句|升华|抒情|啰嗦|冗长|冗余|爽点|段落|篇幅|短段|碎句|对白.{0,4}(生硬|平|多|密)|对话.{0,4}(生硬|不自然|平|啰嗦)|台词.{0,4}(生硬|平)|情绪.{0,4}(不足|薄|悬浮|铺垫)|感官.{0,4}(不足|偏少)|缺乏.{0,5}(张力|细节|代入|画面)|不够.{0,5}(生动|具体|鲜活|紧凑)|ai\s?味|ai\s?腔|风格.{0,4}(漂移|偏|不符)/i;
 function auditIssueText(issue) {
     if (!issue || typeof issue !== "object")
         return String(issue ?? "");
-    const msg = issue.message;
-    const msgText = typeof msg === "string" ? msg : (msg?.zh || msg?.en || "");
-    return `${issue.category ?? ""} ${msgText}`;
+    // message 可能是 {zh,en}/字符串/数组/嵌套对象;把所有能取到的文本都拍平,避免漏判(尤其只有 en 的硬伤)。
+    const flat = (v) => {
+        if (v == null) return "";
+        if (typeof v === "string") return v;
+        if (Array.isArray(v)) return v.map(flat).join(" ");
+        if (typeof v === "object") return Object.values(v).map(flat).join(" ");
+        return String(v);
+    };
+    return [issue.category, issue.message, issue.title, issue.detail, issue.suggestion].map(flat).join(" ");
 }
-/** 该 critical 是否是确定性硬伤(配得上 ×16 + 门禁 + 封顶);否则视作 LLM 软 critical,按 warning×5 处理。 */
+/**
+ * 该 critical 是否按"确定性硬伤"处理(×16 + 门禁 + 封顶)。混合判定 + 偏保守:
+ * 命中硬伤词 → 硬;否则若是明确的写作 craft 点评 → 软;**含糊一律按硬**。
+ * 一致性是头号诉求——宁可让疑似矛盾留硬桶(绝不放过),只把"明显主观 craft"降软。这样审稿官不认识的措辞默认硬,杜绝假阴性放过真矛盾。
+ */
 function isHardContinuityCritical(issue) {
-    return HARD_CONTINUITY_PATTERNS.test(auditIssueText(issue));
+    const text = auditIssueText(issue);
+    if (HARD_CONTINUITY_PATTERNS.test(text))
+        return true;
+    if (SOFT_CRAFT_PATTERNS.test(text))
+        return false;
+    return true; // 含糊默认硬,保护连续性
 }
 function structuredQualityScore(report) {
     const candidates = [
