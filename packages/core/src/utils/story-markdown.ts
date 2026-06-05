@@ -190,7 +190,9 @@ export function parseMarkdownTableRows(markdown: string): string[][] {
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.startsWith("|"))
-    .filter((line) => !line.includes("---"))
+    // 只跳过"表格分隔行"(`| --- | :--: |` 这种全是 | - : 空格的行),
+    // 绝不能用 includes("---") —— 那会把值里恰好含"---"的真实数据行(如「查清1999---2001年的旧案」)整行静默丢掉 = 丢状态事实 = 漂移。
+    .filter((line) => !/^[|\s:-]+$/.test(line))
     .map((line) => line.split("|").slice(1, -1).map((cell) => cell.trim()))
     .filter((cells) => cells.some(Boolean));
 }
