@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import useSWR from "swr"
+import { useRouter } from "next/navigation"
 import {
   Globe2,
   Layers,
@@ -54,6 +55,7 @@ const LANE_TONE: Record<MemoryItem["kind"], "info" | "brand" | "amber"> = {
 }
 
 export default function MemoryPage() {
+  const router = useRouter()
   const { books, bookId, booksLoading } = useWorkspace()
   const active = books.find((b) => b.id === bookId)
   const { data: memory } = useSWR(bookId ? ["memory", bookId] : null, () => fetchMemory(bookId), soft)
@@ -265,6 +267,8 @@ export default function MemoryPage() {
                     key={it.id}
                     className="mem-node"
                     style={{ left: cx(it.chapter), top: LANES_Y + li * LANE_H + LANE_H / 2 }}
+                    title={`回到第 ${it.chapter} 章阅读`}
+                    onClick={() => router.push(`/immersive?chapter=${it.chapter}`)}
                   >
                     <span className="nd" style={{ background: l.color }} />
                     {it.text.zh}
