@@ -40,6 +40,7 @@ import { useAgentActivity } from "@/lib/use-agent-activity"
 import { useTypewriter } from "@/lib/use-typewriter"
 import { toFrontendAgentId } from "@/lib/api/agent-aliases"
 import { showWriteBlockToast } from "@/lib/write-block-toast"
+import { blockerLabels } from "@/lib/blocker-labels"
 import { Meter } from "@/components/design/kit"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { CjTour } from "@/components/shell/cj-tour"
@@ -429,6 +430,12 @@ export default function CjDashboard() {
   // 有效门槛:用户在写作器里改了就用 batchScore,否则跟着项目默认走
   const prefDefaultQuality = prefs?.defaultRun.targetQuality ?? 90
   const targetQuality = batchScore ?? prefDefaultQuality
+  // 低分诊断:从最弱维度 + 具体门禁阻塞推导"为什么没到门槛",摆到分数旁,省去跳 /consistency 翻原因。
+  // 排除冗余的 quality-below-target(它只是"没达标",与诊断标题循环),只留具体阻塞(critical/状态链等)。
+  const weakDims = [...dims].filter((d) => d.v < 82).sort((a, b) => a.v - b.v).slice(0, 3)
+  const realBlockers = blockerLabels(
+    (quality?.gate?.blockers ?? []).filter((c) => c !== "quality-below-target"),
+  ).slice(0, 2)
   const chapterWords = curChapterRow?.words ?? 0
   const chapterPct = targetWords ? Math.min(100, Math.round((chapterWords / targetWords) * 100)) : 0
   const planned = active?.plannedChapters || active?.chapterCount || 0
@@ -540,6 +547,20 @@ export default function CjDashboard() {
               <span className="dq-m">速度 <b className="num">{quality?.speedWordsPerMinute ? Math.round(quality.speedWordsPerMinute) : "—"}</b><span className="u">字/分</span></span>
               <span className="dq-m">采纳 <b className="num ok">{quality?.adopted ? fmt(Math.round(quality.adopted)) : "—"}</b><span className="u">字</span></span>
             </div>
+          </div>
+        )}
+        {overall > 0 && overall < targetQuality && (
+          <div className="dq-why" title="未达门槛的具体原因 —— 不用跳一致性扫描就地看清">
+            <span className="dq-why-lead">没到 {targetQuality} 是因为</span>
+            {weakDims.map((d) => (
+              <span className="dq-why-chip dim" key={d.label}>{d.label} <b>{d.v}</b></span>
+            ))}
+            {realBlockers.map((b, i) => (
+              <span className="dq-why-chip blk" key={`b${i}`}>{b}</span>
+            ))}
+            {weakDims.length === 0 && realBlockers.length === 0 && (
+              <span className="dq-why-chip">整体略低于门槛,复修一轮即可</span>
+            )}
           </div>
         )}
       </div>

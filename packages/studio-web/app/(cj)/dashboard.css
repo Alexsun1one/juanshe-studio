@@ -91,6 +91,23 @@
 .cj-dashboard .ds-repair:active { transform: translateY(1px); }
 .cj-dashboard .ds-repair:disabled { opacity: 0.6; cursor: default; transform: none; }
 
+/* 低分诊断行 —— 就地说清"为什么没达标"(最弱维度 + 具体阻塞),和分数旁「修复本章」连成 分→因→修 */
+.cj-dashboard .dq-why { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 9px; font-size: 12px; }
+.cj-dashboard .dq-why-lead { color: var(--warn-600, var(--warn-500)); font-weight: 700; white-space: nowrap; }
+.cj-dashboard .dq-why-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+  background: color-mix(in oklab, var(--warn-500) 10%, transparent);
+  color: var(--ink-700);
+  border: 1px solid color-mix(in oklab, var(--warn-500) 22%, transparent);
+}
+.cj-dashboard .dq-why-chip b { font-family: var(--font-num); color: var(--warn-600, var(--warn-500)); font-weight: 800; }
+.cj-dashboard .dq-why-chip.blk {
+  background: color-mix(in oklab, var(--err-500) 9%, transparent);
+  border-color: color-mix(in oklab, var(--err-500) 24%, transparent);
+  color: var(--err-600, var(--err-500));
+}
+
 /* 顶部质量行 — 五维细分 chip + 运行指标,一行铺开,横线分隔,数据原地变化 */
 .cj-dashboard .dash-quality {
   display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px;
