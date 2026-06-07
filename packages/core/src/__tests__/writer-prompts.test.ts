@@ -55,6 +55,68 @@ describe("buildWriterSystemPrompt", () => {
     expect(prompt).toContain("黄金3章");
   });
 
+  it("injects the premise fidelity anchor from book.brief as a top anti-drift guardrail (zh)", () => {
+    const brief = "都市言情。女主苏晴，普通上班族，意外开直播，从零粉到百万粉丝的逆袭。";
+    const prompt = buildWriterSystemPrompt(
+      { ...BOOK, brief },
+      GENRE,
+      null,
+      "# Book Rules",
+      "# Genre Body",
+      "# Style Guide",
+      undefined,
+      14,
+      "creative",
+      undefined,
+      "zh",
+      "legacy", // 关键:legacy 模式也注入(漂移在两种模式都发生)
+    );
+    expect(prompt).toContain("主设定保真锚点");
+    expect(prompt).toContain(brief);
+    expect(prompt).toContain("绝不能悄悄改变全书题材");
+    expect(prompt).toContain("往回拉");
+    // 锚点应在核心铁律之前(高优先级)
+    expect(prompt.indexOf("主设定保真锚点")).toBeLessThan(prompt.indexOf("写作铁律"));
+  });
+
+  it("injects the premise fidelity anchor in English when book.brief is present", () => {
+    const prompt = buildWriterSystemPrompt(
+      { ...BOOK, brief: "Urban romance: ordinary office worker rises from zero to a million followers." },
+      { ...GENRE, language: "en" },
+      null,
+      "# Book Rules",
+      "# Genre Body",
+      "# Style Guide",
+      undefined,
+      14,
+      "creative",
+      undefined,
+      "en",
+      "legacy",
+    );
+    expect(prompt).toContain("Premise Fidelity Anchor");
+    expect(prompt).toContain("IMMUTABLE");
+    expect(prompt).toContain("zero to a million followers");
+  });
+
+  it("omits the premise anchor when book.brief is absent (0 behavior change for legacy books)", () => {
+    const prompt = buildWriterSystemPrompt(
+      BOOK, // 无 brief
+      GENRE,
+      null,
+      "# Book Rules",
+      "# Genre Body",
+      "# Style Guide",
+      undefined,
+      14,
+      "creative",
+      undefined,
+      "zh",
+      "legacy",
+    );
+    expect(prompt).not.toContain("主设定保真锚点");
+  });
+
   it("uses target-range wording when a length spec is provided", () => {
     const lengthSpec = LengthSpecSchema.parse({
       target: 2200,

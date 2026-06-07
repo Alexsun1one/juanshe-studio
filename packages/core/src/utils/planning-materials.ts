@@ -42,12 +42,26 @@ async function readFileOrDefault(path: string): Promise<string> {
   }
 }
 
-async function readBriefFile(path: string): Promise<string> {
+async function readBriefFile(path: string, bookDir: string): Promise<string> {
   try {
-    return await readFile(path, "utf-8");
+    const fromFile = (await readFile(path, "utf-8")).trim();
+    if (fromFile) return fromFile;
   } catch {
-    return "";
+    // fall through to book.json fallback
   }
+  // 回退:用户的核心命题(brief)建书时常只写进 book.json.brief,而规划管线按 story/brief.md
+  // 设计读取。当 brief.md 缺失/为空时回退到 book.json.brief,避免整条规划链(planner→memo)
+  // 看不到原始题材/主角/承诺 → 与写手的主设定锚点一致,共同抗题材/人设漂移。
+  try {
+    const raw = await readFile(join(bookDir, "book.json"), "utf-8");
+    const parsed = JSON.parse(raw) as { brief?: unknown };
+    if (typeof parsed.brief === "string" && parsed.brief.trim()) {
+      return parsed.brief.trim();
+    }
+  } catch {
+    // book.json 不可读/无 brief → 保持空串
+  }
+  return "";
 }
 
 async function readPreviousEndingExcerpt(
@@ -121,7 +135,7 @@ export async function loadPlanningSeedMaterials(params: {
     // seed rows when current_state.md is still just the architect's placeholder.
     readCurrentStateWithFallback(params.bookDir, placeholder),
     readPreviousEndingExcerpt(params.bookDir, params.chapterNumber),
-    readBriefFile(sourcePaths.brief),
+    readBriefFile(sourcePaths.brief, params.bookDir),
   ]);
 
   const chapterSummaries = parseChapterSummariesMarkdown(chapterSummariesRaw)

@@ -65,6 +65,11 @@ export const BookConfigSchema = z.object({
   updatedAt: z.string().datetime(),
   parentBookId: z.string().optional(),
   fanficMode: FanficModeSchema.optional(),
+  /** 用户的原始命题/核心承诺（题材、主角身份、核心爽点、长期目标）。
+      建书时写入，是全书最高优先级的"主设定保真锚点"——每章写作都重申，
+      防止"局部场景合理、全局题材/人设漂移"（如都市言情写着写着变成网络安全惊悚）。
+      之前只存在 book.json 但被 schema 剥掉，下游（planner/writer）都看不到 → 漂移失控根因之一。 */
+  brief: z.string().optional(),
   /** 用户为本书设定的达标分数（60-98）。默认 90（出版级）；
       <90 时 craft-floor / 89 封顶降级为提示，让已发布章节也能 pass。
       所有 repair/batch/write 默认走这个值；前端 ChapterQualityPanel 写入。 */

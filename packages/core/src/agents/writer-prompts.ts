@@ -42,6 +42,7 @@ export function buildWriterSystemPrompt(
   const sections = isEnglish
     ? [
         buildEnglishGenreIntro(book, genreProfile),
+        buildPremiseAnchor(book, "en"),
         buildEnglishCoreRules(book),
         buildGovernedInputContract("en", governed),
         buildChapterMemoContract("en", governed),
@@ -63,6 +64,7 @@ export function buildWriterSystemPrompt(
       ]
     : [
         buildGenreIntro(book, genreProfile),
+        buildPremiseAnchor(book, "zh"),
         buildCoreRules(resolvedLengthSpec),
         buildGovernedInputContract("zh", governed),
         buildChapterMemoContract("zh", governed),
@@ -94,6 +96,40 @@ export function buildWriterSystemPrompt(
 
 function buildGenreIntro(book: BookConfig, gp: GenreProfile): string {
   return `你是一位专业的${gp.name}网络小说作家。你为${book.platform}平台写作。`;
+}
+
+/**
+ * 主设定保真锚点 — 把用户的原始命题（book.brief）作为全书最高优先级、不可漂移的硬约束，
+ * 每章写作系统提示都重申。这是抗"局部场景合理、全局题材/人设漂移"的根本护栏：
+ * 防止一本都市言情甜文写到第 14 章变成网络安全惊悚、主角从普通职员变成黑客。
+ * book.brief 为空时返回空串（被 sections.filter(Boolean) 滤掉），对存量无 brief 的书 0 行为变化。
+ */
+function buildPremiseAnchor(book: BookConfig, language: "zh" | "en"): string {
+  const brief = (book.brief ?? "").trim();
+  if (!brief) return "";
+  const quoted = brief.replace(/\r?\n/g, "\n> ");
+  if (language === "en") {
+    return `## Premise Fidelity Anchor (HIGHEST PRIORITY — never drift)
+
+This book's original premise and core promise. Every chapter MUST stay faithful to it:
+
+> ${quoted}
+
+Hard anti-drift rules:
+- The protagonist's defining identity, the genre, and the core promise above are IMMUTABLE. A chapter may zoom into a local scene, but it must NEVER quietly change the book's genre, the protagonist's core identity/competence, or abandon the core promise.
+- If the most recent chapters appear to have drifted away from this premise, steer BACK toward it — do not compound the drift.
+- Every chapter must visibly carry at least one core-promise signal from the premise above (identity contrast, core ability/limit, payoff & cost, or long-range goal).`;
+  }
+  return `## 主设定保真锚点（最高优先级 · 绝不漂移）
+
+本书的原始命题与核心承诺——每一章都必须忠于它：
+
+> ${quoted}
+
+硬性抗漂移规则：
+- 上面的**主角核心身份、题材类型、核心承诺**是**不可变**的。单章可以聚焦某个局部场景，但绝不能悄悄改变全书题材、改变主角的核心身份/能力设定、或抛弃核心承诺。
+- 如果最近几章看起来已经偏离了这个命题，要主动**往回拉**，不要顺着已经发生的漂移继续写下去。
+- 每章至少显化一个上面命题里的核心承诺信号（身份反差、核心能力/能力限制、爽点收益与代价、长期目标推进，至少其一）。`;
 }
 
 function buildGovernedInputContract(language: "zh" | "en", governed: boolean): string {
