@@ -159,63 +159,71 @@ export class ArchitectAgent extends BaseAgent {
       { role: "user", content: userMessage },
     ];
 
-    // 建书是关键路径:一份完整基础设定约 1.8 万字,长流式在不稳上游里中途被打断的概率不低。
-    // 历史真因:流中断时 provider 会把已收到的半截内容(常常只剩 story_frame)当成功静默返回,
-    // 于是 parseSections 报"缺必需段落",新建书随机失败。两道防线:
-    //   1) requireComplete=true → provider 层流中断不再吞半截,先整段重跑(最多 2 次),仍不全才抛;
-    //   2) 本循环 → 缺段(模型漏写/写错段名)带补段提示重发;流中断/超时彻底失败则整段重生成。
-    // deepseek 等"输出上限 ~8k token"的模型一次吐不完整份 ~1.8 万字基础设定 → 必然截断缺段。
-    // 修法:累积式补缺段——把每次响应解析到的 SECTION 并入累积表(已有好段不被空补丁覆盖),
-    // 只对"还缺的那几段"追问(不整篇重来、不回灌上次长输出),凑齐即交付。小输出模型也能分批写完、不丢已写好的部分。
-    const MAX_FOUNDATION_ATTEMPTS = 3;
+    // 逐段生成:把"一次产 5 段(~1.8 万字)"拆成"每段一次有界小调用"。
+    // 历史真因(一次产全份时):① 本地模型不守长度,会在 story_frame 一段上写飞、撞输出上限截断,后面几段根本没写;
+    // ② deepseek 等 ~8k token 输出上限的云模型也必然截断缺后段。两者都让 parseSections 报缺段、建书随机失败。
+    // 逐段化后:每段输出有界(maxTokens 按段限额)、模型聚焦单段不跑飞、某段截断只影响那一段且可单独重试;
+    // 段间把已成段回灌保持一致。适配任何模型(本地/小输出云),一份完整基础设定稳定凑齐。
+    const SECTION_PLAN: ReadonlyArray<{ key: string; label: string; limit: number }> = [
+      { key: "story_frame", label: "主题与基调 / 核心冲突·对手定性·前后台双层故事 / 世界观底色(铁律+质感+本书专属规则) / 终局,共 4 段散文", limit: 3000 },
+      { key: "volume_map", label: "第一卷分卷纲(5 段散文,含 3-5 个可验收小目标)+ 尾段「6 条节奏原则」", limit: 5000 },
+      { key: "roles", label: "主要角色卡(一人一块,格式 ---ROLE--- 名 ---CONTENT--- 正文;主角承载起点→终点→代价完整弧线)", limit: 8000 },
+      { key: "book_rules", label: "仅 YAML frontmatter,零散文", limit: 600 },
+      { key: "pending_hooks", label: "13 列伏笔表(可含 startChapter=0 的初始种子行)", limit: 2200 },
+    ];
     const accumulated = new Map<string, string>();
-    let missingInstruction: string | null = null;
     let lastErr: unknown;
-    for (let attempt = 0; attempt <= MAX_FOUNDATION_ATTEMPTS; attempt++) {
-      const messages: LLMMessage[] = missingInstruction
-        ? [...baseMessages, { role: "user", content: missingInstruction }]
-        : baseMessages;
-      let response;
-      try {
-        response = await this.chat(messages, {
-          temperature: attempt === 0 ? 0.8 : 0.5,
-          requireComplete: true,
-        });
-      } catch (e) {
-        // chat 层(流中断/超时)内部重试耗尽后抛出 → 重试;累积表保留,已写好的段不丢。
-        lastErr = e;
-        if (attempt >= MAX_FOUNDATION_ATTEMPTS) break;
-        this.ctx.logger?.warn(
-          `架构师生成中断(${String((e as Error)?.message ?? e).slice(0, 80)}),重试 ${attempt + 1}/${MAX_FOUNDATION_ATTEMPTS}`,
-        );
-        continue;
+    const synthesize = (): string =>
+      [...accumulated.entries()].map(([key, value]) => `=== SECTION: ${key} ===\n${value}`).join("\n\n");
+    // 吸收一次响应里的「所有」段(模型可能一次多产、或用 legacy 段名 story_bible/volume_outline);只填空位,不覆盖已成段。
+    const absorb = (content: string, fallbackKey: string): void => {
+      const map = this.extractSectionMap(content);
+      for (const [key, value] of map) {
+        if (value && value.trim() && !(accumulated.get(key) ?? "").trim()) accumulated.set(key, value);
       }
-      // 并入本次解析到的段:非空、且累积表里这段还空时才收(避免后续短补丁覆盖已写好的长段)。
-      for (const [key, value] of this.extractSectionMap(response.content)) {
-        if (value && value.trim() && !(accumulated.get(key) ?? "").trim()) {
-          accumulated.set(key, value);
+      // 兜底:模型漏写 === SECTION === 头但确实产了内容 → 当作目标段(仅当一个头都没解析到时)。
+      if (map.size === 0 && content.trim().length > 20 && !(accumulated.get(fallbackKey) ?? "").trim()) {
+        accumulated.set(fallbackKey, content.trim());
+      }
+    };
+
+    for (const plan of SECTION_PLAN) {
+      // 每段前先试解析:某次响应已把全份吐齐(指令遵循强的云模型一次产全 / legacy 段名)就直接交付,不再多调用。
+      try { return this.parseSections(synthesize(), resolvedLanguage); } catch { /* 还缺,继续逐段补 */ }
+      if ((accumulated.get(plan.key) ?? "").trim()) continue;
+      for (let retry = 0; retry < 2; retry++) {
+        const doneCtx = accumulated.size
+          ? `\n\n已写好的段(仅供参考保持一致,**不要重复输出**):\n${synthesize()}`
+          : "";
+        const focus = resolvedLanguage === "en"
+          ? `Output ONLY one section now, following the system spec's format for it EXACTLY:\n=== SECTION: ${plan.key} ===\n(content: ${plan.label})\nComplete but tight — under ${plan.limit} characters — then STOP. Output only this one section, keep the key in English, nothing else.${doneCtx}`
+          : `现在【只】输出一段,严格按系统提示里该段的格式:\n=== SECTION: ${plan.key} ===\n(内容:${plan.label})\n写完整但克制,不超过 ${plan.limit} 字,写完就停。**只输出这一段**,段名 key 用英文原样,别的话都不要。${doneCtx}`;
+        try {
+          // 不显式 cap maxTokens(遵守「创作 agent 让 model card budget 做主」策略,见 agent-max-tokens-policy)。
+          // 有界靠逐段 PROMPT:聚焦单段 + 该段字数限额 + 「写完就停」——模型对单段有界指令会自我克制,
+          // 不会再像「一次产 5 段」时在 story_frame 上写飞。模型/服务的 maxOutput 是最终安全上限。
+          const response = await this.chat([...baseMessages, { role: "user", content: focus }], {
+            temperature: retry === 0 ? 0.8 : 0.5,
+            requireComplete: false,
+          });
+          absorb(response.content, plan.key);
+          // 这次响应若已让全份凑齐(模型一次多产)→ 立即交付。
+          try { return this.parseSections(synthesize(), resolvedLanguage); } catch { /* 还缺 */ }
+          if ((accumulated.get(plan.key) ?? "").trim()) break;
+          this.ctx.logger?.warn(`架构师逐段[${plan.key}]未解析到该段,重试 ${retry + 1}/2`);
+        } catch (e) {
+          lastErr = e;
+          this.ctx.logger?.warn(`架构师逐段[${plan.key}]生成失败(${String((e as Error)?.message ?? e).slice(0, 60)}),重试 ${retry + 1}/2`);
         }
       }
-      // 用累积内容重建后尝试解析:必填段齐了就成功交付。
-      const synthetic = [...accumulated.entries()]
-        .map(([key, value]) => `=== SECTION: ${key} ===\n${value}`)
-        .join("\n\n");
-      try {
-        return this.parseSections(synthetic, resolvedLanguage);
-      } catch (e) {
-        // 只有"缺段"这类可补救错误才重试;其它解析错误(如角色块格式坏)直接抛。
-        lastErr = e;
-        const msg = e instanceof Error ? e.message : String(e);
-        if (!/missing required section/i.test(msg) || attempt >= MAX_FOUNDATION_ATTEMPTS) throw e;
-        const missing = msg.replace(/^[^:]*:\s*/, "");
-        const have = [...accumulated.keys()].join(", ") || "（无）";
-        this.ctx.logger?.warn(`架构师缺段(${missing}),只补缺段重试 ${attempt + 1}/${MAX_FOUNDATION_ATTEMPTS}`);
-        missingInstruction = resolvedLanguage === "en"
-          ? `You already produced these sections: ${have}. Now output ONLY the missing section(s): ${missing}. Each must start on its own line exactly like "=== SECTION: story_frame ===" using the EXACT English keys (story_frame, volume_map, roles, book_rules, pending_hooks). Output ONLY the missing section(s) in full — do NOT rewrite the ones you already wrote, do NOT translate the keys, nothing else.`
-          : `你已经写好了这几段:${have}。现在**只**补这几段:${missing}。每段用单独一行 "=== SECTION: story_frame ===" 这样开头,段名用英文 key 原样(story_frame、volume_map、roles、book_rules、pending_hooks)。**只输出缺的这几段、写完整**,不要重写已有的、不要翻译段名,别的话都不要。`;
-      }
     }
-    throw lastErr;
+
+    // 凑齐即交付;仍缺必填段则抛(让上层显式失败,绝不静默建半截书)。
+    try {
+      return this.parseSections(synthesize(), resolvedLanguage);
+    } catch (e) {
+      throw lastErr ?? e;
+    }
   }
 
   private buildRevisePrompt(reviseFrom: {
