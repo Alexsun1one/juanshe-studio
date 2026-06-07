@@ -300,6 +300,43 @@ describe("chatCompletion via pi-ai", () => {
     vi.unstubAllGlobals();
   });
 
+  it("flattens cache-marked array content on system messages for openai-compatible chat (mlx_lm KeyError 'type' guard)", async () => {
+    // 回归:LLMContentBlock 形状是 { text, cache? }(无 type 字段)。若把带 cache 标记的
+    // 数组 content 原样发给 OpenAI 兼容端(如 mlx_lm.server),它的 process_message_content
+    // 会读 fragment["type"] 直接 KeyError: 'type' → 返回 404。system 分支必须 flatten 成字符串。
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "审核通过" } }],
+        usage: { prompt_tokens: 9, completion_tokens: 2, total_tokens: 11 },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = makeClient(0.7, {
+      service: "custom",
+      stream: false,
+      _piModel: { ...MOCK_PI_MODEL, provider: "openai", baseUrl: "http://127.0.0.1:8080/v1" },
+    });
+    await chatCompletion(client, "local-35b", [
+      { role: "system", content: [{ text: "稳定参考料(故事圣经)", cache: true }, { text: "—续段—" }] },
+      { role: "user", content: "审核这一章" },
+    ]);
+
+    const body = JSON.parse((fetchMock.mock.calls[0]?.[1] as { body: string }).body);
+    const systemMsg = body.messages.find((m: { role: string }) => m.role === "system");
+    expect(systemMsg).toBeDefined();
+    // 必须是字符串,不能是 [{text,cache}] 数组(否则 mlx_lm KeyError: 'type')
+    expect(typeof systemMsg.content).toBe("string");
+    expect(systemMsg.content).toBe("稳定参考料(故事圣经)—续段—");
+    // 任何 message 的 content 都不应是数组(没有缺 type 的 fragment 漏给本地服务)
+    for (const m of body.messages) {
+      expect(Array.isArray(m.content)).toBe(false);
+    }
+
+    vi.unstubAllGlobals();
+  });
+
   it("does not leave a stream monitor timer after native non-stream chat", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn().mockResolvedValue({

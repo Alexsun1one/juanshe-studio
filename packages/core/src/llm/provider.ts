@@ -1058,7 +1058,7 @@ async function chatCompletionViaCustomOpenAICompatible(
     messages: [
       ...messages
         .filter((message) => message.role === "system")
-        .map((message) => ({ role: "system", content: message.content })),
+        .map((message) => ({ role: "system", content: flattenMessageContent(message.content) })),
       ...buildChatMessages(messages),
     ],
     stream: client.stream,
