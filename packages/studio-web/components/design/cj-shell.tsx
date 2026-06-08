@@ -48,6 +48,7 @@ import { useWorkspace } from "@/lib/workspace-context"
 import { EventLogCenter } from "@/components/studio/event-log-center"
 import { CommandPalette } from "@/components/shell/command-palette"
 import { BuildStatusIndicator } from "@/components/shell/build-status-indicator"
+import { WechatFollow } from "@/components/cj/wechat-follow"
 import { WorkflowTheater } from "@/components/workbench/workflow-theater"
 import { ThemeColorPicker } from "@/components/shell/theme-color-picker"
 import { BrandOrnaments } from "@/components/design/brand-ornaments"
@@ -394,6 +395,8 @@ function CjSidebar() {
 
       {/* ── 底部固定区:在建/在写常驻状态 + 总设置 + 收起 ───────── */}
       <div className="sidebar-footer" ref={settingsRef}>
+        {/* 关注公众号块(导流「正在逐渐AI化」;收起时隐藏) */}
+        <WechatFollow collapsed={collapsed} />
         {/* 常驻"在建/在写"指示器:轮询 create-states,关弹窗/刷新也看得到、点得回去 */}
         <BuildStatusIndicator collapsed={collapsed} />
         <button

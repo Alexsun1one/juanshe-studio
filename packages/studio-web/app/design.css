@@ -2258,3 +2258,38 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
 }
 .app .tier-badge.tier-pro   { background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); }
 .app .tier-badge.tier-ultra { background: linear-gradient(135deg, #F6BE48, #E5862F); box-shadow: 0 2px 9px -2px rgba(229, 134, 47, 0.55); }
+
+/* ── 侧栏底部:关注公众号块(在「设置」上方,像素字引导关注) ───────── */
+.sidebar-wechat {
+  margin: 8px 10px 6px;
+  padding: 10px 10px 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--pixel-paper, #FFFAF0) 46%, transparent), transparent 42%),
+    var(--bg-card);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md, 9px);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--pixel-paper, #FFFAF0) 64%, transparent);
+  text-align: center;
+}
+.sidebar-wechat__hook {
+  font-family: var(--font-pixel);                 /* Zpix 品牌字标 */
+  font-size: 13px; line-height: 1.1;
+  color: var(--accent-amber-deep, #B5710A);
+}
+.sidebar-wechat__qr {
+  width: 132px; height: 132px;
+  border-radius: 7px;
+  background: #fff;
+  padding: 4px;
+  border: 1px solid var(--line-1);
+}
+.sidebar-wechat__cap {
+  font-family: var(--font-pixel-ui);
+  font-size: 11px; line-height: 1.35;
+  color: var(--ink-500);
+}
+.sidebar-wechat__cap b { color: var(--ink-700); font-weight: 400; }

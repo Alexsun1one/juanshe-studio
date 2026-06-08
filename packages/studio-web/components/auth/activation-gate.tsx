@@ -36,6 +36,18 @@ export function ActivationGate({ children }: { children: React.ReactNode }) {
       } catch {
         // The route has a permissive server fallback; if even that fails, do not hard-lock local-only use.
       }
+      // 首次运行(还没在本机设过身份)→ 即便本机不强制激活,也先落到登录页:
+      // 这是卷舍的品牌入口 + 公众号漏斗。设过身份(cj.authed)后直接放行,不再每次拦。
+      let authed = false
+      try {
+        authed = localStorage.getItem("cj.authed") === "1"
+      } catch {
+        authed = true // localStorage 不可用时不硬拦本地使用
+      }
+      if (!authed) {
+        if (!cancelled) router.replace("/login")
+        return
+      }
       if (!cancelled) setAllowed(true)
     }
 

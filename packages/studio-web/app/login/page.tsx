@@ -53,6 +53,14 @@ export default function LoginPage() {
   const [busy, setBusy] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
   const [qrError, setQrError] = React.useState(false)
+  // 本机是否强制激活:自助部署默认 false → 可免码直接进入;商业分发设 env(HARDWRITE_ACTIVATION_*)后为 true。
+  const [activationRequired, setActivationRequired] = React.useState(false)
+  React.useEffect(() => {
+    fetch("/api/v1/auth/activation", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((s) => setActivationRequired(Boolean(s?.required)))
+      .catch(() => { /* 后端不可达时按"不强制"处理,保持可自助进入 */ })
+  }, [])
   const [storyText, setStoryText] = React.useState("")
   const qrRef = React.useRef<HTMLImageElement>(null)
   const storyScrollRef = React.useRef<HTMLDivElement>(null)
@@ -99,6 +107,19 @@ export default function LoginPage() {
     const trimmed = code.trim()
     try {
       if (!trimmed) {
+        if (!activationRequired) {
+          // 自助部署:本机不强制激活 → 免激活码直接进入(等级按 Normal)
+          try {
+            setAuthorName(name)
+            localStorage.setItem("cj.authed", "1")
+          } catch {
+            /* ignore */
+          }
+          let onboarded = false
+          try { onboarded = localStorage.getItem("cj.onboarded") === "1" } catch { /* ignore */ }
+          router.push(onboarded ? "/" : "/welcome")
+          return
+        }
         setErr("请先输入激活码。关注公众号回复「领码」即可领取。")
         setBusy(false)
         return
@@ -218,7 +239,11 @@ export default function LoginPage() {
               placeholder="JUAN-XXXX-XXXX-XXXX"
               spellCheck={false}
             />
-            <span className="hint">没有激活码?关注公众号「{WECHAT_NAME}」回复「{WECHAT_KEYWORD}」领取。</span>
+            <span className="hint">
+              {activationRequired
+                ? `没有激活码?关注公众号「${WECHAT_NAME}」回复「${WECHAT_KEYWORD}」领取。`
+                : "自助部署免激活码 —— 留空直接「进入」即可;有激活码可解锁 Pro / Ultra。"}
+            </span>
           </label>
 
           <label className="field">
@@ -237,7 +262,7 @@ export default function LoginPage() {
 
           {!code.trim() && (
             <div className="code-claim">
-              <span className="cc-title">还没有激活码?</span>
+              <span className="cc-title">{activationRequired ? "还没有激活码?" : "自助部署免激活 · 也欢迎关注公众号"}</span>
               {!qrError ? (
                 // eslint-disable-next-line @next/next/no-img-element -- 公众号横条是用户自备静态素材,无需 next/image 优化
                 <img
@@ -254,7 +279,8 @@ export default function LoginPage() {
                 </div>
               )}
               <p className="cc-hint">
-                微信扫码 / 搜一搜关注 <b>「{WECHAT_NAME}」</b>,回复 <b>「{WECHAT_KEYWORD}」</b> 即可领取激活码。
+                微信扫码 / 搜一搜关注 <b>「{WECHAT_NAME}」</b>
+                {activationRequired ? <>,回复 <b>「{WECHAT_KEYWORD}」</b> 即可领取激活码。</> : <> —— 新功能、更新和玩法都先在这发。</>}
               </p>
             </div>
           )}
