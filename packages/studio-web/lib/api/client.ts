@@ -693,7 +693,7 @@ export function startWriteNextChapter(
  */
 export function startWriteBatch(
   bookId: string,
-  input: { chapters: number; targetScore?: number; wordCount?: number; maxRewritesPerChapter?: number },
+  input: { chapters: number; targetScore?: number; wordCount?: number; maxRewritesPerChapter?: number; livestream?: boolean },
 ): Promise<{ status?: string; runId?: string; total?: number }> {
   return postJSON(ENDPOINTS.bookWriteBatch(bookId), input)
 }
@@ -743,6 +743,14 @@ export function approveQualifyingChapters(
   opts: { targetScore?: number } = {},
 ): Promise<{ ok: boolean; threshold: number; approved: { chapterNumber: number; score: number }[]; total: number }> {
   return postJSON(`/api/v1/books/${encodeURIComponent(bookId)}/chapters/approve-qualifying`, opts)
+}
+
+/** 强制签发指定章节(无视分数标记 approved),解除这一卡住的低分章对续写的门禁阻塞。 */
+export function approveChapter(
+  bookId: string,
+  chapterNumber: number,
+): Promise<{ ok: boolean; chapterNumber: number; status: string }> {
+  return postJSON(`/api/v1/books/${encodeURIComponent(bookId)}/chapters/${chapterNumber}/approve`, {})
 }
 
 // ----------------------------------------------------------------------

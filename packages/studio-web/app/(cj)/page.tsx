@@ -16,6 +16,7 @@ import {
   startWriteNextChapter,
   stopBookWorkflow,
   approveQualifyingChapters,
+  approveChapter,
   repairLowScore,
 } from "@/lib/api/client"
 import { useWorkspace } from "@/lib/workspace-context"
@@ -123,6 +124,7 @@ function dashboardWorkflowActionCopy(input: {
   batchN: number
   targetQuality: number
   targetWords: number
+  unattended?: boolean
   stage?: string
 }) {
   switch (input.action) {
@@ -136,10 +138,12 @@ function dashboardWorkflowActionCopy(input: {
       }
     case "batch":
       return {
-        title: `启动连续写 ${input.batchN} 章？`,
+        title: input.unattended ? `无人值守连写 ${input.batchN} 章？` : `启动连续写 ${input.batchN} 章？`,
         description: `这会逐章调用真实写作流水线，单章目标 ${input.targetWords.toLocaleString("en-US")} 字，质量门槛 ${input.targetQuality} 分；每章都可能消耗 LLM token 并写入稿件。`,
-        guardrail: "达不到质量门槛会先自动复修，修不到就停在那一章，不会硬往下写。",
-        confirmLabel: `确认连续写 ${input.batchN} 章`,
+        guardrail: input.unattended
+          ? "无人值守:每章修不到门槛也先接受、继续往下写(标记待重修),全程不停。适合挂机,事后再批量重修。"
+          : "达不到质量门槛会先自动复修，修不到就停在那一章，不会硬往下写。",
+        confirmLabel: input.unattended ? `确认无人值守连写 ${input.batchN} 章` : `确认连续写 ${input.batchN} 章`,
         destructive: false,
       }
     case "stop":
@@ -212,6 +216,8 @@ export default function CjDashboard() {
   const [batchN, setBatchN] = React.useState(10)
   // 本批次的过线分数:从 prefs 默认带出,允许用户在写作器里临时改(不写回 prefs)
   const [batchScore, setBatchScore] = React.useState<number | null>(null)
+  // 无人值守续写:低分先接受、不停下、事后批量重修(走 write-batch livestream)。适合挂机连写几十章。
+  const [unattended, setUnattended] = React.useState(false)
   const [confirmAction, setConfirmAction] = React.useState<DashboardWorkflowAction | null>(null)
   // 新建书向导:工作台直接打开,不再跳 /books
   const [newBookOpen, setNewBookOpen] = React.useState(false)
@@ -292,6 +298,7 @@ export default function CjDashboard() {
       if (!showWriteBlockToast(e, {
         onConfigureLlm: () => router.push("/llm"),
         onApproveQualifying: bookId ? async () => { await approveQualifyingChapters(bookId, { targetScore: targetQuality }) } : undefined,
+        onSignOffChapter: bookId ? async (n: number) => { await approveChapter(bookId, n) } : undefined,
         bookId: bookId ?? undefined,
       })) toast.error(`触发失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
@@ -317,6 +324,7 @@ export default function CjDashboard() {
     } catch (e) {
       if (!showWriteBlockToast(e, {
         onConfigureLlm: () => router.push("/llm"),
+        onSignOffChapter: bookId ? async (n: number) => { await approveChapter(bookId, n) } : undefined,
         bookId: bookId ?? undefined,
       })) toast.error(`复修触发失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
@@ -372,16 +380,19 @@ export default function CjDashboard() {
     }
     setBusy(true)
     try {
-      await startWriteBatch(bookId, { chapters: batchN, targetScore: targetQuality, wordCount: targetWords })
+      await startWriteBatch(bookId, { chapters: batchN, targetScore: targetQuality, wordCount: targetWords, livestream: unattended })
       setPreparing(true)
-      toast.success(`已开始连续写 ${batchN} 章`, {
-        description: `每章按 ${targetQuality} 分把关:达不到先自动复修,修不到就停在那一章,绝不硬往下写。`,
+      toast.success(unattended ? `已开始无人值守连写 ${batchN} 章` : `已开始连续写 ${batchN} 章`, {
+        description: unattended
+          ? `无人值守:每章先自动复修,修不到 ${targetQuality} 分也先接受、继续往下写(标记为待重修),全程不停。挂机即可,事后再批量重修。`
+          : `每章按 ${targetQuality} 分把关:达不到先自动复修,修不到就停在那一章,绝不硬往下写。`,
       })
       run.refresh()
     } catch (e) {
       if (!showWriteBlockToast(e, {
         onConfigureLlm: () => router.push("/llm"),
         onApproveQualifying: bookId ? async () => { await approveQualifyingChapters(bookId, { targetScore: targetQuality }) } : undefined,
+        onSignOffChapter: bookId ? async (n: number) => { await approveChapter(bookId, n) } : undefined,
         bookId: bookId ?? undefined,
       })) toast.error(`触发失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
@@ -474,6 +485,7 @@ export default function CjDashboard() {
         batchN,
         targetQuality,
         targetWords,
+        unattended,
         stage: activeRun?.currentStage || liveStage,
       })
     : null
@@ -742,6 +754,17 @@ export default function CjDashboard() {
                     </button>
                   )}
                 </label>
+                <label className="writer-batch-field writer-unattended-field" title="无人值守:每章修不到门槛也先接受、继续往下写(标记待重修),全程不停。适合挂机连写几十章,配合连续性约束减少漂移。">
+                  <input
+                    type="checkbox"
+                    className="wf-unattended-check"
+                    checked={unattended}
+                    onChange={(e) => setUnattended(e.target.checked)}
+                    disabled={busy || isRunning}
+                    aria-label="无人值守续写(接受低分、不停)"
+                  />
+                  <span className="writer-batch-label">🤖 无人值守</span>
+                </label>
                 <span className={`writer-batch-state${isRunning ? " is-running" : run.lastError ? " is-error" : " is-idle"}`}>
                   <span className="dot" aria-hidden />
                   {isRunning ? "运行中" : run.lastError ? "已清理" : "待命"}
@@ -751,9 +774,9 @@ export default function CjDashboard() {
                   className={`ctrl batch${busy || preparing ? " is-loading" : ""}`}
                   onClick={() => openWorkflowConfirm("batch")}
                   disabled={busy || preparing || !bookId || isRunning}
-                  title="连续写 N 章,达不到质量门槛即停  (⌘/Ctrl + Shift + Enter)"
+                  title={unattended ? "无人值守连写 N 章:低分也不停、事后批量重修  (⌘/Ctrl + Shift + Enter)" : "连续写 N 章,达不到质量门槛即停  (⌘/Ctrl + Shift + Enter)"}
                 >
-                  {preparing ? "模型准备中…" : "开始连续写"}
+                  {preparing ? "模型准备中…" : unattended ? "无人值守连写" : "开始连续写"}
                   {!preparing && <kbd className="kbd">⌘⇧↵</kbd>}
                 </button>
               </div>

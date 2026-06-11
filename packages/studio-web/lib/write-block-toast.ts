@@ -13,6 +13,8 @@ export function showWriteBlockToast(
     onConfigureLlm?: () => void
     /** 一键放行所有达标章节(调 /chapters/approve-qualifying),完成后回调 */
     onApproveQualifying?: () => Promise<void>
+    /** 强制签发卡住的低分章(调 /chapters/:num/approve),解除门禁阻塞、可继续往下写 */
+    onSignOffChapter?: (chapterNumber: number) => Promise<void>
     bookId?: string
   },
 ): boolean {
@@ -60,22 +62,27 @@ export function showWriteBlockToast(
       return true
     }
 
-    // 分数确实不够
-    toast.error(`续写被挡住 · 第 ${ch} 章 ${sc}/${tg} 分`, {
-      description: `第 ${ch} 章还差 ${tg - scoreNum} 分未达标。点下方「修复此章」让编辑部自动重修，达标后自动继续写下一章。`,
-      action: opts?.onApproveQualifying
-        ? {
-            label: "修复此章",
-            onClick: () => {
-              toast.promise(opts.onApproveQualifying!(), {
-                loading: "正在启动复修…",
-                success: "已启动复修，达标后自动续写",
-                error: (err) => `启动失败: ${err instanceof Error ? err.message : String(err)}`,
-              })
-            },
-          }
-        : undefined,
-      duration: 15000,
+    // 分数确实不够 —— 卡住了。给"签发放行(认下这章、继续往下写)"逃生口,而不是死卡在这。
+    const blockingCh = typeof gate.chapterNumber === "number" ? gate.chapterNumber : null
+    toast.warning(`续写卡在第 ${ch} 章 · ${sc}/${tg} 分`, {
+      description:
+        blockingCh != null && opts?.onSignOffChapter
+          ? `第 ${ch} 章还差 ${tg - scoreNum} 分未达标。点「签发并继续」认下这一章、往下写(事后还能再修);或在工作台点「修复」让编辑部自动重修到达标。`
+          : `第 ${ch} 章还差 ${tg - scoreNum} 分未达标。在工作台点「修复」让编辑部自动重修,达标后自动继续。`,
+      action:
+        blockingCh != null && opts?.onSignOffChapter
+          ? {
+              label: "✅ 签发并继续",
+              onClick: () => {
+                toast.promise(opts.onSignOffChapter!(blockingCh), {
+                  loading: `正在签发第 ${blockingCh} 章…`,
+                  success: "已签发,请重新点「继续写」往下续",
+                  error: (err) => `签发失败: ${err instanceof Error ? err.message : String(err)}`,
+                })
+              },
+            }
+          : undefined,
+      duration: 18000,
     })
     return true
   }

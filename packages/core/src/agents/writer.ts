@@ -279,7 +279,7 @@ export class WriterAgent extends BaseAgent {
     const [
       storyBible, volumeOutline, styleGuide, currentState, ledger, hooks,
       chapterSummaries, subplotBoard, emotionalArcs, characterMatrix, styleProfileRaw,
-      parentCanon, fanficCanonRaw,
+      parentCanon, fanficCanonRaw, lockedFactsRaw, auditDriftRaw,
     ] = await Promise.all([
         readStoryFrame(bookDir, placeholder),
         readVolumeMap(bookDir, placeholder),
@@ -298,9 +298,14 @@ export class WriterAgent extends BaseAgent {
         this.readFileOrDefault(join(bookDir, "story/style_profile.json")),
         this.readFileOrDefault(join(bookDir, "story/parent_canon.md")),
         this.readFileOrDefault(join(bookDir, "story/fanfic_canon.md")),
+        // 连续性硬约束源:已锁 canon(死亡/身份/血缘/时间线)+ 上一章审计纠偏。
+        // 之前这俩只喂给 composer,写手本人看不到 → 写出前后矛盾(continuity 维度垮)。
+        this.readFileOrDefault(join(bookDir, "story/locked_facts.md")),
+        this.readFileOrDefault(join(bookDir, "story/audit_drift.md")),
       ]);
 
-    const recentChapters = await this.loadRecentChapters(bookDir, chapterNumber);
+    // 近章读 2-3 章全文(原默认只 1 章,前后剧情接不上);早期章用 2,第 5 章起用 3。
+    const recentChapters = await this.loadRecentChapters(bookDir, chapterNumber, chapterNumber > 4 ? 3 : 2);
     // Load more chapters for dialogue fingerprint extraction (voice consistency over longer span)
     const fingerprintChapters = await this.loadRecentChapters(bookDir, chapterNumber, 5);
 
@@ -350,6 +355,8 @@ export class WriterAgent extends BaseAgent {
     const creativeUserPrompt = input.chapterMemo && input.contextPackage && input.ruleStack
       ? this.buildGovernedUserPrompt({
           chapterNumber,
+          lockedFacts: lockedFactsRaw,
+          auditDrift: auditDriftRaw,
           chapterMemo: input.chapterMemo,
           chapterIntentData: input.chapterIntentData,
           contextPackage: input.contextPackage,
@@ -379,6 +386,8 @@ export class WriterAgent extends BaseAgent {
 
           return this.buildUserPrompt({
             chapterNumber,
+            lockedFacts: lockedFactsRaw,
+            auditDrift: auditDriftRaw,
             storyBible,
             currentState,
             ledger: genreProfile.numericalSystem ? ledger : "",
@@ -940,8 +949,32 @@ export class WriterAgent extends BaseAgent {
     await Promise.all(writes);
   }
 
+  /**
+   * 连续性硬约束块:已锁 canon 事实 + 上一章审计纠偏,作【高优先级专门段】注入写手。
+   * 两种 prompt 路径(governed/legacy)共用 —— 之前写手看不到这俩,导致前后矛盾、continuity 维度垮。
+   */
+  private buildContinuityGuardBlock(lockedFacts: string, auditDrift: string, language: "zh" | "en"): string {
+    const ph = "(文件尚未创建)";
+    let facts = (lockedFacts && lockedFacts !== ph) ? lockedFacts.trim() : "";
+    const drift = (auditDrift && auditDrift !== ph) ? auditDrift.trim() : "";
+    if (facts.length > 6000) facts = "…(更早已锁事实见 canon,以下为最近)\n" + facts.slice(-6000);
+    if (!facts && !drift) return "";
+    if (language === "en") {
+      const parts = ["## Continuity hard constraints (violations → rework)"];
+      if (facts) parts.push(`### Locked canon facts (immutable — never contradict: death / identity / lineage / timeline / permanent state)\n${facts}`);
+      if (drift) parts.push(`### Previous-chapter audit corrections (must avoid this chapter — do not repeat)\n${drift}`);
+      return "\n" + parts.join("\n\n") + "\n";
+    }
+    const parts = ["## 连续性硬约束（违反即返工）"];
+    if (facts) parts.push(`### 已锁定事实（canon·不可改写：死亡 / 真实身份 / 血缘 / 时间线 / 永久状态）\n${facts}`);
+    if (drift) parts.push(`### 上一章审计纠偏（本章必须避免，别重复踩同一个坑）\n${drift}`);
+    return "\n" + parts.join("\n\n") + "\n";
+  }
+
   private buildUserPrompt(params: {
     readonly chapterNumber: number;
+    readonly lockedFacts?: string;
+    readonly auditDrift?: string;
     readonly storyBible: string;
     readonly currentState: string;
     readonly ledger: string;
@@ -959,6 +992,7 @@ export class WriterAgent extends BaseAgent {
     readonly language?: "zh" | "en";
     readonly varianceBrief?: string;
   }): string {
+    const continuityGuard = this.buildContinuityGuardBlock(params.lockedFacts ?? "", params.auditDrift ?? "", params.language ?? "zh");
     const contextBlock = params.externalContext
       ? `\n## 外部指令\n以下是来自外部系统的创作指令，请在本章中融入：\n\n${params.externalContext}\n`
       : "";
@@ -1003,7 +1037,7 @@ ${params.parentCanon}\n`
 
     if (params.language === "en") {
       return `Write chapter ${params.chapterNumber}.
-${contextBlock}
+${contextBlock}${continuityGuard}
 ## Current State
 ${params.currentState}
 ${ledgerBlock}
@@ -1023,7 +1057,7 @@ ${lengthRequirementBlock}
     }
 
     return `请续写第${params.chapterNumber}章。
-${contextBlock}
+${contextBlock}${continuityGuard}
 ## 当前状态卡
 ${params.currentState}
 ${ledgerBlock}
@@ -1044,6 +1078,8 @@ ${lengthRequirementBlock}
 
   private buildGovernedUserPrompt(params: {
     readonly chapterNumber: number;
+    readonly lockedFacts?: string;
+    readonly auditDrift?: string;
     readonly chapterMemo: ChapterMemo;
     readonly chapterIntentData?: ChapterIntent;
     readonly contextPackage: ContextPackage;
@@ -1073,6 +1109,7 @@ ${lengthRequirementBlock}
       : "";
     const chapterContextBlock = this.buildChapterContextBlock(params.externalContext, language);
     const briefNarrative = renderMemoAsNarrativeBlock(params.chapterMemo, params.chapterIntentData, language);
+    const continuityGuard = this.buildContinuityGuardBlock(params.lockedFacts ?? "", params.auditDrift ?? "", language);
 
     if (params.language === "en") {
       return `Write chapter ${params.chapterNumber}.
@@ -1080,7 +1117,7 @@ ${lengthRequirementBlock}
 ${chapterContextBlock}
 
 ${briefNarrative}
-
+${continuityGuard}
 ## Selected Context
 ${contextSections || "(none)"}
 ${selectedEvidenceBlock}
@@ -1101,7 +1138,7 @@ ${lengthRequirementBlock}
 ${chapterContextBlock}
 
 ${briefNarrative}
-
+${continuityGuard}
 ## 已选上下文
 ${contextSections || "(无)"}
 ${selectedEvidenceBlock}

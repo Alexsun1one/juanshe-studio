@@ -2293,3 +2293,8 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   color: var(--ink-500);
 }
 .sidebar-wechat__cap b { color: var(--ink-700); font-weight: 400; }
+
+/* ── 无人值守续写开关(连续写控件行) ───────── */
+.writer-unattended-field { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
+.wf-unattended-check { width: 14px; height: 14px; accent-color: var(--accent-amber-deep, #B5710A); cursor: pointer; }
+.writer-unattended-field:has(.wf-unattended-check:checked) .writer-batch-label { color: var(--accent-amber-deep, #B5710A); font-weight: 500; }
