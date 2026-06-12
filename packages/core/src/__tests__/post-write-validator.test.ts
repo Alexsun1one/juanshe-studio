@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
   detectDuplicateTitle,
+  detectEndingProphecy,
   detectParagraphLengthDrift,
   detectParagraphShapeWarnings,
   resolveDuplicateTitle,
   normalizePostWriteSurface,
   validatePostWrite,
+  validatePostWriteHardBans,
   type PostWriteViolation,
 } from "../agents/post-write-validator.js";
 import type { GenreProfile } from "../models/genre-profile.js";
@@ -60,6 +62,35 @@ describe("validatePostWrite", () => {
     const result = validatePostWrite(content, baseProfile, null);
     expect(findRule(result, "禁止破折号")).toBeDefined();
     expect(findRule(result, "禁止破折号")!.severity).toBe("error");
+  });
+
+  it("detects ending prophecy in the last paragraphs", () => {
+    const content = [
+      "他把收音机搁在桌角，旋钮上全是灰。",
+      "",
+      "巷口的灯灭了，他锁上门。",
+      "",
+      "他不知道的是，市场的另一头已经有人在等他。",
+    ].join("\n");
+    const result = validatePostWrite(content, baseProfile, null);
+    expect(findRule(result, "章末预言句")).toBeDefined();
+    expect(findRule(result, "章末预言句")!.severity).toBe("error");
+    expect(detectEndingProphecy(content)).toContain("不知道的是");
+  });
+
+  it("ignores prophecy-like wording when it is far from the ending", () => {
+    const opening = "他不知道的是，这只是开头。";
+    const body = Array.from({ length: 6 }, (_, i) => `第${i + 1}段：他擦了擦桌子，把茶缸往边上一墩。`).join("\n\n");
+    expect(detectEndingProphecy(`${opening}\n\n${body}`)).toBeNull();
+  });
+
+  it("validatePostWriteHardBans covers banned syntax, dash, and ending prophecy; skips English", () => {
+    const content = "这不是勇气，而是愚蠢——他知道。\n\n他不知道的是，门外有人。";
+    const rules = validatePostWriteHardBans(content).map((v) => v.rule);
+    expect(rules).toContain("禁止句式");
+    expect(rules).toContain("禁止破折号");
+    expect(rules).toContain("章末预言句");
+    expect(validatePostWriteHardBans(content, "en")).toHaveLength(0);
   });
 
   it("skips Chinese-only rules when the book language override is English", () => {

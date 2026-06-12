@@ -76,6 +76,62 @@ const COLLECTIVE_SHOCK_PATTERNS = [
   /(?:全场|一片)[，,]?(?:寂静|哗然|沸腾|震动)/,
 ];
 
+/** 章末预言句:全链最高禁令之一,此前只有提示词管、零机检(实测原样入库)。 */
+const ENDING_PROPHECY_PATTERNS = [
+  /(?:他|她|他们)(?:还)?不知道的是/,
+  /而这一切[^。！？\n]{0,6}(?:才刚刚开始|不过是开始|仅仅是开始)/,
+];
+
+/** 检查正文最后 3 段是否踩中章末预言句;返回命中原文(未命中返回 null)。 */
+export function detectEndingProphecy(content: string): string | null {
+  const tail = extractParagraphs(content).slice(-3).join("\n");
+  if (!tail) return null;
+  for (const pattern of ENDING_PROPHECY_PATTERNS) {
+    const match = tail.match(pattern);
+    if (match) return match[0];
+  }
+  return null;
+}
+
+/**
+ * 落盘门禁用的硬禁令子集(零配置、确定性):禁句式 / 破折号 / 章末预言句。
+ * 与 validatePostWrite 的对应条目同源;给 persistChapterArtifacts 这类拿不到
+ * genreProfile/bookRules 的落盘入口做最后一道闸,任何产文路径都绕不过。
+ */
+export function validatePostWriteHardBans(
+  content: string,
+  languageOverride?: "zh" | "en",
+): ReadonlyArray<PostWriteViolation> {
+  if (languageOverride === "en") return [];
+  const violations: PostWriteViolation[] = [];
+  if (/不是[^，。！？\n]{0,30}[，,]?\s*而是/.test(content)) {
+    violations.push({
+      rule: "禁止句式",
+      severity: "error",
+      description: "出现了「不是……而是……」句式",
+      suggestion: "改用直述句",
+    });
+  }
+  if (content.includes("——")) {
+    violations.push({
+      rule: "禁止破折号",
+      severity: "error",
+      description: "出现了破折号「——」",
+      suggestion: "用逗号或句号断句",
+    });
+  }
+  const prophecy = detectEndingProphecy(content);
+  if (prophecy) {
+    violations.push({
+      rule: "章末预言句",
+      severity: "error",
+      description: `章末出现预言/上帝视角旁白："${prophecy}"`,
+      suggestion: "删掉预言句,把章尾断在动作已发、结果未现的具体画面上",
+    });
+  }
+  return violations;
+}
+
 // --- Validator ---
 
 export function validatePostWrite(
@@ -110,6 +166,17 @@ export function validatePostWrite(
       severity: "error",
       description: "出现了破折号「——」",
       suggestion: "用逗号或句号断句",
+    });
+  }
+
+  // 2.5 硬性禁令: 章末预言句(「他不知道的是…」「而这一切才刚刚开始」)
+  const endingProphecy = detectEndingProphecy(content);
+  if (endingProphecy) {
+    violations.push({
+      rule: "章末预言句",
+      severity: "error",
+      description: `章末出现预言/上帝视角旁白："${endingProphecy}"`,
+      suggestion: "删掉预言句,把章尾断在动作已发、结果未现的具体画面上",
     });
   }
 

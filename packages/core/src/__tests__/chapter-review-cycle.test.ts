@@ -36,6 +36,8 @@ const baseParams = {
   lengthSpec: LENGTH_SPEC,
   reducedControlInput: undefined,
   initialUsage: ZERO_USAGE,
+  // normalizePostWriteSurface 已是必填依赖(落盘门禁下沉);多数用例不关心表面规整,给恒等函数
+  normalizePostWriteSurface: (content: string) => content,
   assertChapterContentNotEmpty: () => undefined,
   addUsage: (left: typeof ZERO_USAGE, right?: typeof ZERO_USAGE) => ({
     promptTokens: left.promptTokens + (right?.promptTokens ?? 0),

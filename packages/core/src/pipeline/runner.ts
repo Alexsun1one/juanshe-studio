@@ -1954,6 +1954,9 @@ export class PipelineRunner {
     await persistChapterArtifacts({
       chapterNumber,
       chapterTitle: persistenceOutput.title,
+      content: persistenceOutput.content,
+      language: pipelineLang,
+      bookDir,
       status: resolvedStatus,
       auditResult,
       finalWordCount,
@@ -1962,7 +1965,8 @@ export class PipelineRunner {
       degradedIssues,
       tokenUsage: totalUsage,
       loadChapterIndex: () => this.state.loadChapterIndex(bookId),
-      saveChapter: () => writer.saveChapter(bookDir, persistenceOutput, gp.numericalSystem, pipelineLang),
+      saveChapter: (gatedContent) =>
+        writer.saveChapter(bookDir, { ...persistenceOutput, content: gatedContent }, gp.numericalSystem, pipelineLang),
       saveTruthFiles: async () => {
         await writer.saveNewTruthFiles(bookDir, persistenceOutput, pipelineLang);
         await this.syncLegacyStructuredStateFromMarkdown(bookDir, chapterNumber, persistenceOutput);

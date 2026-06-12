@@ -5,6 +5,7 @@ import type { FanficMode } from "../models/book.js";
 import type { ChapterMemo, ContextPackage, RuleStack } from "../models/input-governance.js";
 import { readGenreProfile, readBookLanguage, readBookRules } from "./rules-reader.js";
 import { getFanficDimensionConfig, FANFIC_DIMENSIONS } from "./fanfic-dimensions.js";
+import { extractVoiceCards, renderVoiceCardAuditBlock, selectActiveVoiceCards } from "./voice-cards.js";
 import { readFile, readdir } from "node:fs/promises";
 import { filterHooks, filterSummaries, filterSubplots, filterEmotionalArcs, filterCharacterMatrix } from "../utils/context-filter.js";
 import { buildGovernedMemoryEvidenceBlocks } from "../utils/governed-context.js";
@@ -393,7 +394,7 @@ export class ContinuityAuditor extends BaseAgent {
       };
     },
   ): Promise<AuditResult> {
-    const [diskCurrentState, diskLedger, diskHooks, styleGuideRaw, subplotBoard, emotionalArcs, characterMatrix, chapterSummaries, parentCanon, fanficCanon, volumeOutline] =
+    const [diskCurrentState, diskLedger, diskHooks, styleGuideRaw, subplotBoard, emotionalArcs, characterMatrix, chapterSummaries, parentCanon, fanficCanon, volumeOutline, voiceCardMatrixRaw] =
       await Promise.all([
         // Phase 5 consolidation: derive initial state from roles + seed hooks
         // when current_state.md is still the architect seed placeholder.
@@ -408,6 +409,8 @@ export class ContinuityAuditor extends BaseAgent {
         this.readFileSafe(join(bookDir, "story/parent_canon.md")),
         this.readFileSafe(join(bookDir, "story/fanfic_canon.md")),
         readVolumeMap(bookDir, "(文件不存在)"),
+        // 声音卡验收要「说话」卡原文,直接读运行时矩阵(readCharacterContext 在有 roles/ 时返回散文卡,不含说话字段)
+        this.readFileSafe(join(bookDir, "story/character_matrix.md")),
       ]);
     const currentState = options?.truthFileOverrides?.currentState ?? diskCurrentState;
     const ledger = options?.truthFileOverrides?.ledger ?? diskLedger;
@@ -618,6 +621,14 @@ overall_score 评分校准：
         : `\n## 上一章全文（用于衔接检查）\n${previousChapter}\n`
       : "";
 
+    // 声音卡验收:本章出场且台词≥3 句的角色,「说话」卡原文逐条贴入,
+    // 要求审稿官对每人摘违背声音卡的台词进 issues(台词失真维度)。
+    // 此前设定与产出之间没有这道闭环,一到紧张戏全员塌成同一种腔。
+    const voiceCardBlock = renderVoiceCardAuditBlock(
+      selectActiveVoiceCards(extractVoiceCards(voiceCardMatrixRaw), chapterContent),
+      resolvedLanguage,
+    );
+
     // 拆 user 内容做 Anthropic prompt caching:
     //  - block 1:context(状态卡 + 各种背景),长但每章不同 — 标 cache 让 audit-revise-reaudit 循环复用
     //  - block 2:章节正文,可能跨 audit 调用复用 — 也标 cache
@@ -627,11 +638,11 @@ overall_score 评分校准：
       ? `## Current State Card
 ${currentState}
 ${ledgerBlock}
-${hooksBlock}${volumeSummariesBlock}${subplotBlock}${emotionalBlock}${matrixBlock}${summariesBlock}${canonBlock}${fanficCanonBlock}${reducedControlBlock}${memoBlock}${prevChapterBlock}${styleGuideBlock}\n\n`
+${hooksBlock}${volumeSummariesBlock}${subplotBlock}${emotionalBlock}${matrixBlock}${voiceCardBlock}${summariesBlock}${canonBlock}${fanficCanonBlock}${reducedControlBlock}${memoBlock}${prevChapterBlock}${styleGuideBlock}\n\n`
       : `## 当前状态卡
 ${currentState}
 ${ledgerBlock}
-${hooksBlock}${volumeSummariesBlock}${subplotBlock}${emotionalBlock}${matrixBlock}${summariesBlock}${canonBlock}${fanficCanonBlock}${reducedControlBlock}${memoBlock}${prevChapterBlock}${styleGuideBlock}\n\n`;
+${hooksBlock}${volumeSummariesBlock}${subplotBlock}${emotionalBlock}${matrixBlock}${voiceCardBlock}${summariesBlock}${canonBlock}${fanficCanonBlock}${reducedControlBlock}${memoBlock}${prevChapterBlock}${styleGuideBlock}\n\n`;
     const chapterBlock = isEnglish
       ? `## Chapter Content Under Review\n${chapterContent}`
       : `## 待审章节内容\n${chapterContent}`;

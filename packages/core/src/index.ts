@@ -31,6 +31,8 @@ export { parseStoryFrame, findSection, type ParsedStoryFrame, type StoryFrameSec
 export { StageTracker, type StageRecord } from "./pipeline/stage-tracker.js";
 export { AGENT_CONTRACTS, getAgentContract, nextAgents, validateHandoff, upstreamProducersOf, type AgentContract, type HandoffCheck } from "./pipeline/agent-contracts.js";
 export { buildGovernanceRecommendation, shouldTriggerGovernance, DEFAULT_GOVERNANCE_THRESHOLD, type GovernanceRecommendation, type GovernanceSeverity } from "./pipeline/governance-policy.js";
+// 复读账本:全书级 n-gram 复读统计(纯函数部分供 studio engine-bridge 复用)
+export { collectOverusedPhrases, loadOverusedPhrases, updatePhraseLedger, buildPhraseLedgerIssues, renderOverusedPhraseNotice, extractPhraseCounts, type OverusedPhrase } from "./pipeline/phrase-ledger.js";
 export { type GenreProfile, type ParsedGenreProfile, GenreProfileSchema, parseGenreProfile } from "./models/genre-profile.js";
 export { type BookRules, type ParsedBookRules, BookRulesSchema, parseBookRules, tryParseBookRulesFrontmatter } from "./models/book-rules.js";
 export { type DetectionHistoryEntry, type DetectionStats } from "./models/detection.js";

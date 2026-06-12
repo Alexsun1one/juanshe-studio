@@ -30,6 +30,7 @@ import {
   mergeTableMarkdownByKey,
 } from "../utils/governed-working-set.js";
 import { extractPOVFromOutline, filterMatrixByPOV, filterHooksByPOV } from "../utils/pov-filter.js";
+import { extractVoiceCards, renderWriterVoiceCardBlock, selectVoiceCardsByMention } from "./voice-cards.js";
 import { parseCreativeOutput } from "./writer-parser.js";
 import { buildRuntimeStateArtifacts, saveRuntimeStateSnapshot, type RuntimeStateArtifacts } from "../state/runtime-state-store.js";
 import type { RuntimeStateSnapshot } from "../state/state-reducer.js";
@@ -303,6 +304,9 @@ export class WriterAgent extends BaseAgent {
         this.readFileOrDefault(join(bookDir, "story/locked_facts.md")),
         this.readFileOrDefault(join(bookDir, "story/audit_drift.md")),
       ]);
+    // 声音卡要「说话」字段原文,直接读运行时矩阵——readCharacterContext 在有 roles/ 时
+    // 返回散文角色卡(无说话字段),governed 路径此前因此完全看不到声音卡。
+    const voiceCardMatrixRaw = await this.readFileOrDefault(join(bookDir, "story/character_matrix.md"));
 
     // 近章读 2-3 章全文(原默认只 1 章,前后剧情接不上);早期章用 2,第 5 章起用 3。
     const recentChapters = await this.loadRecentChapters(bookDir, chapterNumber, chapterNumber > 4 ? 3 : 2);
@@ -366,6 +370,15 @@ export class WriterAgent extends BaseAgent {
           language: book.language ?? genreProfile.language,
           varianceBrief: varianceBrief?.text,
           selectedEvidenceBlock: this.joinGovernedEvidenceBlocks(governedMemoryBlocks),
+          // governed 路径此前不带角色矩阵 → 写手看不到「说话」卡原文,全员同腔的源头之一。
+          // 按本章意图/memo 点名的角色选卡注入;legacy 路径的矩阵块本就含说话字段,不重复注入。
+          voiceCardBlock: renderWriterVoiceCardBlock(
+            selectVoiceCardsByMention(
+              extractVoiceCards(voiceCardMatrixRaw),
+              [input.chapterIntent ?? "", input.chapterMemo.goal, input.chapterMemo.body].join("\n"),
+            ),
+            resolvedLanguage,
+          ),
         })
       : (() => {
           // Smart context filtering: inject only relevant parts of truth files
@@ -901,10 +914,13 @@ export class WriterAgent extends BaseAgent {
     const heading = language === "en"
       ? `# Chapter ${output.chapterNumber}: ${output.title}`
       : `# 第${output.chapterNumber}章 ${output.title}`;
+    // 落盘表面规整:saveChapter 是所有产文路径(主链/复修/状态同步/回放导入)的真正唯一写盘口,
+    // 此前复修/恢复类路径绕过 normalize 直存 → 已发布正文里破折号成片存活。幂等,主链重复过一次无害。
+    const surfacedContent = normalizePostWriteSurface(output.content, language);
     const chapterContent = [
       heading,
       "",
-      output.content,
+      surfacedContent,
     ].join("\n");
     const runtimeStateArtifacts = await this.resolveRuntimeStateArtifactsForOutput(
       bookDir,
@@ -1089,6 +1105,8 @@ ${lengthRequirementBlock}
     readonly language?: "zh" | "en";
     readonly varianceBrief?: string;
     readonly selectedEvidenceBlock?: string;
+    /** 人物声音卡(「说话」原文)块,空串表示本章无可注入卡。 */
+    readonly voiceCardBlock?: string;
   }): string {
     const language = params.language ?? "zh";
     const contextSections = renderNarrativeSelectedContext(
@@ -1111,13 +1129,15 @@ ${lengthRequirementBlock}
     const briefNarrative = renderMemoAsNarrativeBlock(params.chapterMemo, params.chapterIntentData, language);
     const continuityGuard = this.buildContinuityGuardBlock(params.lockedFacts ?? "", params.auditDrift ?? "", language);
 
+    const voiceCardBlock = params.voiceCardBlock ?? "";
+
     if (params.language === "en") {
       return `Write chapter ${params.chapterNumber}.
 
 ${chapterContextBlock}
 
 ${briefNarrative}
-${continuityGuard}
+${continuityGuard}${voiceCardBlock}
 ## Selected Context
 ${contextSections || "(none)"}
 ${selectedEvidenceBlock}
@@ -1138,7 +1158,7 @@ ${lengthRequirementBlock}
 ${chapterContextBlock}
 
 ${briefNarrative}
-${continuityGuard}
+${continuityGuard}${voiceCardBlock}
 ## 已选上下文
 ${contextSections || "(无)"}
 ${selectedEvidenceBlock}

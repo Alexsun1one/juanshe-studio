@@ -42,6 +42,7 @@ describe("persistChapterArtifacts", () => {
     await persistChapterArtifacts({
       chapterNumber: 3,
       chapterTitle: "Chapter Title",
+      content: "他把U盘攥进手心，回头看了一眼档案室的黑窗。",
       status: "ready-for-review",
       auditResult: createAuditResult({
         issues: [
@@ -106,6 +107,7 @@ describe("persistChapterArtifacts", () => {
     await persistChapterArtifacts({
       chapterNumber: 4,
       chapterTitle: "Degraded Chapter",
+      content: "她合上账本，吹熄了灯。",
       status: "state-degraded",
       auditResult: createAuditResult({
         passed: false,
@@ -166,6 +168,7 @@ describe("persistChapterArtifacts", () => {
     await persistChapterArtifacts({
       chapterNumber: 1,
       chapterTitle: "New Title",
+      content: "巷口的灯还亮着，他没急着进去。",
       status: "ready-for-review",
       auditResult: createAuditResult(),
       finalWordCount: 2000,
@@ -194,5 +197,46 @@ describe("persistChapterArtifacts", () => {
     // Must preserve original createdAt
     expect(savedIndex[0].createdAt).toBe("2026-01-01T00:00:00.000Z");
     expect(savedIndex[0].updatedAt).toBe("2026-04-01T00:00:00.000Z");
+  });
+
+  it("落盘门禁:机械修复破折号后落盘,残留硬违规(章末预言句)绝不带病标 ready-for-review", async () => {
+    const saveChapter = vi.fn().mockResolvedValue(undefined);
+    const saveChapterIndex = vi.fn().mockResolvedValue(undefined);
+    const persistAuditDriftGuidance = vi.fn().mockResolvedValue(undefined);
+    const padding = "他把收音机搁在桌角，旋钮上全是灰。".repeat(3);
+    const content = `${padding}\n\n窗外起风了——他拉紧了外套。\n\n他不知道的是，市场的另一头已经有人在等他。`;
+
+    await persistChapterArtifacts({
+      chapterNumber: 5,
+      chapterTitle: "门禁测试",
+      content,
+      language: "zh",
+      status: "ready-for-review",
+      auditResult: createAuditResult(),
+      finalWordCount: content.length,
+      lengthWarnings: [],
+      degradedIssues: [],
+      tokenUsage: ZERO_USAGE,
+      loadChapterIndex: async () => [] satisfies ReadonlyArray<ChapterMeta>,
+      saveChapter,
+      saveTruthFiles: vi.fn().mockResolvedValue(undefined),
+      saveChapterIndex,
+      markBookActiveIfNeeded: vi.fn().mockResolvedValue(undefined),
+      persistAuditDriftGuidance,
+      snapshotState: vi.fn().mockResolvedValue(undefined),
+      syncCurrentStateFactHistory: vi.fn().mockResolvedValue(undefined),
+      logSnapshotStage: vi.fn(),
+      now: () => "2026-04-01T00:00:00.000Z",
+    });
+
+    // 破折号可机械修复:落盘内容已替换,不构成阻断
+    const persisted = saveChapter.mock.calls[0]?.[0] as string;
+    expect(persisted).not.toContain("——");
+    // 章末预言句不可机械修复:状态降为 audit-failed,违规进章节索引与审计纠偏
+    const savedIndex = saveChapterIndex.mock.calls[0]?.[0] as ChapterMeta[];
+    expect(savedIndex[0]!.status).toBe("audit-failed");
+    expect(savedIndex[0]!.auditIssues.some((line) => line.includes("章末"))).toBe(true);
+    const driftIssues = persistAuditDriftGuidance.mock.calls[0]?.[0] as AuditIssue[];
+    expect(driftIssues.some((issue) => issue.category.includes("落盘门禁"))).toBe(true);
   });
 });

@@ -4,6 +4,7 @@ import type { WriteChapterOutput } from "../agents/writer.js";
 import type { ChapterIntent, ChapterMemo, ContextPackage, RuleStack } from "../models/input-governance.js";
 import type { LengthSpec } from "../models/length-governance.js";
 import { countChapterLength, isOutsideHardRange } from "../utils/length-metrics.js";
+import { buildPhraseLedgerIssues, loadOverusedPhrases } from "./phrase-ledger.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -222,7 +223,8 @@ export async function runChapterReviewCycle(params: {
     applied: boolean;
     tokenUsage?: ChapterReviewCycleUsage;
   }>;
-  readonly normalizePostWriteSurface?: (chapterContent: string) => string;
+  /** 表面规整(破折号→逗号、模型备注行剥除)。必填:续写/恢复等任何走本闭环的路径都不得跳过。 */
+  readonly normalizePostWriteSurface: (chapterContent: string) => string;
   readonly assertChapterContentNotEmpty: (content: string, stage: string) => void;
   readonly addUsage: (
     left: ChapterReviewCycleUsage,
@@ -272,10 +274,17 @@ export async function runChapterReviewCycle(params: {
   };
 
   const normalizedBeforeAudit = await normalizeIfHardDrift(finalContent);
-  finalContent = params.normalizePostWriteSurface?.(normalizedBeforeAudit.content) ?? normalizedBeforeAudit.content;
+  finalContent = params.normalizePostWriteSurface(normalizedBeforeAudit.content);
   finalWordCount = countChapterLength(finalContent, params.lengthSpec.countingMode);
   normalizeApplied = normalizeApplied || normalizedBeforeAudit.applied;
   params.assertChapterContentNotEmpty(finalContent, "draft generation");
+
+  // 复读账本:全书「已用滥表达」清单(由 chapter-persistence 落盘时记账,本章开审前读一次)。
+  // 新稿命中即出确定性 warning → reviser 拿原句定点换写,并经 audit_drift 注入下一章写手。
+  const overusedPhrases = await loadOverusedPhrases(params.bookDir).catch(
+    () => [] as Awaited<ReturnType<typeof loadOverusedPhrases>>,
+  );
+  const ledgerLanguage: "zh" | "en" = /[一-鿿]/.test(finalContent.slice(0, 2000)) ? "zh" : "en";
 
   // ---------------------------------------------------------------------------
   // Helper: assess a chapter (audit + deterministic checks + length + score)
@@ -305,12 +314,14 @@ export async function runChapterReviewCycle(params: {
     const postWriteIssues = params.runPostWriteChecks
       ? params.runPostWriteChecks(content)
       : initialPostWriteIssues;
+    const phraseLedgerIssues = buildPhraseLedgerIssues(content, overusedPhrases, ledgerLanguage);
 
     const allIssues: AuditIssue[] = [
       ...llmAudit.issues,
       ...aiTellsResult.issues,
       ...sensitiveResult.issues,
       ...postWriteIssues,
+      ...phraseLedgerIssues,
     ];
 
     // Length is NOT added to reviser issues — normalize handles it as a dedicated step.
@@ -451,7 +462,7 @@ export async function runChapterReviewCycle(params: {
       }
 
       params.assertChapterContentNotEmpty(reviseOutput.revisedContent, `repair iteration ${iteration + 1}`);
-      const revisedContent = params.normalizePostWriteSurface?.(reviseOutput.revisedContent) ?? reviseOutput.revisedContent;
+      const revisedContent = params.normalizePostWriteSurface(reviseOutput.revisedContent);
       const revisedWordCount = countChapterLength(revisedContent, params.lengthSpec.countingMode);
 
       // Re-assess revised content. If REVISED_CONTENT drifted on length,
