@@ -232,7 +232,8 @@ export default function CharactersPage() {
                     <div className="tag-row">
                       {selFaction && <span className="tag brand">{selFaction.name.zh}</span>}
                       <span className="tag" style={{ background: "var(--c-char-bg)", color: "var(--c-char)" }}>重要度 {selected.importance}/5</span>
-                      <span className="tag info">弧光 {Math.round((selected.arc || 0) * 100)}%</span>
+                      {/* 弧光与下方 v-rose 弧光统计同色相:玫瑰=本页弧光强调色,不借 info(沉静青)的类 */}
+                      <span className="tag" style={{ background: "var(--c-memory-bg)", color: "var(--c-memory)" }}>弧光 {Math.round((selected.arc || 0) * 100)}%</span>
                       {selected.id === graph?.focusId && <span className="tag ok">焦点角色</span>}
                     </div>
                     <Link href={`/characters/${encodeURIComponent(selected.name.zh)}`} className="btn sm" style={{ marginTop: 10, width: "100%", justifyContent: "center" }}>

@@ -28,12 +28,13 @@ import { CjPlaceholder } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { CharacterPixel } from "@/components/design/character-pixel"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
-import { StoryGraphView } from "@/components/studio/story-graph-view"
+import { StoryGraphView, TYPE_COLOR, personColor } from "@/components/studio/story-graph-view"
 import "./graph.css"
 
 const soft = { shouldRetryOnError: false }
 const TYPE_LABEL: Record<string, string> = { person: "人物", item: "物件", place: "地点", org: "组织", concept: "概念", other: "其它" }
-const TYPE_COLOR: Record<string, string> = { person: "#6E5BFA", item: "#C66E2F", place: "#2BB97A", org: "#B173E8", concept: "#3B82F6", other: "#9aa0aa" }
+// 实体配色 / 像素头像取色:import 自 story-graph-view(TYPE_COLOR / personColor),
+// 环形图、图例、枢纽列表与图上节点同一来源,暖纸柔紫世界观色随亮暗主题切换。
 // 实体类型 → lucide 图标(语义一眼可辨;人物在列表里用像素头像,这里给非人物兜底)
 const TYPE_ICON: Record<string, React.ComponentType<{ size?: number }>> = {
   person: User,
@@ -42,14 +43,6 @@ const TYPE_ICON: Record<string, React.ComponentType<{ size?: number }>> = {
   org: Users,
   concept: Tag,
   other: Boxes,
-}
-
-// 像素头像的稳定取色(与 story-graph-view 同源,保证同一人物图谱内外配色一致)
-const PERSON_PALETTE = ["#6E5BFA", "#4A8AE0", "#F08A4B", "#B173E8", "#2BB97A", "#E04848", "#9D8AFF", "#5C6478"]
-function personColor(id: string): string {
-  let h = 0
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
-  return PERSON_PALETTE[Math.abs(h) % PERSON_PALETTE.length]
 }
 
 function graphSourceLabel(graph: { fallback?: string } | undefined) {

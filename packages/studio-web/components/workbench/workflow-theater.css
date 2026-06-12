@@ -573,6 +573,21 @@
   padding-bottom: 0.7em;
   border-bottom: 1px dashed rgba(255, 255, 255, 0.10);
 }
+/* 「↓ 回到最新」浮钮:默认 brand-50 浅紫亮底压在剧场纸面上略跳 ——
+   暗化成半透明深堇紫底(与 --scrim 同族)+浅紫字,贴舞台氛围;
+   同一条在亮暗两套下都成立:暖纸混色后 ≈5.8:1+,夜台 ≈10:1+;
+   hover 必须一并覆盖,否则会闪回 brand-100 浅紫亮底 */
+.theater-paper .stream-follow-btn {
+  color: #C8C2FF;
+  background: rgba(20, 16, 38, 0.82);
+  border-color: rgba(157, 138, 255, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.theater-paper .stream-follow-btn:hover {
+  background: rgba(45, 37, 84, 0.88);
+}
+
 .theater-paper-empty {
   color: #6A6A85;
   font-family: var(--font-sans);

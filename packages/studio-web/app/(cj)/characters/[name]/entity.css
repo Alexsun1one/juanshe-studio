@@ -15,11 +15,13 @@
   background: linear-gradient(150deg, var(--brand-500), var(--brand-600));
   box-shadow: 0 4px 12px color-mix(in srgb, var(--brand-600) 28%, transparent);
 }
-/* avatar tint follows entity type (matches the type chip family) */
+/* avatar tint follows entity type (matches the type chip family)
+   色相与图谱单一来源(story-graph-view TYPE_COLOR)对齐:
+   物件=暖橙 / 地点=沉静青(--c-fore) / 组织=玫瑰(--c-memory) / 概念=琥珀(--accent-amber-deep 族),全站无冷蓝。 */
 .cj-entity .e-av.t-item    { background: linear-gradient(150deg, #E8965A, #C66E2F); box-shadow: 0 4px 12px rgba(198, 110, 47, 0.26); }
-.cj-entity .e-av.t-place   { background: linear-gradient(150deg, #35BD80, #1F9D63); box-shadow: 0 4px 12px rgba(31, 157, 99, 0.26); }
-.cj-entity .e-av.t-org     { background: linear-gradient(150deg, #C28BF0, #B173E8); box-shadow: 0 4px 12px rgba(177, 115, 232, 0.26); }
-.cj-entity .e-av.t-concept { background: linear-gradient(150deg, #5E87F0, #3B6CEA); box-shadow: 0 4px 12px rgba(59, 108, 234, 0.26); }
+.cj-entity .e-av.t-place   { background: linear-gradient(150deg, #4FC2A8, #2FA39A); box-shadow: 0 4px 12px rgba(47, 163, 154, 0.26); }
+.cj-entity .e-av.t-org     { background: linear-gradient(150deg, #ED8FAB, #D86C8E); box-shadow: 0 4px 12px rgba(216, 108, 142, 0.26); }
+.cj-entity .e-av.t-concept { background: linear-gradient(150deg, #F2B95C, #D9952E); box-shadow: 0 4px 12px rgba(217, 149, 46, 0.26); }
 .cj-entity .e-hero-main { min-width: 0; flex: 1; }
 .cj-entity .e-name-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .cj-entity .e-name { font-size: var(--text-h1, 21px); font-weight: 700; color: var(--ink-900); margin: 0; letter-spacing: -0.01em; }
@@ -83,18 +85,18 @@
 .cj-entity .e-nb:active { transform: translateY(0); box-shadow: var(--sh-1); }
 .cj-entity .e-nb-av { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; flex: none; background: linear-gradient(150deg, var(--brand-500), var(--brand-600)); }
 .cj-entity .e-nb-av.t-item    { background: linear-gradient(150deg, #E8965A, #C66E2F); }
-.cj-entity .e-nb-av.t-place   { background: linear-gradient(150deg, #35BD80, #1F9D63); }
-.cj-entity .e-nb-av.t-org     { background: linear-gradient(150deg, #C28BF0, #B173E8); }
-.cj-entity .e-nb-av.t-concept { background: linear-gradient(150deg, #5E87F0, #3B6CEA); }
+.cj-entity .e-nb-av.t-place   { background: linear-gradient(150deg, #4FC2A8, #2FA39A); }
+.cj-entity .e-nb-av.t-org     { background: linear-gradient(150deg, #ED8FAB, #D86C8E); }
+.cj-entity .e-nb-av.t-concept { background: linear-gradient(150deg, #F2B95C, #D9952E); }
 .cj-entity .e-nb-name { font-size: 12.5px; font-weight: 600; color: var(--ink-900); }
 
 /* entity type chips (self-contained — page may load without graph.css) */
 .cj-entity .e-type { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: var(--r-pill); background: var(--bg-sunken); color: var(--ink-500); }
 .cj-entity .e-type.t-person { background: color-mix(in srgb, var(--brand-500) 14%, transparent); color: var(--brand-600, var(--brand-500)); }
 .cj-entity .e-type.t-item { background: #FBEDDF; color: #C66E2F; }
-.cj-entity .e-type.t-place { background: #E3F6ED; color: #1F9D63; }
-.cj-entity .e-type.t-org { background: #F2EAFB; color: #B173E8; }
-.cj-entity .e-type.t-concept { background: #E7EEFE; color: #3B6CEA; }
+.cj-entity .e-type.t-place { background: color-mix(in srgb, var(--c-fore, #2FA39A) 14%, transparent); color: var(--c-fore, #2FA39A); }
+.cj-entity .e-type.t-org { background: color-mix(in srgb, var(--c-memory, #D86C8E) 14%, transparent); color: var(--c-memory, #D86C8E); }
+.cj-entity .e-type.t-concept { background: color-mix(in srgb, var(--accent-amber-deep, #B5710A) 16%, transparent); color: var(--accent-amber-deep, #B5710A); }
 
 @media (max-width: 900px) { .cj-entity .e-grid { grid-template-columns: 1fr; } }
 

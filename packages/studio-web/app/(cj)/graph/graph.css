@@ -235,13 +235,19 @@
    —— 渲染逻辑不变,样式保持原样 ——
    ════════════════════════════════════════════════════════════ */
 
-/* entity type chips (shared look, used here + entity page) */
+/* entity type chips (shared look, used here + entity page)
+   配色与 story-graph-view 的 TYPE_COLOR 同族:柔紫 / 暖橙 / 沉静青 / 玫瑰 / 琥珀。
+   底色 color-mix 跟随 token 自动切亮暗;浅纸底文字用深一档保证可读 */
 .g-type, .e-type { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: var(--r-pill); background: var(--bg-sunken); color: var(--ink-500); }
 .t-person { background: color-mix(in srgb, var(--brand-500) 14%, transparent); color: var(--brand-600, var(--brand-500)); }
-.t-item { background: #FBEDDF; color: #C66E2F; }
-.t-place { background: #E3F6ED; color: #1F9D63; }
-.t-org { background: #F2EAFB; color: #B173E8; }
-.t-concept { background: #E7EEFE; color: #3B6CEA; }
+.t-item { background: color-mix(in srgb, var(--c-focus) 16%, transparent); color: var(--accent-warm-deep, #C26B2E); }
+.t-place { background: color-mix(in srgb, var(--c-fore) 16%, transparent); color: #1B8A80; /* --c-fore 深一档 */ }
+.t-org { background: color-mix(in srgb, var(--c-memory) 16%, transparent); color: #C2557A; /* --c-memory 深一档 */ }
+.t-concept { background: color-mix(in srgb, var(--accent-amber-deep) 15%, transparent); color: var(--accent-amber-deep); }
+/* 暗色(深堇紫底):深档文字读不出 → 换亮档 token(--accent-amber-deep 在 design.css 已自带暗档,无需另写) */
+:where(html.dark) .t-item { color: var(--c-focus); }
+:where(html.dark) .t-place { color: var(--c-fore); }
+:where(html.dark) .t-org { color: var(--c-memory); }
 
 /* —— force-directed graph component —— */
 .sg-wrap { position: relative; }

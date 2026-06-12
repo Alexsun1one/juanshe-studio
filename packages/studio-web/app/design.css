@@ -92,8 +92,10 @@
   --warn-50:  var(--st-warn-bg);
   --err-500:  var(--st-error);
   --err-50:   var(--st-error-bg);
-  --info-500: var(--c-memory);
-  --info-50:  var(--c-memory-bg);
+  /* info=沉静青,与 globals.css --info 同源(借 --c-fore 取色,亮暗自动跟随);
+     旧版误把 info 别名到玫瑰 --c-memory,「信息提示」与「记忆实体」串色,已纠正 */
+  --info-500: var(--c-fore);
+  --info-50:  var(--c-fore-bg);
   /* 深一档语义色(浅底上的文字/达标值/强调值)—— 给数值/状态色稳定的真实层级,
      不再全站靠 var(--ok-600, var(--ok-500)) 退回 500 档 */
   --ok-600:    #0F8E60;
@@ -605,10 +607,20 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   position: sticky;
   top: 0;
   height: 100dvh;
-  overflow-y: auto;
-  overflow-x: hidden;
+  /* 滚动收进 .sidebar-nav:容器必须 visible,否则 footer 的「设置」右侧飞出菜单被裁掉看不见 */
+  overflow: visible;
   transition: background var(--motion-base) var(--ease-soft);
   z-index: 2;
+}
+/* 导航独立滚动层(brand+分组+项);footer 钉底留在滚动域外 */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .brand {
   display: flex; align-items: center; gap: 10px;

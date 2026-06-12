@@ -5,17 +5,28 @@ import type { StoryGraph, StoryGraphNode } from "@/lib/api/client"
 import { predicateLabel } from "@/lib/labels"
 import { CharacterPixel } from "@/components/design/character-pixel"
 
-const TYPE_COLOR: Record<string, string> = {
+/**
+ * 实体类型 → 颜色:走 design.css 暖纸柔紫世界观 token(亮 / 暗双套自动切换,暗色深堇紫底自带亮档)。
+ * 人物=柔紫(--brand-500)/ 物件=暖橙(--c-focus)/ 地点=沉静青(--c-fore)/
+ * 组织=玫瑰(--c-memory)/ 概念=琥珀(--accent-amber-deep)/ 其它=暖灰墨(--ink-400)。
+ * graph/page.tsx 的环形图 / 图例 / 枢纽列表直接 import 本表,实体配色全站只此一份。
+ */
+export const TYPE_COLOR: Record<string, string> = {
   person: "var(--brand-500)",
-  item: "#C66E2F",
-  place: "#2BB97A",
-  org: "#B173E8",
-  concept: "#3B82F6",
+  item: "var(--c-focus)",
+  place: "var(--c-fore)",
+  org: "var(--c-memory)",
+  concept: "var(--accent-amber-deep)",
   other: "var(--ink-400)",
 }
 const typeColor = (t: string) => TYPE_COLOR[t] ?? TYPE_COLOR.other
-const PERSON_PALETTE = ["#6E5BFA", "#4A8AE0", "#F08A4B", "#B173E8", "#2BB97A", "#E04848", "#9D8AFF", "#5C6478"]
-function personColor(id: string): string {
+/**
+ * 像素头像稳定取色:CharacterPixel 是逐格 rect 像素画,身份锚点色用字面量保证跨页一致;
+ * 值与 token 对应:brand-500 / c-fore / c-focus / c-style / c-char / st-error / brand-400 /
+ * 暖卡其(ink-500 同族,保留一个低饱和位)。
+ */
+const PERSON_PALETTE = ["#6E5BFA", "#2FA39A", "#F08A4B", "#B173E8", "#2BB97A", "#E04848", "#9D8AFF", "#8A7A5C"]
+export function personColor(id: string): string {
   let h = 0
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
   return PERSON_PALETTE[Math.abs(h) % PERSON_PALETTE.length]
@@ -23,28 +34,37 @@ function personColor(id: string): string {
 
 /**
  * 关系类型 → 颜色 / 线型。基于 predicate 文本启发式判断。
- * 亲友绿 / 敌对红 / 师徒蓝 / 商业灰 / 未明紫。
+ * 亲友绿 / 敌对红 / 师徒琥珀(师承金线)/ 商业暖灰 / 未明紫 ——
+ * 颜色集中在 EDGE_COLOR,连线与底部图例同一来源,避免两处漂移。
  */
+const EDGE_COLOR = {
+  敌对: "var(--st-error)",
+  亲友: "var(--c-char)",
+  师徒: "var(--accent-amber-deep)",
+  商业: "var(--ink-400)",
+  未明: "var(--brand-400)",
+  默认: "var(--ink-300)",
+} as const
 type EdgeStyle = { color: string; dash: string; weight: number; kind: string }
 function edgeStyle(predicate: string): EdgeStyle {
   const p = (predicate ?? "").toLowerCase()
   // 敌对(实线红)
   if (/敌|仇|恨|对抗|宿敌|rival|enemy|foe|hostile|背叛|反目/.test(p))
-    return { color: "#E04848", dash: "0", weight: 2.4, kind: "敌对" }
+    return { color: EDGE_COLOR.敌对, dash: "0", weight: 2.4, kind: "敌对" }
   // 亲友(实线绿)
   if (/亲|爱|友|爱人|家|妻|夫|父|母|子|女|友|love|family|friend|ally|妹|兄|姐|弟/.test(p))
-    return { color: "#2BB97A", dash: "0", weight: 2.0, kind: "亲友" }
-  // 师徒(实线蓝)
+    return { color: EDGE_COLOR.亲友, dash: "0", weight: 2.0, kind: "亲友" }
+  // 师徒(实线琥珀)
   if (/师|徒|teach|mentor|student|学生|师傅|师父/.test(p))
-    return { color: "#3B82F6", dash: "0", weight: 1.8, kind: "师徒" }
-  // 商业/同事(灰)
+    return { color: EDGE_COLOR.师徒, dash: "0", weight: 1.8, kind: "师徒" }
+  // 商业/同事(暖灰)
   if (/同事|partner|商|合|交易|business|colleague|上下级|老板|boss|员工/.test(p))
-    return { color: "#7B8190", dash: "0", weight: 1.4, kind: "商业" }
+    return { color: EDGE_COLOR.商业, dash: "0", weight: 1.4, kind: "商业" }
   // 未明(虚线紫)
   if (/未明|疑|unknown|mystery|谜/.test(p))
-    return { color: "#9D8AFF", dash: "4 4", weight: 1.4, kind: "未明" }
-  // 默认(浅灰实线)
-  return { color: "#B0B4BE", dash: "0", weight: 1.2, kind: predicate || "关系" }
+    return { color: EDGE_COLOR.未明, dash: "4 4", weight: 1.4, kind: "未明" }
+  // 默认(浅暖灰实线)
+  return { color: EDGE_COLOR.默认, dash: "0", weight: 1.2, kind: predicate || "关系" }
 }
 
 const W = 1000
@@ -436,9 +456,9 @@ export function StoryGraphView({
                 {(isFocus || isHover) && (
                   <circle r={r + 6} fill="none" stroke={isFocus ? "var(--brand-500)" : tc} strokeWidth={2} opacity={0.7} />
                 )}
-                {/* 类型色光晕 */}
+                {/* 类型色光晕;底盘随主题用卡面色(暗色深堇紫底上不再是刺眼纯白) */}
                 <circle r={r + 2} fill={tc} opacity={0.18} />
-                <circle r={r} fill="white" stroke={tc} strokeWidth={2} />
+                <circle r={r} fill="var(--bg-card)" stroke={tc} strokeWidth={2} />
                 {/* 人物用 CharacterPixel,其他类型用类型色填充 */}
                 {n.type === "person" ? (
                   <foreignObject x={-pcSize / 2} y={-pcSize / 2} width={pcSize} height={pcSize} style={{ pointerEvents: "none" }}>
@@ -461,11 +481,11 @@ export function StoryGraphView({
       </svg>
       <div className="sg-legend">
         <span className="sg-leg-title">关系</span>
-        <span className="sg-leg"><i style={{ background: "#2BB97A" }} />亲友</span>
-        <span className="sg-leg"><i style={{ background: "#E04848" }} />敌对</span>
-        <span className="sg-leg"><i style={{ background: "#3B82F6" }} />师徒</span>
-        <span className="sg-leg"><i style={{ background: "#7B8190" }} />商业</span>
-        <span className="sg-leg"><i style={{ background: "#9D8AFF", borderTop: "1px dashed currentColor" }} />未明</span>
+        <span className="sg-leg"><i style={{ background: EDGE_COLOR.亲友 }} />亲友</span>
+        <span className="sg-leg"><i style={{ background: EDGE_COLOR.敌对 }} />敌对</span>
+        <span className="sg-leg"><i style={{ background: EDGE_COLOR.师徒 }} />师徒</span>
+        <span className="sg-leg"><i style={{ background: EDGE_COLOR.商业 }} />商业</span>
+        <span className="sg-leg"><i style={{ background: EDGE_COLOR.未明, borderTop: "1px dashed currentColor" }} />未明</span>
         <span className="sg-sep" />
         <span className="sg-leg-title">实体</span>
         {Object.entries({ person: "人物", item: "物件", place: "地点", org: "组织", concept: "概念" }).map(([t, label]) => (
