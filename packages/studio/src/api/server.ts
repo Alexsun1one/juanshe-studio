@@ -1149,6 +1149,69 @@ function validateAgentActionExecution(args) {
     return undefined;
 }
 const subscribers = new Set();
+// ── 流式中断恢复:每本书「当前在写章节」的已累计正文快照(纯内存) ──────────────
+// broadcast 出于体积刻意不把 llm:delta 持久化进 activity.log,SSE 重连也只回放状态快照
+// 不回放 token → 刷新/断线后打字机从句中开始、半章正文对用户"消失"。这里挂一个常驻
+// subscriber 随广播累计增量,GET /agents/live-draft 把快照种回前端(useLiveRun)。
+const liveDraftByBook = new Map();
+const LIVE_DRAFT_MAX_AGE_MS = 10 * 60 * 1000; // 超过 10 分钟没有新 token = 死流,重新累计
+const LIVE_DRAFT_MAX_CHARS = 400_000; // 单 agent 累计上限(正常章节远小于此,防异常膨胀)
+const LIVE_DRAFT_MAX_BOOKS = 8; // 只保留最近活跃的几本,防多书长跑撑爆内存
+subscribers.add((event, data) => {
+    try {
+        const bookId = data?.bookId;
+        if (!bookId || typeof bookId !== "string")
+            return;
+        if (event === "llm:delta") {
+            const text = typeof data.text === "string" ? data.text : "";
+            if (!text)
+                return;
+            const agent = String(data.agent || "model");
+            const chapter = Number(data.chapter || data.chapterNumber || 0) || undefined;
+            const now = Date.now();
+            let entry = liveDraftByBook.get(bookId);
+            if (!entry || now - entry.updatedAt > LIVE_DRAFT_MAX_AGE_MS) {
+                entry = { chapter: undefined, byAgent: new Map(), lastAgent: "", updatedAt: now, completed: false };
+                liveDraftByBook.set(bookId, entry);
+            }
+            if (chapter && entry.chapter && chapter !== entry.chapter) {
+                // 换章 → 重新累计(与前端 useLiveRun 同语义)
+                entry.byAgent = new Map();
+                entry.completed = false;
+            }
+            if (chapter)
+                entry.chapter = chapter;
+            if (entry.completed) {
+                // 上一条模型流已 done → 同 agent 再开流是新一轮(复修/重写),不能接在旧文后面
+                entry.byAgent.delete(agent);
+                entry.completed = false;
+            }
+            const prev = entry.byAgent.get(agent) ?? "";
+            entry.byAgent.set(agent, (prev + text).slice(-LIVE_DRAFT_MAX_CHARS));
+            entry.lastAgent = agent;
+            entry.updatedAt = now;
+            if (liveDraftByBook.size > LIVE_DRAFT_MAX_BOOKS) {
+                const oldest = [...liveDraftByBook.entries()].sort((a, b) => a[1].updatedAt - b[1].updatedAt)[0];
+                if (oldest && oldest[0] !== bookId)
+                    liveDraftByBook.delete(oldest[0]);
+            }
+            return;
+        }
+        if (event === "llm:progress" && data?.status === "done") {
+            const entry = liveDraftByBook.get(bookId);
+            if (entry)
+                entry.completed = true;
+            return;
+        }
+        if (event === "write:complete" || event === "workflow:stopped") {
+            // 章节已落库 / 工作流已停 → 快照失去恢复价值,立即释放
+            liveDraftByBook.delete(bookId);
+        }
+    }
+    catch {
+        // 快照累计绝不允许影响广播主链路
+    }
+});
 const bookCreateStatus = new Map();
 const BOOK_CREATE_STALL_MS = Number(process.env.HARDWRITE_BOOK_CREATE_STALL_MS || 10 * 60 * 1000);
 let activityLogRoot = null;
@@ -12790,6 +12853,26 @@ export function createStudioServer(initialConfig, root) {
             subscribers.delete(handler);
         });
     });
+    // 流式中断恢复:当前在写章节的「已累计正文」快照(见顶部 liveDraftByBook 常驻 subscriber)。
+    // 前端 useLiveRun 在订阅建立 / 断线重连时 GET 一次,把半章正文种回打字机,不再从句中开始。
+    app.get("/api/v1/books/:id/agents/live-draft", async (c) => {
+        const id = c.req.param("id");
+        if (!isSafeBookId(id))
+            return c.json({ error: "Invalid book id" }, 400);
+        if (!(await bookExists(id)))
+            return c.json({ error: `Book "${id}" not found` }, 404);
+        const entry = liveDraftByBook.get(id);
+        const text = entry?.lastAgent ? (entry.byAgent.get(entry.lastAgent) ?? "") : "";
+        return c.json({
+            bookId: id,
+            chapter: entry?.chapter ?? null,
+            agentId: entry?.lastAgent || null,
+            text,
+            textLength: text.length,
+            updatedAt: entry ? new Date(entry.updatedAt).toISOString() : null,
+            completed: entry?.completed ?? false,
+        });
+    });
     app.post("/api/v1/books/:id/review", async (c) => {
         const id = c.req.param("id");
         if (!isSafeBookId(id))
@@ -15183,7 +15266,10 @@ export function createStudioServer(initialConfig, root) {
     // --- Export ---
     app.get("/api/v1/books/:id/export", async (c) => {
         const id = c.req.param("id");
-        const format = (c.req.query("format") ?? "txt");
+        // 白名单 format:与下方 export-save 同口径,防任意字符串流进 buildExportArtifact 的文件名后缀
+        const ALLOWED_GET_EXPORT_FORMATS = new Set(["txt", "md", "markdown", "html", "epub"]);
+        const rawFormat = String(c.req.query("format") ?? "txt");
+        const format = ALLOWED_GET_EXPORT_FORMATS.has(rawFormat) ? rawFormat : "txt";
         const approvedOnly = c.req.query("approvedOnly") === "true";
         try {
             const artifact = await buildExportArtifact(state, id, {

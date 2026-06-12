@@ -37,8 +37,10 @@ import {
   type BookBudget,
   type BookOutcome,
   type BookProgress,
+  type ChapterResult,
   type QualityScore,
 } from "@juanshe/engine"
+import { collectOverusedPhrases, renderOverusedPhraseNotice } from "@juanshe/core"
 
 function learningsFile(root: string): string {
   return join(root, ".autow", "learnings.json")
@@ -150,6 +152,63 @@ export function cleanChapterText(raw: unknown): string {
   const cut = t.search(/=*\s*(?:UPDATED_STATE|UPDATED_HOOKS|UPDATED_TRACKING|STATE_DELTA|===\s*PATCHES|===\s*NOTES|===\s*METADATA)\b/)
   if (cut > 0) t = t.slice(0, cut)
   return t.trim()
+}
+
+/**
+ * 取成稿结尾 400-600 字(注入「上一章结尾原文」用):优先在段落边界起切,
+ * 避免半句开头误导写手承接;切不出整段时保留原切片、前置省略号示意截断。
+ */
+export function chapterTailText(text: string, max = 600, min = 400): string {
+  const t = text.trim()
+  if (t.length <= max) return t
+  const slice = t.slice(-max)
+  const brk = slice.indexOf("\n")
+  if (brk >= 0) {
+    const fromBreak = slice.slice(brk + 1).trimStart()
+    if (fromBreak.length >= min) return fromBreak
+  }
+  return `……${slice.trimStart()}`
+}
+
+/** ChapterResult 的最终成稿:签发 → 润色 → 修订 → 初稿,全部过 cleanChapterText——与取稿/记录经验同口径。 */
+function finalProseOf(r: ChapterResult | undefined): string {
+  if (!r) return ""
+  const a = (r.finalState?.artifacts ?? {}) as Record<string, any>
+  return cleanChapterText(a.publishing?.chapter?.content) || cleanChapterText(a.polishing?.draft) || cleanChapterText(a.revising?.draft) || cleanChapterText(a.writing?.draft)
+}
+
+/**
+ * runBook 的章间前情(buildContextPack 的纯核心,可单测):上一章成稿结尾注入头部
+ * (写手承接语感与时空连续最有效的单一信号),其余完成章一行「已完成 + judge 分」摘要,
+ * 未完成章保留大纲行。wavefront + dependsOn:[n-1] 链保证取稿时上一章必已落定;
+ * flat/补修等取不到成稿的场景优雅退回大纲行,绝不让内部标记泄进上下文(finalProseOf 已剥)。
+ */
+export function buildBookPriorContext(plan: BookPlan, spec: ChapterSpec, done: ReadonlyMap<number, ChapterResult>): string {
+  const priorChapters = plan.chapters.filter((s) => s.number < spec.number)
+  const lines = priorChapters
+    .map((s) => {
+      const r = done.get(s.number)
+      if (r?.status !== "completed") return `第${s.number}章《${s.title}》:${s.goal}`
+      const score = typeof r.overall === "number" ? `,judge 分 ${r.overall}` : ""
+      return `第${s.number}章《${s.title}》:${s.goal}(已完成${score})`
+    })
+  const tail = chapterTailText(finalProseOf(done.get(spec.number - 1)))
+  // 复读账本(engine 路径,内存版):对已完成章成稿做跨章 n-gram 累计,「已用滥表达」清单
+  // 并入前情 → 写手开写前就知道哪些口头禅全书已被用滥。engine 路径没有 character_matrix
+  // 实体字典,collectOverusedPhrases 用最短 4 字 + 内置「高频疑似实体」守卫降低人名误报;
+  // 成稿 ≥3 章才统计,避免样本太小把正常表达误判成 tic。
+  const doneTexts = priorChapters
+    .map((s) => finalProseOf(done.get(s.number)))
+    .filter(Boolean)
+  const overused = doneTexts.length >= 3
+    ? collectOverusedPhrases(doneTexts, { minN: 4 })
+    : []
+  const phraseNotice = renderOverusedPhraseNotice(overused, plan.lang === "en" ? "en" : "zh")
+  return [
+    tail ? `【上一章结尾原文】(第${spec.number - 1}章结尾,衔接其语感与时空,不要复述)\n${tail}` : "",
+    lines.join("\n"),
+    phraseNotice,
+  ].filter(Boolean).join("\n\n")
 }
 
 export interface EngineWriteInput {
@@ -273,7 +332,7 @@ export async function writeChapterViaEngine(opts: {
 // 复用引擎的 runBook(纯函数、全注入、已单测);studio 这里只注入 4 件 deps:
 //   planner       —— 1 次 LLM 结构化调用出章节大纲(架构师)
 //   pipelineDepsFor —— 每章一条 makeHandlers 流水线(= writeChapterViaEngine 的单章原语)
-//   buildContextPack —— 把章目标 + 前文梗概冻结成该章 RunInput
+//   buildContextPack —— 把章目标 + 上一章成稿结尾 + 前文梗概冻结成该章 RunInput
 //   reconcile     —— v1 轻量(返回种子图,跨章伏笔补修留后续;每章自身已过质量门)
 // 诚实:吞吐真瓶颈是模型 tokens/s——并发只把"等待"重叠;真提速靠 llm baseUrl 指本机算力集群。
 const ChapterOutline = z.object({
@@ -380,12 +439,18 @@ export async function runBookViaEngine(opts: {
         }
         catch { rawChapters = [] }
       }
-      let chapters = rawChapters.slice(0, n).map((ch: any, i: number) => ChapterSpec.parse({
-        number: Number.isInteger(ch?.number) && ch.number > 0 ? ch.number : i + 1,
-        title: String(ch?.title || `第 ${i + 1} 章`).slice(0, 60),
-        goal: String(ch?.goal || ch?.summary || `推进主线第 ${i + 1} 步`).slice(0, 200),
-        targetWordCount: b.chapterWordCount,
-      }))
+      // 章间串链:n 依赖 n-1,配合 wavefront 保证 buildContextPack 取上一章成稿时它必然已落定;
+      // 前章号缺位(模型给的 number 有洞)时 topoWaves 会忽略不存在的依赖,不会卡死。
+      let chapters = rawChapters.slice(0, n).map((ch: any, i: number) => {
+        const num = Number.isInteger(ch?.number) && ch.number > 0 ? ch.number : i + 1
+        return ChapterSpec.parse({
+          number: num,
+          title: String(ch?.title || `第 ${i + 1} 章`).slice(0, 60),
+          goal: String(ch?.goal || ch?.summary || `推进主线第 ${i + 1} 步`).slice(0, 200),
+          targetWordCount: b.chapterWordCount,
+          dependsOn: num > 1 ? [num - 1] : [],
+        })
+      })
       // 降级兜底:planner 完全没取到 → 生成 N 个通用章位,runBook 仍能推进
       if (!chapters.length) {
         const seed = (b.premise || b.title.zh || "故事").slice(0, 50)
@@ -394,6 +459,7 @@ export async function runBookViaEngine(opts: {
           title: `第 ${i + 1} 章`,
           goal: `推进主线第 ${i + 1} 步:${seed}`,
           targetWordCount: b.chapterWordCount,
+          dependsOn: i > 0 ? [i] : [],
         }))
       }
       return BookPlan.parse({
@@ -413,11 +479,8 @@ export async function runBookViaEngine(opts: {
       now,
       delay,
     }),
-    buildContextPack: (plan, spec, _done) => {
-      const prior = plan.chapters
-        .filter((s) => s.number < spec.number)
-        .map((s) => `第${s.number}章《${s.title}》:${s.goal}`)
-        .join("\n")
+    buildContextPack: (plan, spec, done) => {
+      const prior = buildBookPriorContext(plan, spec, done)
       const input = RunInput.parse({
         chapterTitle: spec.title,
         chapterGoal: spec.goal,
@@ -439,7 +502,9 @@ export async function runBookViaEngine(opts: {
 
   const budget: BookBudget = {
     concurrency: Math.max(1, Math.min(8, opts.concurrency ?? 2)),
-    waveMode: "flat",
+    // wavefront + dependsOn:[n-1] 链:书内按章序推进,换来上一章成稿可注入前情(衔接 > 书内并发)。
+    // 吞吐:真瓶颈是模型 tokens/s(见 runBook 头注),要并发就跨书并发;concurrency 仍约束 reconcile 补修扇出。
+    waveMode: "wavefront",
     maxReconcilePasses: 1,
     stopOnChapterError: false,
   }
