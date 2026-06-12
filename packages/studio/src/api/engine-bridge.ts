@@ -40,7 +40,8 @@ import {
   type ChapterResult,
   type QualityScore,
 } from "@juanshe/engine"
-import { collectOverusedPhrases, renderOverusedPhraseNotice } from "@juanshe/core"
+import { collectOverusedPhrases, renderOverusedPhraseNotice, parseCharacterMatrix, type OverusedPhrase } from "@juanshe/core"
+import { isSafeBookId } from "./safety.js"
 
 function learningsFile(root: string): string {
   return join(root, ".autow", "learnings.json")
@@ -177,13 +178,98 @@ function finalProseOf(r: ChapterResult | undefined): string {
   return cleanChapterText(a.publishing?.chapter?.content) || cleanChapterText(a.polishing?.draft) || cleanChapterText(a.revising?.draft) || cleanChapterText(a.writing?.draft)
 }
 
+// ── 复读账本 · 实体保护(engine 路径)────────────────────────────────────────────
+// 「全书已用滥表达」清单会作为禁用清单注入写手——主角名/称谓/地点这类实体天然章章高频,
+// 一旦被当成口头禅 tic 写进清单,等于禁止写手提人名(质量事故级风险)。这里接上与
+// story-graph 同源的实体字典(story/character_matrix.md):角色主名/括号别称/关系对象名
+// (地点、物件、组织都在关系对象里)展开成 ≥2 字守卫词,候选短语凡命中任一守卫词即剔除;
+// 实体拿不到时退回 core 现有「疑似实体」启发式,取数失败绝不阻塞写作链路。
+
+/**
+ * 实体名 → 守卫词(纯函数,可单测):按括号/斜杠/顿号等拆出主名与别称,
+ * 每个名字展开全部 ≥2 字连续子串。子串展开是关键——候选 n-gram(≥4 字)常只含名字
+ * 片段(「晚秋抬起头」只含「晚秋」),只匹配全名会漏。单字不收(噪声太大,会把正常用字误豁免)。
+ */
+export function expandEntityGuardTerms(entityNames: Iterable<string>): string[] {
+  const terms = new Set<string>()
+  for (const raw of entityNames) {
+    // 「林晚秋（晚秋/阿秋）」这类"主名（别称链）"原文 → 主名与各别称都算实体
+    const parts = String(raw ?? "")
+      .split(/[（）()/／、,，;；|｜\s]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length >= 2)
+    for (const name of parts) {
+      for (let n = 2; n <= name.length; n++) {
+        for (let i = 0; i + n <= name.length; i++) terms.add(name.slice(i, i + n))
+      }
+    }
+  }
+  return [...terms]
+}
+
+/**
+ * 「全书已用滥表达」收集 · 剔实体版(纯函数,可单测):
+ * - 有实体名单:守卫词作实体字典传入 core(候选生成阶段即剔除含实体子串的 gram),
+ *   出口再防御性后滤一遍——双保险,确保人名/地名短语绝不进禁用清单;
+ * - 实体为空(矩阵缺失/解析失败/书不存在):行为与 collectOverusedPhrases 现有启发式完全一致。
+ */
+export function collectOverusedPhrasesGuarded(
+  texts: ReadonlyArray<string>,
+  entityNames: ReadonlyArray<string>,
+  opts?: { readonly minN?: number; readonly threshold?: number; readonly limit?: number },
+): OverusedPhrase[] {
+  const guards = expandEntityGuardTerms(entityNames)
+  if (guards.length === 0) return collectOverusedPhrases(texts, opts)
+  return collectOverusedPhrases(texts, { ...opts, entityNames: guards })
+    .filter((p) => !guards.some((g) => p.phrase.includes(g)))
+}
+
+// 实体名单缓存:每书(root::bookId)只读一次盘——buildContextPack 每章都要组前情,
+// 不能每章重读 character_matrix.md。失败也缓存空名单(同一本书反复 IO 失败没有意义)。
+const entityNamesCache = new Map<string, Promise<ReadonlyArray<string>>>()
+
+/**
+ * 读本书实体名单(角色主名 + 关系对象名,与 core phrase-ledger / story-graph 同口径):
+ * <root>/books/<bookId>/story/character_matrix.md(回退 story/outline/,同 server 端点)。
+ * 非法 bookId / IO / 解析失败一律 → [](调用方据此退回启发式),绝不抛错阻塞写作链路。
+ */
+export async function loadBookEntityNames(root: string, bookId: string): Promise<ReadonlyArray<string>> {
+  const key = `${root}::${bookId}`
+  let pending = entityNamesCache.get(key)
+  if (!pending) {
+    pending = readBookEntityNames(root, bookId).catch(() => [])
+    entityNamesCache.set(key, pending)
+  }
+  return pending
+}
+
+async function readBookEntityNames(root: string, bookId: string): Promise<string[]> {
+  if (!isSafeBookId(bookId)) return [] // engine 路径 bookId 来自请求体,先过同一套安全校验
+  // 与 core StateManager.bookDir 同口径:<root>/books/<bookId>
+  const storyDir = join(root, "books", bookId, "story")
+  const md =
+    (await readFile(join(storyDir, "character_matrix.md"), "utf-8").catch(() => "")) ||
+    (await readFile(join(storyDir, "outline", "character_matrix.md"), "utf-8").catch(() => ""))
+  if (!md.trim()) return []
+  const names = new Set<string>()
+  for (const entry of parseCharacterMatrix(md)) {
+    const name = entry.name.trim()
+    if (name.length >= 2) names.add(name)
+    for (const rel of entry.relations) {
+      const target = rel.target.trim()
+      if (target.length >= 2) names.add(target)
+    }
+  }
+  return [...names]
+}
+
 /**
  * runBook 的章间前情(buildContextPack 的纯核心,可单测):上一章成稿结尾注入头部
  * (写手承接语感与时空连续最有效的单一信号),其余完成章一行「已完成 + judge 分」摘要,
  * 未完成章保留大纲行。wavefront + dependsOn:[n-1] 链保证取稿时上一章必已落定;
  * flat/补修等取不到成稿的场景优雅退回大纲行,绝不让内部标记泄进上下文(finalProseOf 已剥)。
  */
-export function buildBookPriorContext(plan: BookPlan, spec: ChapterSpec, done: ReadonlyMap<number, ChapterResult>): string {
+export function buildBookPriorContext(plan: BookPlan, spec: ChapterSpec, done: ReadonlyMap<number, ChapterResult>, entityNames: ReadonlyArray<string> = []): string {
   const priorChapters = plan.chapters.filter((s) => s.number < spec.number)
   const lines = priorChapters
     .map((s) => {
@@ -194,14 +280,15 @@ export function buildBookPriorContext(plan: BookPlan, spec: ChapterSpec, done: R
     })
   const tail = chapterTailText(finalProseOf(done.get(spec.number - 1)))
   // 复读账本(engine 路径,内存版):对已完成章成稿做跨章 n-gram 累计,「已用滥表达」清单
-  // 并入前情 → 写手开写前就知道哪些口头禅全书已被用滥。engine 路径没有 character_matrix
-  // 实体字典,collectOverusedPhrases 用最短 4 字 + 内置「高频疑似实体」守卫降低人名误报;
-  // 成稿 ≥3 章才统计,避免样本太小把正常表达误判成 tic。
+  // 并入前情 → 写手开写前就知道哪些口头禅全书已被用滥。entityNames 是本书实体名单
+  // (loadBookEntityNames,每书一次缓存):有名单时人名/别称/地点及其 ≥2 字子串命中的候选
+  // 一律豁免,绝不把实体当 tic 禁掉;名单拿不到时 collectOverusedPhrasesGuarded 退回
+  // 最短 4 字 + 内置「高频疑似实体」启发式。成稿 ≥3 章才统计,避免样本太小误判成 tic。
   const doneTexts = priorChapters
     .map((s) => finalProseOf(done.get(s.number)))
     .filter(Boolean)
   const overused = doneTexts.length >= 3
-    ? collectOverusedPhrases(doneTexts, { minN: 4 })
+    ? collectOverusedPhrasesGuarded(doneTexts, entityNames, { minN: 4 })
     : []
   const phraseNotice = renderOverusedPhraseNotice(overused, plan.lang === "en" ? "en" : "zh")
   return [
@@ -385,6 +472,14 @@ export async function runBookViaEngine(opts: {
     } catch { /* 可选 */ }
   }
 
+  // 复读账本实体保护:开写前读一次本书实体名单(loadBookEntityNames 内部已按书缓存),
+  // 后面 buildContextPack 每章组前情直接复用,不再碰盘。拿不到(无 root/矩阵缺失/解析失败)
+  // → 空名单 → 守卫自动退回启发式;try/catch 双保险,实体取数无论怎么失败都不阻塞写作链路。
+  let entityNames: ReadonlyArray<string> = []
+  if (opts.root) {
+    try { entityNames = await loadBookEntityNames(opts.root, opts.brief.bookId) } catch { entityNames = [] }
+  }
+
   const brief = BookBrief.parse({
     bookId: opts.brief.bookId,
     title: { zh: opts.brief.titleZh },
@@ -480,7 +575,7 @@ export async function runBookViaEngine(opts: {
       delay,
     }),
     buildContextPack: (plan, spec, done) => {
-      const prior = buildBookPriorContext(plan, spec, done)
+      const prior = buildBookPriorContext(plan, spec, done, entityNames)
       const input = RunInput.parse({
         chapterTitle: spec.title,
         chapterGoal: spec.goal,
