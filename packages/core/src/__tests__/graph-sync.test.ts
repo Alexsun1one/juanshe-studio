@@ -97,4 +97,36 @@ describe("syncStoryGraph(Phase 2 · 真相文件 → 活图谱)", () => {
     // canon 首值不可逆:仍是"已故"(死亡不会被后续章静默改写)
     expect(db.getCanonFacts().find((f) => f.subject === "林冲")?.object).toBe("已故");
   });
+
+  it("关系 target 按名字特征分型:收音机/组织/旧案不再被标成人物", async () => {
+    await writeMatrix([
+      "## 沈砚",
+      "- **定位**: 主角",
+      "- **关系**: 收音机(持有/Ch1) | 组织(被监视/Ch1) | 二十年前旧案(追查/Ch1) | 老周(亦师亦友/Ch1) | 钟楼(常去/Ch1)",
+      "",
+    ].join("\n"));
+
+    await syncStoryGraph({ bookDir, chapterNumber: 1, db });
+    expect(db.getEntity("收音机")?.type).toBe("item");
+    expect(db.getEntity("组织")?.type).toBe("org");
+    expect(db.getEntity("二十年前旧案")?.type).toBe("concept");
+    expect(db.getEntity("钟楼")?.type).toBe("place");
+    // 真人保持 person:角色矩阵主名 + 人名 target 都不受影响
+    expect(db.getEntity("沈砚")?.type).toBe("person");
+    expect(db.getEntity("老周")?.type).toBe("person");
+  });
+
+  it("存量 person 实体每次 sync 自愈分型(历史全 person 的库逐步纠偏)", async () => {
+    // 模拟历史数据:全部写死 person(老版本行为)
+    db.upsertEntity({ name: "收音机", type: "person", chapter: 1 });
+    db.upsertEntity({ name: "档案中关于“九月十七”的记录", type: "person", chapter: 2 });
+    db.upsertEntity({ name: "收音机主人", type: "person", chapter: 3 }); // 这是人,不该被动
+    await writeMatrix("## 沈砚\n- **定位**: 主角\n");
+
+    await syncStoryGraph({ bookDir, chapterNumber: 4, db });
+    expect(db.getEntity("收音机")?.type).toBe("item");
+    expect(db.getEntity("档案中关于“九月十七”的记录")?.type).toBe("concept");
+    // "收音机主人"以"主人"收尾 → 推断回 person,真人不被误伤
+    expect(db.getEntity("收音机主人")?.type).toBe("person");
+  });
 });

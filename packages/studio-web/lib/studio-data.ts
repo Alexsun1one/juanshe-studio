@@ -315,6 +315,8 @@ export type Chapter = {
   words: number
   status: "draft" | "writing" | "done" | "queued" | "review" | "published"
   active?: boolean
+  /** 本章累计 LLM token 消耗(写作+审稿+修订全链),后端 tokenUsage.totalTokens */
+  tokens?: number
 }
 
 export const CHAPTERS: Chapter[] = [

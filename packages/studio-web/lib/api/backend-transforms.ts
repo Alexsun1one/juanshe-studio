@@ -1118,6 +1118,13 @@ function normalizeChapterRecord(
   )
   const words = num(first(source, ["words", "wordCount", "currentWords"]), 0)
   const status = normalizeChapterStatus(first(source, ["status", "state"]), words)
+  // 本章 token 消耗:后端索引行是 tokenUsage.totalTokens,丢掉它 UI 就只能显示"Token 0"
+  const tokenUsage = asRecord(first(source, ["tokenUsage", "token_usage"]))
+  const tokens = num(
+    first(source, ["tokens", "totalTokens"]) ??
+      (tokenUsage ? first(tokenUsage, ["totalTokens", "total"]) : undefined),
+    0,
+  )
   return {
     id: text(first(source, ["id"]), `c${chapterNum}`),
     num: chapterNum,
@@ -1125,6 +1132,7 @@ function normalizeChapterRecord(
     words,
     status,
     active: Boolean(first(source, ["active"])) || status === "writing",
+    ...(tokens > 0 ? { tokens } : {}),
   }
 }
 

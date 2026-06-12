@@ -50,7 +50,19 @@ function edgeStyle(predicate: string): EdgeStyle {
 const W = 1000
 const H = 640
 
-/** 力导向布局(Fruchterman–Reingold 简化版),在 useMemo 里一次性算稳定坐标,无依赖、确定性。 */
+/** 节点视觉半径:与渲染层 radiusOf 同一公式,布局碰撞消解要用同一口径。 */
+function nodeRadius(degree: number, maxDeg: number): number {
+  return 12 + Math.round((degree / Math.max(1, maxDeg)) * 16)
+}
+
+/**
+ * 力导向布局(Fruchterman–Reingold 改良版),在 useMemo 里一次性算稳定坐标,无依赖、确定性。
+ * 针对故事图谱的真实形态(主角 = 高度数枢纽,邻居动辄 30+)做了三处关键修正:
+ * 1. 斥力按度数加权 —— 枢纽把它的邻居环推得更开,解决"全图坍缩成一坨";
+ * 2. 理想边长按度数拉长 —— 连枢纽的边天然更长,形成放射状而不是抱团;
+ * 3. 收尾跑碰撞消解 —— 在最终画布坐标系里把残余重叠硬性推开(节点半径 + 标签呼吸位)。
+ * 另外迭代数随节点规模递减,长篇书几百实体时不再卡主线程。
+ */
 function computeLayout(nodes: StoryGraphNode[], edges: { source: string; target: string }[]) {
   const n = nodes.length
   const map = new Map<string, { x: number; y: number }>()
@@ -68,15 +80,24 @@ function computeLayout(nodes: StoryGraphNode[], edges: { source: string; target:
     .map((e) => ({ s: idIndex.get(e.source), t: idIndex.get(e.target) }))
     .filter((l): l is { s: number; t: number } => l.s != null && l.t != null && l.s !== l.t)
 
+  // 布局用度数从边集现算(与渲染层 n.degree 同源不同径,避免后端字段缺失时布局退化)
+  const deg = new Array<number>(n).fill(0)
+  for (const l of links) { deg[l.s]++; deg[l.t]++ }
+  const maxDeg = Math.max(1, ...deg)
+
+  // 大图降迭代:38 节点跑 320 轮没问题;几百实体时 O(n²·iter) 会卡主线程,按规模递减
+  const iterations = n <= 80 ? 320 : n <= 200 ? 160 : 96
   let temp = W * 0.1
-  for (let it = 0; it < 320; it++) {
+  for (let it = 0; it < iterations; it++) {
     const disp = pos.map(() => ({ x: 0, y: 0 }))
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
         const dx = pos[i].x - pos[j].x
         const dy = pos[i].y - pos[j].y
         const dist = Math.hypot(dx, dy) || 0.01
-        const rep = (k * k) / dist
+        // 度数加权斥力:枢纽(主角)对周围推力更强,防止 30+ 邻居挤进同一坨
+        const w = 1 + Math.sqrt(deg[i] * deg[j]) * 0.16
+        const rep = (k * k * w) / dist
         const ux = dx / dist, uy = dy / dist
         disp[i].x += ux * rep; disp[i].y += uy * rep
         disp[j].x -= ux * rep; disp[j].y -= uy * rep
@@ -86,14 +107,16 @@ function computeLayout(nodes: StoryGraphNode[], edges: { source: string; target:
       const dx = pos[l.s].x - pos[l.t].x
       const dy = pos[l.s].y - pos[l.t].y
       const dist = Math.hypot(dx, dy) || 0.01
-      const att = (dist * dist) / k
+      // 理想边长按两端最大度数拉伸:连枢纽的边更长 → 放射状布局
+      const ideal = k * (1 + Math.log1p(Math.max(deg[l.s], deg[l.t])) * 0.3)
+      const att = (dist * dist) / ideal
       const ux = dx / dist, uy = dy / dist
       disp[l.s].x -= ux * att; disp[l.s].y -= uy * att
       disp[l.t].x += ux * att; disp[l.t].y += uy * att
     }
     for (let i = 0; i < n; i++) {
-      disp[i].x += (W / 2 - pos[i].x) * 0.009
-      disp[i].y += (H / 2 - pos[i].y) * 0.009
+      disp[i].x += (W / 2 - pos[i].x) * 0.006
+      disp[i].y += (H / 2 - pos[i].y) * 0.006
       const d = Math.hypot(disp[i].x, disp[i].y) || 0.01
       const cap = Math.min(d, temp)
       pos[i].x += (disp[i].x / d) * cap
@@ -102,16 +125,47 @@ function computeLayout(nodes: StoryGraphNode[], edges: { source: string; target:
     temp *= 0.965
   }
 
+  // fit-to-canvas;限制放大倍数,避免节点很少时小聚团被过度拉伸到画布边缘
   const xs = pos.map((p) => p.x), ys = pos.map((p) => p.y)
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys)
   const pad = 46
-  const s = Math.min((W - pad * 2) / Math.max(1, maxX - minX), (H - pad * 2) / Math.max(1, maxY - minY))
-  nodes.forEach((nd, i) => {
-    map.set(nd.id, {
-      x: pad + (pos[i].x - minX) * s + ((W - pad * 2) - (maxX - minX) * s) / 2,
-      y: pad + (pos[i].y - minY) * s + ((H - pad * 2) - (maxY - minY) * s) / 2,
-    })
-  })
+  const s = Math.min(
+    (W - pad * 2) / Math.max(1, maxX - minX),
+    (H - pad * 2) / Math.max(1, maxY - minY),
+    1.5,
+  )
+  const fitted = pos.map((p) => ({
+    x: pad + (p.x - minX) * s + ((W - pad * 2) - (maxX - minX) * s) / 2,
+    y: pad + (p.y - minY) * s + ((H - pad * 2) - (maxY - minY) * s) / 2,
+  }))
+
+  // 碰撞消解:在最终坐标系里把残余重叠对推开(半径 + 14px 标签呼吸位),并夹回画布
+  const radii = deg.map((d) => nodeRadius(d, maxDeg))
+  for (let round = 0; round < 36; round++) {
+    let moved = false
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const dx = fitted[j].x - fitted[i].x
+        const dy = fitted[j].y - fitted[i].y
+        const dist = Math.hypot(dx, dy) || 0.01
+        const minDist = radii[i] + radii[j] + 14
+        if (dist < minDist) {
+          const push = (minDist - dist) / 2
+          const ux = dx / dist, uy = dy / dist
+          fitted[i].x -= ux * push; fitted[i].y -= uy * push
+          fitted[j].x += ux * push; fitted[j].y += uy * push
+          moved = true
+        }
+      }
+    }
+    if (!moved) break
+  }
+  for (let i = 0; i < n; i++) {
+    fitted[i].x = Math.min(W - pad, Math.max(pad, fitted[i].x))
+    fitted[i].y = Math.min(H - pad, Math.max(pad, fitted[i].y))
+  }
+
+  nodes.forEach((nd, i) => { map.set(nd.id, fitted[i]) })
   return map
 }
 
@@ -197,16 +251,24 @@ export function StoryGraphView({
       })()
       : null)
 
-  const radiusOf = (n: StoryGraphNode) => 12 + Math.round((n.degree / maxDeg) * 16)
+  const radiusOf = (n: StoryGraphNode) => nodeRadius(n.degree, maxDeg)
 
   // ─── 缩放 / 平移 / 拖节点 ────────────────────────────────────────
-  const onWheel = (e: React.WheelEvent) => {
-    e.preventDefault()
-    setView((v) => {
-      const k = Math.min(3.0, Math.max(0.3, v.k * (e.deltaY < 0 ? 1.12 : 0.89)))
-      return { ...v, k }
-    })
-  }
+  // 滚轮缩放走原生非 passive 监听:React 18 的合成 wheel 是 passive 的,
+  // preventDefault() 不生效 —— 图上缩放会连带整页滚动,且 console 每滚一格刷一条错。
+  React.useEffect(() => {
+    const svg = svgRef.current
+    if (!svg) return
+    const onWheelNative = (e: WheelEvent) => {
+      e.preventDefault()
+      setView((v) => {
+        const k = Math.min(3.0, Math.max(0.3, v.k * (e.deltaY < 0 ? 1.12 : 0.89)))
+        return { ...v, k }
+      })
+    }
+    svg.addEventListener("wheel", onWheelNative, { passive: false })
+    return () => svg.removeEventListener("wheel", onWheelNative)
+  }, [])
   const onCanvasPointerDown = (e: React.PointerEvent) => {
     if (nodeDrag.current) return
     canvasDrag.current = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty }
@@ -291,7 +353,6 @@ export function StoryGraphView({
         ref={svgRef}
         className="sg-svg"
         viewBox={`0 0 ${W} ${H}`}
-        onWheel={onWheel}
         onPointerDown={onCanvasPointerDown}
         onPointerMove={onCanvasPointerMove}
         onPointerUp={onCanvasPointerUp}
@@ -388,8 +449,10 @@ export function StoryGraphView({
                     {n.name.charAt(0) || "?"}
                   </text>
                 )}
+                {/* 超长实体名(别名链)截断,完整名进 <title> 悬浮提示,避免标签互相压盖 */}
                 <text y={r + 16} textAnchor="middle" className="sg-node-label" style={{ fontWeight: isFocus ? 700 : 500 }}>
-                  {n.name}
+                  {n.name.length > 12 ? `${n.name.slice(0, 11)}…` : n.name}
+                  <title>{n.name}</title>
                 </text>
               </g>
             )

@@ -26,6 +26,29 @@ export interface GraphSyncResult {
 
 const EMPTY_RESULT: GraphSyncResult = { entitiesUpserted: 0, relationsAdded: 0, superseded: 0, contradictions: [] };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 实体类型推断(确定性、无 LLM)。修复"图谱里收音机/组织/旧案全被标成人物"。
+// 误判成本不对称:把物件误标成人物只是图例不准;把人误标成物件会让角色页漏人。
+// 所以词表只收**双字以上、无歧义**的结尾词,拿不准一律回退 person(关系网中人占多数)。
+// 注意中文人名常以 玉/剑/灯/卡 等单字收尾,绝不能用单字后缀判物件。
+// ─────────────────────────────────────────────────────────────────────────────
+const CONCEPT_TAIL = /(旧案|案件|事件|记录|档案|之谜|谜团|秘密|传闻|谣言|计划|预言|诅咒|仪式|约定)$/;
+const CONCEPT_HEAD = /^(关于|档案中)/;
+const ORG_TAIL = /(组织|公司|集团|帮派|商会|教会|工会|协会|学会|门派|宗门|势力|军团|警局|分局|公安局|事务所|基金会|研究所)$/;
+const PLACE_TAIL = /(钟楼|大楼|车站|站台|小巷|巷子|市场|寺庙|医院|学校|公寓|旅馆|酒店|码头|仓库|宅邸|庄园|广场|公园|墓地|坟场|地下室|阁楼)$/;
+const ITEM_TAIL = /(收音机|录音机|照相机|手机|相机|怀表|手表|钟表|盒子|匣子|镜子|照片|相片|钥匙|遗物|遗书|日记|笔记本|录音带|磁带|唱片|戒指|项链|吊坠|信件|书信|地图|账本|名单|清单)$/;
+
+/** 按名字特征推断实体类型;括号别名链只看主名。高精度词表,拿不准回退 person。 */
+export function inferEntityType(rawName: string): "person" | "item" | "place" | "org" | "concept" {
+  const name = String(rawName || "").trim();
+  const main = name.replace(/[（(].*$/, "").trim() || name;
+  if (CONCEPT_TAIL.test(main) || CONCEPT_HEAD.test(main)) return "concept";
+  if (ORG_TAIL.test(main) || main === "组织") return "org";
+  if (PLACE_TAIL.test(main)) return "place";
+  if (ITEM_TAIL.test(main)) return "item";
+  return "person";
+}
+
 // 不可变事实由「谓词」判定(生死/血缘/真实身份/身世/永久…),anchored 全词匹配。
 // 绝不靠 object 子串——否则"死巷尽头的破庙""永久客栈""生死未卜"这类地名/描述里的 死/永久 会被误锁进 canon(假阳性,反而制造漂移)。
 // observer 的 [锁定事实] 用的就是这些规范谓词(生死=…/血缘=…/真实身份=…),谓词门控既精准又安全。
@@ -82,7 +105,8 @@ export async function syncStoryGraph(params: {
       for (const rel of entry.relations ?? []) {
         const target = (rel.target || "").trim();
         if (!target) continue;
-        db.upsertEntity({ name: target, type: "person", chapter: ch });
+        // 关系 target 不全是人(收音机/组织/旧案…),按名字特征推断,别再写死 person
+        db.upsertEntity({ name: target, type: inferEntityType(target), chapter: ch });
         const r = db.addRelation({
           subjectId: MemoryDB.entityId(name), predicate: (rel.type || "关系").slice(0, 40), object: MemoryDB.entityId(target),
           objectIsEntity: true, validFromChapter: ch, validUntilChapter: null, sourceChapter: ch, singleValued: false,
@@ -137,9 +161,9 @@ export async function syncStoryGraph(params: {
       const predicate = fact.predicate.trim().slice(0, 40);
       const object = fact.object.trim().slice(0, 200);
       if (!subject || !predicate || !object) continue;
-      // 锁定事实的主语是真实角色名(canon 主体,必须可查):没有实体就建一个,再锁。
+      // 锁定事实的主语是 canon 主体(多为角色,也可能是遗物/组织),必须可查:没有实体就建一个,再锁。
       if (!db.getEntity(subject)) {
-        db.upsertEntity({ name: subject, type: "person", chapter: ch });
+        db.upsertEntity({ name: subject, type: inferEntityType(subject), chapter: ch });
         entitiesUpserted++;
       }
       const canonConflict = db.findCanonContradiction(subject, predicate, object);
@@ -151,6 +175,14 @@ export async function syncStoryGraph(params: {
         });
       }
       db.lockCanonFact(subject, predicate, object, ch);
+    }
+
+    // 4) 存量类型自愈:历史版本曾把所有实体写死 person,这里对存量 person 重跑推断,
+    //    收音机/组织/旧案这类非人实体就地纠偏。幂等、确定性、零 LLM,符合"活图谱自我纠错"。
+    //    推断器对真人只会返回 person,不会动真实角色。
+    for (const ent of db.listEntities("person")) {
+      const inferred = inferEntityType(ent.name);
+      if (inferred !== "person") db.retypeEntity(ent.id, inferred);
     }
 
     return { entitiesUpserted, relationsAdded, superseded, contradictions };

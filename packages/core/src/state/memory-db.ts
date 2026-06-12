@@ -475,6 +475,15 @@ export class MemoryDB {
     return entity;
   }
 
+  /** 仅更新实体类型(存量纠偏用,不动出场章/别名/摘要)。type 相同则跳过。 */
+  retypeEntity(nameOrId: string, type: string): boolean {
+    const id = MemoryDB.entityId(nameOrId);
+    const res = this.db.prepare(
+      "UPDATE entities SET type = ?, updated_at = datetime('now') WHERE id = ? AND type <> ?",
+    ).run(type, id, type);
+    return Number(res.changes || 0) > 0;
+  }
+
   /** 按 id / 规范名 / 别名解析实体。 */
   getEntity(nameOrId: string): GraphEntity | null {
     const id = MemoryDB.entityId(nameOrId);
