@@ -35,12 +35,14 @@ function chTag(status: string): { state: string; label: string } {
   const s = (status || "").toLowerCase()
   if (/done|published|complete|finished/.test(s)) return { state: "done", label: "完成" }
   if (/writing|progress|active/.test(s)) return { state: "running", label: "编辑中" }
+  if (/audit/.test(s)) return { state: "warn", label: "待修硬伤" }
   if (/review/.test(s)) return { state: "warn", label: "待审" }
   if (/draft|queued|todo|pending|outlin/.test(s)) return { state: "draft", label: "待写" }
   return { state: "pending", label: "构想" }
 }
-// review(写完待批准)计入"已写进度",否则全书待批准时进度惊吓性归零;chTag 仍单独显示"待审"区分审批态
-const isDone = (s: string) => /done|published|complete|finished|review/.test((s || "").toLowerCase())
+// review(写完待批准)与 audit(带硬伤落盘待复修)都计入"已写进度"——字已经写出来了,
+// 否则全书复修期进度会惊吓性回退;chTag 仍分别显示"待审/待修硬伤"区分状态
+const isDone = (s: string) => /done|published|complete|finished|review|audit/.test((s || "").toLowerCase())
 
 function downloadText(filename: string, text: string) {
   const blob = new Blob([text], { type: "text/markdown;charset=utf-8" })

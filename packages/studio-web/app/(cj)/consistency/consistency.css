@@ -108,6 +108,10 @@
 .cj-consistency .issue .it-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cj-consistency .issue .it-flag { flex: 0 0 auto; font-size: var(--text-micro); font-weight: 700; color: var(--warn-500); background: var(--warn-50); padding: 1px 8px; border-radius: var(--r-pill); }
 .cj-consistency .issue .it .pill { margin-left: auto; }
+/* 双 pill(待修硬伤 + 门禁)时只让第一枚吃右推,第二枚贴着排,不被 auto 边距拉开 */
+.cj-consistency .issue .it .pill + .pill { margin-left: 0; }
+/* 待修硬伤 pill:同 warn 暖橙、描边加重一档(与编辑器目录同款),醒目但不做红色警报 */
+.cj-consistency .pill.audit { font-weight: 700; box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--st-warn) 45%, transparent); }
 .cj-consistency .issue .id { font-size: var(--text-cap); color: var(--ink-600); margin-top: 7px; line-height: 1.6; }
 .cj-consistency .issue .blk { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .cj-consistency .issue .gate-note { margin-top: 8px; font-size: var(--text-cap); line-height: 1.6; color: var(--ink-600); background: var(--bg-sunken); border-radius: var(--r-sm); padding: 7px 9px; }

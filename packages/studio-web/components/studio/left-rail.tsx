@@ -339,6 +339,8 @@ function ChapterStatus({ status }: { status: Chapter["status"] }) {
     queued: { color: "bg-status-paused" },
     review: { color: "bg-status-warning" },
     published: { color: "bg-primary" },
+    // 待修硬伤(复修预算耗尽仍带硬违规落盘):同 warn 暖橙,不做红色警报
+    "audit-failed": { color: "bg-status-warning" },
   }
   const s = map[status]
   return (

@@ -56,7 +56,7 @@ import {
 import type { ChapterRevisionsResult } from "@/lib/api/types"
 import { diffLines, diffStats } from "@/lib/simple-diff"
 import { useWorkspace } from "@/lib/workspace-context"
-import { CjPlaceholder } from "@/components/design/cj-placeholder"
+import { EmptyArt } from "@/components/design/cj-placeholder"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
@@ -84,7 +84,7 @@ import {
 import "./editor.css"
 
 const soft = { shouldRetryOnError: false }
-const CH_STATE: Record<string, string> = { published: "已发布", done: "完成", review: "审校", writing: "写作中", queued: "排队", draft: "草稿" }
+const CH_STATE: Record<string, string> = { published: "已发布", done: "完成", review: "审校", writing: "写作中", queued: "排队", draft: "草稿", "audit-failed": "待修硬伤" }
 // approve 不是 AI 动作(纯状态变更、不耗 token),但低分强制签发要借同一个确认弹窗把语义说清
 type EditorAiAction = "continue" | "repair" | "polish" | "expand" | "review" | "eic-review" | "approve"
 
@@ -97,6 +97,8 @@ const CH_META: Record<string, { state: string; Icon: typeof FileText }> = {
   writing: { state: "running", Icon: PenLine },
   queued: { state: "queued", Icon: CircleDashed },
   draft: { state: "draft", Icon: FilePen },
+  // 待修硬伤(audit-failed):复修预算耗尽仍带硬违规落盘 —— warn 暖橙,不做红色警报
+  "audit-failed": { state: "warn", Icon: TriangleAlert },
 }
 function chapterMeta(status: string) {
   return CH_META[status] ?? { state: "draft", Icon: FileText }
@@ -431,8 +433,49 @@ export default function EditorPage() {
     document.body.style.cursor = "col-resize"
   }
 
+  // 整页空态(未选书):页头工作条与 books/runs 同构(像素徽章 + 标题 + 副标题 + KPI + 动作区),
+  // 主体沿用整页像素剧场,但撑满可用宽高 —— 不再是「一行小字 + 漂在死白里的空态卡」。
   if (!booksLoading && !bookId) {
-    return <CjPlaceholder title="章节编辑" sub="本地工作区还没有作品,创建后这里会出现章节目录与写作画布。" />
+    return (
+      <div className="cj-screen cj-editor">
+        <header className="cj-workhead ed-head">
+          <div className="ed-headline">
+            <PixelBadge kind="editor" size={44} className="ed-hero-pixel" ariaLabel="章节编辑" />
+            <div className="ed-headline-text">
+              <div className="page-title-row">
+                <h1 className="page-title">章节编辑</h1>
+              </div>
+              <div className="page-sub">
+                本地工作区还没有作品 —— 创建后,左手章节目录、中间写作画布、右手 AI 编辑部,在这里一章一章往前写。
+              </div>
+            </div>
+            <Link href="/books" className="btn primary ed-head-cta">
+              <span aria-hidden>+</span> 去创建第一部作品
+            </Link>
+          </div>
+          <div className="ed-kpis" role="group" aria-label="写作概览">
+            <KpiChip label="章节总数" value={0} unit="章" tone="neutral" hint="创建作品后从第一章开写" />
+            <KpiChip label="已写章节" value={0} unit="章" tone="neutral" />
+            <KpiChip label="已发布" value={0} unit="章" tone="neutral" />
+            <KpiChip label="累计成稿" value={0} unit="字" tone="neutral" />
+            <KpiChip label="质量评分" value="—" tone="neutral" hint="开笔后编辑部会给每章打分" />
+          </div>
+        </header>
+        <div className="cj-screen-body solo ed-vacant-body">
+          <div className="empty empty-lg editorial-empty ed-vacant-stage" data-empty-variant="editor">
+            <div className="empty-art">
+              <EmptyArt variant="editor" />
+            </div>
+            <div className="empty-title">稿纸已经铺好</div>
+            <div className="empty-desc">本地工作区还没有作品 —— 创建后挑一章落笔,或让编辑部起个头;不急,一句一句来。</div>
+            <div className="empty-actions">
+              <Link href="/books" className="btn primary">去创建第一部作品</Link>
+              <Link href="/" className="btn">返回工作台</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const dims = quality ? [
@@ -500,7 +543,7 @@ export default function EditorPage() {
                   </span>
                   <span className="meta">
                     <span className="ch-words">{c.words ? `${c.words.toLocaleString()} 字` : "未写"}</span>
-                    <span className="pill ch-pill" data-state={m.state}><span className="dot" />{CH_STATE[c.status] ?? c.status}</span>
+                    <span className={`pill ch-pill${c.status === "audit-failed" ? " audit" : ""}`} data-state={m.state}><span className="dot" />{CH_STATE[c.status] ?? c.status}</span>
                   </span>
                 </button>
                 <button
@@ -549,6 +592,16 @@ export default function EditorPage() {
             <button type="button" className="ed-drawer-btn" onClick={() => setDrawer("panel")} title="AI 协作面板" aria-label="AI 协作面板"><PanelRight size={16} /></button>
             <Link href={immersiveHref} className="btn ghost sm" title="全屏沉浸"><Maximize2 size={13} /></Link>
           </div>
+          {/* 待修硬伤提示条:audit-failed 章带未修复硬违规落盘,读者侧必须看得见;就地给「修复本章」出口 */}
+          {selChapter?.status === "audit-failed" && !live.active && (
+            <div className="ed-audit-bar" role="alert">
+              <TriangleAlert size={13} aria-hidden />
+              <span className="ed-audit-t">本章带未修复的硬性问题(复修预算已用尽)— 修到过门禁会自动解锁。</span>
+              <button type="button" className="btn sm ed-audit-fix" onClick={() => openAiConfirm("repair")} disabled={aiBusy || !cur} title="原地把本章修到达标,不回滚后面的章">
+                <ShieldCheck size={12} /> 修复本章
+              </button>
+            </div>
+          )}
           <div className="paper scroll-thin" ref={streamRef}>
             {!cur ? (
               <div className="ed-welcome">

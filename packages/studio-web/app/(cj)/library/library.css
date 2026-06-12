@@ -50,6 +50,28 @@
 }
 .cj-library .lib-cta.primary:hover { color: #fff; filter: brightness(1.04); }
 
+/* 整页空态(未选书且无成品)的页头动作区:与 memory 的 mem-head-cta 同位同构 */
+.cj-library .lib-head-cta {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+}
+
+/* ── 整页空态主体:像素剧场撑满可用宽高,核掉右侧/下方死白 ──
+   三个类并写是为了在特异性上稳压 design.css 的 `.app .cj-screen-body`(grid),改走 flex 居中。 */
+.cj-library .cj-screen-body.lib-vacant-body {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 18px 24px 24px;
+}
+.cj-library .lib-vacant-stage {
+  width: min(100%, 1040px);
+  flex: 1 0 auto;
+  margin: 0 auto;
+  justify-content: center;
+}
+
 /* 一行 KPI:密集而不乱,横向铺满 */
 .cj-library .lib-kpis {
   margin-top: 11px;
@@ -320,6 +342,7 @@
 @media (max-width: 860px) {
   .cj-library .lib-headline { flex-wrap: wrap; gap: 12px; }
   .cj-library .lib-head-act { margin-left: 0; flex: 1 1 100%; }
+  .cj-library .lib-head-cta { margin-left: 0; }
   .cj-library .lib-cta { flex: 1 1 auto; justify-content: center; }
   .cj-library .lib-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -327,6 +350,7 @@
 @media (max-width: 760px) {
   .cj-library .lib-head { padding: 12px 14px; }
   .cj-library .lib-hero-pixel { width: 40px; height: 40px; }
+  .cj-library .cj-screen-body.lib-vacant-body { padding: 14px; }
   .cj-library .lib-tabs { margin-inline: -2px; overflow-x: auto; padding-inline: 2px; }
   .cj-library .lib-tab { flex: 0 0 auto; padding-inline: 12px; }
   .cj-library .lib-mainpane-head { flex-wrap: wrap; gap: 10px; padding: 11px 14px 9px; }

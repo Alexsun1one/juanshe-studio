@@ -47,6 +47,7 @@ const CHAP_STATE: Record<string, { label: string; state: string }> = {
   published: { label: "已发布", state: "published" },
   done: { label: "已完成", state: "success" },
   review: { label: "审校中", state: "warn" },
+  "audit-failed": { label: "待修硬伤", state: "warn" },
   writing: { label: "写作中", state: "running" },
   queued: { label: "排队", state: "queued" },
   draft: { label: "草稿", state: "draft" },
@@ -104,7 +105,7 @@ export default function PublishPage() {
   // 最新成稿:状态为已发布/已完成/审校/写作中且有字数的最后一章 —— 这是「取成稿复制」的对象
   const latestReady = [...chaps]
     .reverse()
-    .find((c) => c.words > 0 && ["published", "done", "review", "writing"].includes(c.status))
+    .find((c) => c.words > 0 && ["published", "done", "review", "writing"].includes(c.status)) // audit-failed 带硬违规,刻意排除出「取成稿」口径
   const draftableCount = chaps.filter((c) => c.words > 0).length
 
   // 后端只返回作品在「主平台」的真实状态(profile),用它点亮矩阵里对应平台那一行

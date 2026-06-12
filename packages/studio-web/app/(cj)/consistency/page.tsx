@@ -112,24 +112,34 @@ export default function ConsistencyPage() {
 
   const scanRows = scans ?? []
   const rows = scanRows.filter((s): s is Scan & { q: QualityMetrics } => Boolean(s.q))
-  const missingRows = scanRows.filter((s) => !s.q)
-  const missing = missingRows.length
+  // audit-failed(待修硬伤):复修预算耗尽仍带硬违规落盘的章 —— 质量报告可能缺失,但绝不能漏出「需修复」清单
+  const auditFailedNums = new Set((chapters ?? []).filter((c) => c.status === "audit-failed").map((c) => c.num))
+  const isAuditFailed = (s: Scan) => auditFailedNums.has(s.num)
+  const noReport = scanRows.filter((s) => !s.q).length
+  // 「报告缺失」组只收纯缺报告的章;缺报告的待修硬伤章升级进「需修复」组,不因为没分数被降权
+  const missingRows = scanRows.filter((s) => !s.q && !isAuditFailed(s))
   const scores = rows.map((s) => scoreOf(s.q)).filter((n) => n > 0)
   const avg = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0
-  const passed = rows.filter((s) => s.q.gate?.pass).length
-  const issueCount = rows.reduce((n, s) => n + (s.q.gate?.blockers?.length ?? 0), missing)
+  const passed = rows.filter((s) => s.q.gate?.pass && !isAuditFailed(s)).length
+  const issueCount = rows.reduce((n, s) => n + (s.q.gate?.blockers?.length ?? 0), noReport)
   const dash = Math.round((avg / 100) * 264)
   const band = !rows.length ? "待扫描" : avg >= 90 ? "优秀" : avg >= 85 ? "稳" : avg >= 70 ? "良好" : "待提升"
 
+  // 需修复 = 未过门禁的章 + 待修硬伤章(置顶):带硬违规的章无论有没有分数都必须修
+  const failRows = scanRows
+    .filter((s) => isAuditFailed(s) || (s.q ? !s.q.gate?.pass : false))
+    .sort((a, b) => Number(isAuditFailed(b)) - Number(isAuditFailed(a)))
+  const auditInFail = failRows.filter((s) => isAuditFailed(s)).length
+
   // 「能不能上架」一句话信心判读:把已扫描的真实门禁结果转成单一可行动结论,不编任何数字。
-  const allScanned = scanRows.length > 0 && missing === 0
+  const allScanned = scanRows.length > 0 && noReport === 0
   const blocked = rows.filter((s) => !s.q.gate?.pass)
-  const ready = allScanned && rows.length > 0 && blocked.length === 0
+  const ready = allScanned && rows.length > 0 && failRows.length === 0
   const confidence: { tone: "ok" | "warn" | "muted"; line: string } = !rows.length
     ? { tone: "muted", line: "还没有可读的章节质量报告。补做后,这里会判断这本离能稳定上架/适配平台还差哪几章。" }
     : ready
       ? { tone: "ok", line: `${scanRange === "all" ? "全书" : "最近"} ${rows.length} 章全部过 ${rows[0].q.gate?.target ?? 85} 门禁 — 连贯度扛得住平台读者,这批已具备上架信心。` }
-      : { tone: "warn", line: `还有 ${blocked.length} 章卡在门禁线下,先把它们推到达标,成品才稳得住追读与变现。` }
+      : { tone: "warn", line: `还有 ${failRows.length} 章没过关${auditInFail ? `(含 ${auditInFail} 章待修硬伤)` : ""},先把它们推到达标,成品才稳得住追读与变现。` }
 
   // 最该先修的一章:卡门禁里分数最低的那章(只读真实分,不排已通过/缺失章)
   const worst = blocked.length
@@ -148,11 +158,12 @@ export default function ConsistencyPage() {
   // 上架闸里就地一键复修:点哪章修哪章,不必跳别处或手动喂提示词。
   // 会触发真实写作流水线(耗 token);后端自带防重复 + 熔断,UI 侧一次只允许一章在修,避免并发烧 token。
   const [repairing, setRepairing] = React.useState<number | null>(null)
-  const onRepair = async (scan: Scan & { q: QualityMetrics }) => {
+  // 待修硬伤章可能没有质量报告:targetScore 缺省交给后端按本书目标分处理
+  const onRepair = async (scan: Scan) => {
     if (!bookId || repairing !== null) return
     setRepairing(scan.num)
     try {
-      await repairLowScore(bookId, scan.num, { targetScore: scan.q.gate?.target })
+      await repairLowScore(bookId, scan.num, { targetScore: scan.q?.gate?.target })
       toast.success(`已派修稿师复修第 ${scan.num} 章…`, {
         description: "复修后自动复验质量;过一会儿回来刷新看新分。",
       })
@@ -163,16 +174,16 @@ export default function ConsistencyPage() {
     }
   }
 
-  // 按严重度分组:卡门禁(最该动手)→ 已达标(轻量收束)→ 报告缺失(补做)。组内保持新章在前。
-  const failRows = rows.filter((s) => !s.q.gate?.pass)
-  const passRows = rows.filter((s) => s.q.gate?.pass)
+  // 按严重度分组:需修复(最该动手,待修硬伤置顶)→ 已达标(轻量收束)→ 报告缺失(补做)。组内保持新章在前。
+  const passRows = rows.filter((s) => s.q.gate?.pass && !isAuditFailed(s))
 
   // 一键批量复修:兑现工作台无人值守承诺的「事后批量重修」—— 取待修章号区间走 repair-quality-batch。
+  // 后端按章号区间扫、不看状态,质量报告缺失的待修硬伤章也会被复修到,不会漏。
   // 这是全站最烧 token 的操作:必须先弹确认列清章数/区间/门槛;区间内已达标章后端会按分数自动跳过。
   const failNums = failRows.map((s) => s.num)
   const batchFrom = failNums.length ? Math.min(...failNums) : 0
   const batchTo = failNums.length ? Math.max(...failNums) : 0
-  const batchTarget = failRows[0]?.q.gate?.target ?? 85
+  const batchTarget = failRows.find((s) => s.q)?.q?.gate?.target ?? 85
   const batchSpansPassed = batchTo - batchFrom + 1 > failNums.length
   const [batchConfirm, setBatchConfirm] = React.useState(false)
   const [batchBusy, setBatchBusy] = React.useState(false)
@@ -193,11 +204,14 @@ export default function ConsistencyPage() {
     }
   }
 
-  const renderFail = (s: Scan & { q: QualityMetrics }, isWorst: boolean) => {
+  // 需修复行:未过门禁的章 + 待修硬伤(audit-failed)章。后者质量报告可能缺失 —— 没分数也要渲染、也要能修
+  const renderFail = (s: Scan, isWorst: boolean) => {
     const q = s.q
-    const sc = scoreOf(q)
-    const sev = sc >= 70 ? "warn" : "err"
-    const blockers = q.gate?.blockers ?? []
+    const audit = isAuditFailed(s)
+    const sc = q ? scoreOf(q) : 0
+    // 待修硬伤统一走 warn 暖橙(醒目靠置顶 + pill,不做红色大块);仅低分常规章保留 err 红线
+    const sev = audit || sc >= 70 ? "warn" : "err"
+    const blockers = q?.gate?.blockers ?? []
     return (
       <div className={`issue ${sev}${isWorst ? " is-worst" : ""}`} key={s.num}>
         <span className="sev" />
@@ -207,25 +221,33 @@ export default function ConsistencyPage() {
             <span className="it-ch">第 {s.num} 章</span>
             <span className="it-title">{s.title}</span>
             {isWorst && <span className="it-flag">先修这章</span>}
-            <span className="pill" data-state="warn"><span className="dot" />门禁 {q.gate?.target ?? 85}</span>
+            {audit && <span className="pill audit" data-state="warn"><span className="dot" />待修硬伤</span>}
+            {q && <span className="pill" data-state="warn"><span className="dot" />门禁 {q.gate?.target ?? 85}</span>}
           </div>
-          {blockers.length > 0
-            ? <div className="blk">{blockers.map((b, i) => <span className="tag warn" key={i}>{blockerLabel(b)}</span>)}</div>
-            : <div className="id">未过门禁,但无具名阻塞项 — 拉齐下方最低维度即可达标。</div>}
-          {q.gate?.repairStrategy && <div className="gate-note">修复策略 · {q.gate.repairStrategy}</div>}
-          <div className="dims">
-            {DIMS.map(({ key, label }) => {
-              const v = Math.round(Number(q[key] ?? 0))
-              return <div className="dim" key={key}><div className="dl"><span>{label}</span><span className="dv">{v}</span></div><div className="bar"><i className={v < 80 ? "low" : ""} style={{ width: `${v}%` }} /></div></div>
-            })}
-          </div>
+          {audit && <div className="id">本章带未修复的硬性问题(复修预算已用尽)落盘 — 修到过门禁会自动解锁。</div>}
+          {q ? (
+            <>
+              {blockers.length > 0
+                ? <div className="blk">{blockers.map((b, i) => <span className="tag warn" key={i}>{blockerLabel(b)}</span>)}</div>
+                : !audit && <div className="id">未过门禁,但无具名阻塞项 — 拉齐下方最低维度即可达标。</div>}
+              {q.gate?.repairStrategy && <div className="gate-note">修复策略 · {q.gate.repairStrategy}</div>}
+              <div className="dims">
+                {DIMS.map(({ key, label }) => {
+                  const v = Math.round(Number(q[key] ?? 0))
+                  return <div className="dim" key={key}><div className="dl"><span>{label}</span><span className="dv">{v}</span></div><div className="bar"><i className={v < 80 ? "low" : ""} style={{ width: `${v}%` }} /></div></div>
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="id">质量报告缺失,暂无法给分 — 复修会重写并重新评分,不会因为没分数漏掉这章。</div>
+          )}
           <div className="row-actions">
             <button
               type="button"
               className="btn sm primary"
               onClick={() => onRepair(s)}
               disabled={repairing !== null}
-              title={`派修稿师把第 ${s.num} 章复修到 ${q.gate?.target ?? 85} 分门槛 —— 会调用写作流水线、消耗 token`}
+              title={`派修稿师把第 ${s.num} 章复修到 ${q?.gate?.target ?? 85} 分门槛 —— 会调用写作流水线、消耗 token`}
             >
               <Wrench size={12} /> {repairing === s.num ? "复修中…" : "修复本章"}
             </button>
@@ -234,8 +256,8 @@ export default function ConsistencyPage() {
           </div>
         </div>
         <div className="right">
-          <div className="sc warn">{sc || "—"}</div>
-          <div className="ch">{bandLabel(q.band)}</div>
+          <div className="sc warn">{q ? sc || "—" : "—"}</div>
+          <div className="ch">{q ? bandLabel(q.band) : "无评分"}</div>
         </div>
       </div>
     )
@@ -312,7 +334,7 @@ export default function ConsistencyPage() {
       {!isLoading && failRows.length > 0 && (
         <section className="con-group">
           <h3 className="sh sev-warn">
-            需修复 <span className="c">{failRows.length} 章</span><span className="sh-hint">未过门禁 · 修完即可纳入可上架批次</span>
+            需修复 <span className="c">{failRows.length} 章</span><span className="sh-hint">{auditInFail ? `含 ${auditInFail} 章待修硬伤 · ` : ""}未过门禁 · 修完即可纳入可上架批次</span>
             <button
               type="button"
               className="btn sm primary sh-act"

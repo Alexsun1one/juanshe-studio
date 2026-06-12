@@ -313,7 +313,8 @@ export type Chapter = {
   num: number
   title: { zh: string; en: string }
   words: number
-  status: "draft" | "writing" | "done" | "queued" | "review" | "published"
+  /** audit-failed:复修预算耗尽仍带硬违规落盘(core 落盘门禁判的「待修硬伤」章),前端必须可见 */
+  status: "draft" | "writing" | "done" | "queued" | "review" | "published" | "audit-failed"
   active?: boolean
   /** 本章累计 LLM token 消耗(写作+审稿+修订全链),后端 tokenUsage.totalTokens */
   tokens?: number

@@ -50,7 +50,7 @@ import {
   type ContentDraft,
 } from "@/lib/api/client"
 import { useWorkspace } from "@/lib/workspace-context"
-import { CjPlaceholder, EmptyArt } from "@/components/design/cj-placeholder"
+import { EmptyArt } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
 import { EarnPath } from "@/components/workbench/earn-path"
@@ -69,9 +69,10 @@ const PLATFORMS = [
   { id: "x_thread", label: "X / Twitter" },
   { id: "newsletter", label: "Newsletter" },
 ] as const
-const CH_STATE: Record<string, string> = { published: "已发布", done: "完成", review: "审校", writing: "写作中", queued: "排队", draft: "草稿" }
+const CH_STATE: Record<string, string> = { published: "已发布", done: "完成", review: "审校", writing: "写作中", queued: "排队", draft: "草稿", "audit-failed": "待修硬伤" }
 // 章节状态 → 设计系统 pill 的 data-state(语义色只走状态,避免裸文字/杂色);未知回落到草稿档
-const CH_PILL: Record<string, string> = { published: "published", done: "done", review: "running", writing: "running", queued: "queued", draft: "draft" }
+// audit-failed = 复修预算耗尽仍带硬违规落盘的「待修硬伤」章:warn 暖橙,醒目但不做红色警报
+const CH_PILL: Record<string, string> = { published: "published", done: "done", review: "running", writing: "running", queued: "queued", draft: "draft", "audit-failed": "warn" }
 
 // 每个目标平台一个语义化 lucide 图标,让列表/分布一眼可辨(无对应时回落到通用图标)
 function platIcon(id: string): React.ReactNode {
@@ -223,8 +224,50 @@ export default function LibraryPage() {
     }
   }
 
+  // 整页空态(未选书且无成品):页头工作条与有数据态同构(像素徽章 + 标题 + 副标题 + KPI + 动作区),
+  // 主体沿用整页像素剧场,但撑满可用宽高 —— 不再是「一行小字 + 漂在死白里的空态卡」。
   if (!booksLoading && !bookId && !draftsLoading && drafts.length === 0) {
-    return <CjPlaceholder title="内容库" sub="还没有任何产出。去「多平台创作」生成成品,或在「章节编辑」写小说,这里会统一汇总成可发布的资产。" />
+    return (
+      <div className="cj-screen cj-library">
+        <header className="cj-workhead lib-head">
+          <div className="lib-headline">
+            <PixelBadge kind="library" size={44} className="lib-hero-pixel" ariaLabel="内容库 · 成品资产中心" />
+            <div className="lib-headline-text">
+              <div className="page-title-row">
+                <h1 className="page-title">内容库</h1>
+                <span className="lib-hero-tag">成品资产中心</span>
+              </div>
+              <div className="page-sub">
+                成品架还空着 —— 产出第一篇多平台成品或第一章正文后,这里会统一汇总成可发布的资产。
+              </div>
+            </div>
+            <Link href="/compose" className="btn primary lib-head-cta">
+              <Wand2 size={13} /> 去多平台创作
+            </Link>
+          </div>
+          <div className="lib-kpis" role="group" aria-label="成品概览">
+            <KpiChip label="多平台成品" value={0} unit="篇" tone="neutral" hint="创作后成品会在这里汇总" />
+            <KpiChip label="覆盖平台" value={0} unit="个" tone="neutral" hint="已铺过成品的目标平台数" />
+            <KpiChip label="已达发布标准" value={0} unit="篇" tone="neutral" hint={`成品分 ≥ ${READY_SCORE} 即可直接发布`} />
+            <KpiChip label="最高分" value="—" tone="neutral" hint="有成品分后从这里看最高水位" />
+            <KpiChip label="累计字数" value="—" tone="neutral" hint="开笔后开始累计" />
+          </div>
+        </header>
+        <div className="cj-screen-body solo lib-vacant-body">
+          <div className="empty empty-lg editorial-empty lib-vacant-stage" data-empty-variant="library">
+            <div className="empty-art">
+              <EmptyArt variant="library" />
+            </div>
+            <div className="empty-title">成品架还在等第一份稿件</div>
+            <div className="empty-desc">去「多平台创作」把一个选题一次产出成多平台成品,或先创建作品写章节 —— 成稿都会汇总到这里。</div>
+            <div className="empty-actions">
+              <Link href="/compose" className="btn primary"><Wand2 size={13} /> 去多平台创作</Link>
+              <Link href="/books" className="btn">去创建第一部作品</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const readyShare = draftStats.total ? Math.round((draftStats.ready / draftStats.total) * 100) : 0

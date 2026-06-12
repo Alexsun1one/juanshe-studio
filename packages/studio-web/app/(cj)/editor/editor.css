@@ -547,6 +547,33 @@
 }
 .cj-editor .ed-blank-t { margin: 0; font-size: var(--text-cap, 12px); line-height: 1.6; color: var(--ink-400); }
 
+/* 待修硬伤(audit-failed):目录 pill 同 warn 暖橙、描边加重一档 —— 醒目可辨,不做红色大块 */
+.cj-editor .ch-pill.audit {
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--st-warn) 45%, transparent);
+}
+
+/* 待修硬伤提示条:贴在画布顶部的一条暖橙细带,与目录 pill 同语义色,带「修复本章」出口 */
+.cj-editor .ed-audit-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 28px; font-size: 12px; line-height: 1.5;
+  color: var(--warn-600, var(--warn-500));
+  background: linear-gradient(90deg, color-mix(in oklab, var(--warn-500) 11%, transparent), transparent 80%);
+  border-bottom: 1px solid var(--line-1);
+  animation: ed-soft-in 0.3s var(--ease-soft, ease-out) both;
+}
+.cj-editor .ed-audit-bar > svg { flex: 0 0 auto; color: var(--warn-500); }
+.cj-editor .ed-audit-t { flex: 1; min-width: 0; font-weight: 600; }
+.cj-editor .ed-audit-fix {
+  flex: 0 0 auto;
+  color: var(--warn-600, var(--warn-500));
+  border-color: color-mix(in oklab, var(--warn-500) 38%, var(--line-1));
+}
+.cj-editor .ed-audit-fix:hover { background: var(--warn-50, var(--st-warn-bg)); }
+/* 剧场态(正在写作)装饰退场,同 ed-cheer */
+.cj-editor.writing-theater .ed-audit-bar { display: none; }
+@media (prefers-reduced-motion: reduce) { .cj-editor .ed-audit-bar { animation: none; } }
+
 /* 进展庆祝条:达标 / 总编签发时,一行像素温度,贴在正文与页脚之间 */
 .cj-editor .ed-cheer {
   display: flex; align-items: center; gap: 9px;
@@ -604,4 +631,84 @@
   .cj-editor .ed-blank-prop {
     width: 84px;
   }
+}
+
+/* ════════════════════════════════════════════════════════════
+   整页空态(未选书):工作条页头 + 像素剧场,替代降级的「一行小字 + 死白」
+   结构与 memory 的 mem-head / mem-vacant 同构,前缀换成 ed-
+   ════════════════════════════════════════════════════════════ */
+.cj-editor .ed-head {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line-1);
+  background:
+    radial-gradient(120% 180% at 0% 0%, color-mix(in srgb, var(--brand-500) 6%, transparent), transparent 58%),
+    var(--bg-app);
+}
+.cj-editor .ed-headline {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+.cj-editor .ed-hero-pixel {
+  flex: 0 0 auto;
+  filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--brand-600) 22%, transparent));
+  transition: transform 240ms var(--ease-soft);
+}
+.cj-editor .ed-head:hover .ed-hero-pixel { transform: translateY(-2px) rotate(-3deg); }
+.cj-editor .ed-headline-text { min-width: 0; flex: 1 1 auto; }
+.cj-editor .ed-headline-text .page-title-row {
+  margin: 0;
+  align-items: baseline;
+}
+.cj-editor .ed-headline-text .page-sub {
+  margin-top: 3px;
+  max-width: 680px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 页头动作区:与 memory 的 mem-head-cta 同位同构 */
+.cj-editor .ed-head-cta {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+}
+/* 一行 KPI:密集而不乱,横向铺满 */
+.cj-editor .ed-kpis {
+  margin-top: 11px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+}
+
+/* ── 整页空态主体:像素剧场撑满可用宽高,核掉右侧/下方死白 ──
+   三个类并写是为了在特异性上稳压 design.css 的 `.app .cj-screen-body`(grid),改走 flex 居中。 */
+.cj-editor .cj-screen-body.ed-vacant-body {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 18px 24px 24px;
+}
+.cj-editor .ed-vacant-stage {
+  width: min(100%, 1040px);
+  flex: 1 0 auto;
+  margin: 0 auto;
+  justify-content: center;
+}
+
+/* ── 空态响应式:窄屏把 KPI 收成 3/2 列;CTA 换行到标题下 ── */
+@media (max-width: 1100px) {
+  .cj-editor .ed-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 920px) {
+  .cj-editor .ed-headline { flex-wrap: wrap; gap: 12px; }
+  .cj-editor .ed-headline-text .page-sub { white-space: normal; }
+  .cj-editor .ed-head-cta { margin-left: 0; }
+}
+@media (max-width: 760px) {
+  .cj-editor .ed-head { padding: 12px 14px; }
+  .cj-editor .ed-hero-pixel { width: 40px; height: 40px; }
+  .cj-editor .ed-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cj-editor .cj-screen-body.ed-vacant-body { padding: 14px; }
 }

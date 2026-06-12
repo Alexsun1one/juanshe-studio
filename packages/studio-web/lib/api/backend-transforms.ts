@@ -1411,6 +1411,9 @@ function normalizeChapterStatus(
   words: number,
 ): Chapter["status"] {
   const raw = text(value).toLowerCase()
+  // audit-failed:复修预算耗尽仍带硬违规落盘(core 落盘门禁判的),必须保真透传 ——
+  // 以前不在任何清单里,掉进下方 words>0 兜底被误标 "done",读者侧完全看不出这章带硬伤。
+  if (["audit-failed", "audit_failed", "auditfailed"].includes(raw)) return "audit-failed"
   if (["published", "released"].includes(raw)) return "published"
   // ready-for-review(后端待批准态)以前没被收进 review → 掉进下方 words>0 兜底被误标 "done",
   // 导致待审章在 UI 上显示成"完成"、还被计进 finished/已发布数。收齐变体,让"待审"真正区别于 done。
