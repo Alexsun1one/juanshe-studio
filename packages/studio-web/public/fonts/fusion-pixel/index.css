@@ -1,8 +1,13 @@
-/* fusion-pixel-12px-proportional-sc-latin-400-normal */
+/* fusion-pixel-12px-proportional-sc-latin-400-normal
+   602KB 单体 woff2(未做 unicode-range 切片),root layout.tsx 对它做了
+   <link rel="preload" as="font">,两边 URL 必须保持逐字一致。
+   font-display 维持 swap:这是全站 UI 默认字体,block 只会让首屏文字
+   隐身 3s 后照样跳变,optional 会让首访整页失去像素世界观——swap+preload
+   是大体积字体的正确组合。src 只留 woff2:files/ 里没有 .woff,旧回退是 404 死链。 */
 @font-face {
   font-family: 'Fusion Pixel 12px Proportional SC';
   font-style: normal;
   font-display: swap;
   font-weight: 400;
-  src: url(./files/fusion-pixel-12px-proportional-sc-latin-400-normal.woff2) format('woff2'), url(./files/fusion-pixel-12px-proportional-sc-latin-400-normal.woff) format('woff');
+  src: url(./files/fusion-pixel-12px-proportional-sc-latin-400-normal.woff2) format('woff2');
 }

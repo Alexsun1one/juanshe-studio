@@ -6,6 +6,7 @@ import { Languages, Moon, Sun, Sunset } from "lucide-react"
 import { useT, useLocale } from "@/lib/i18n"
 import { useProjectPrefs } from "@/hooks/use-studio"
 import { updateProjectPrefs } from "@/lib/api/client"
+import { useNotifyPermission } from "@/components/settings/use-notify-permission"
 import {
   Card,
   CardContent,
@@ -45,6 +46,8 @@ export function AppearanceTab() {
   const { locale, setLocale } = useLocale()
   const lang = locale === "en" ? "en" : "zh"
   const { data: prefs, mutate } = useProjectPrefs()
+  // 首次开启任一通知开关时才向浏览器要权限;被拒不阻断保存(降级为标签页标题提醒)
+  const { permission: notifyPerm, ensurePermission } = useNotifyPermission()
 
   if (!prefs) {
     return (
@@ -227,6 +230,7 @@ export function AppearanceTab() {
           <NotifySwitch
             checked={prefs.notify.onChapterDone}
             onCheckedChange={async (v) => {
+              if (v) await ensurePermission()
               await updateProjectPrefs({
                 notify: { ...prefs.notify, onChapterDone: v },
               })
@@ -237,6 +241,7 @@ export function AppearanceTab() {
           <NotifySwitch
             checked={prefs.notify.onRunFailed}
             onCheckedChange={async (v) => {
+              if (v) await ensurePermission()
               await updateProjectPrefs({
                 notify: { ...prefs.notify, onRunFailed: v },
               })
@@ -247,6 +252,7 @@ export function AppearanceTab() {
           <NotifySwitch
             checked={prefs.notify.onLowQuality}
             onCheckedChange={async (v) => {
+              if (v) await ensurePermission()
               await updateProjectPrefs({
                 notify: { ...prefs.notify, onLowQuality: v },
               })
@@ -254,6 +260,18 @@ export function AppearanceTab() {
             }}
             label={lang === "en" ? "Quality below threshold" : "质量低于阈值"}
           />
+          {notifyPerm === "denied" &&
+            (prefs.notify.onChapterDone || prefs.notify.onRunFailed || prefs.notify.onLowQuality) && (
+              <p
+                role="status"
+                className="text-[11px] leading-relaxed"
+                style={{ color: "var(--warn-600, var(--warn-500, #C8841C))" }}
+              >
+                {lang === "en"
+                  ? "Browser blocked system notifications — allow this site in browser settings, otherwise only the tab title will flash."
+                  : "浏览器已拦截系统通知 —— 去浏览器设置允许本站通知,否则只能靠标签页标题提醒。"}
+              </p>
+            )}
         </CardContent>
       </Card>
     </div>

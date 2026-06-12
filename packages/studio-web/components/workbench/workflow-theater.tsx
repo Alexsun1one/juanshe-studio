@@ -9,11 +9,17 @@ import { useAgentActivity } from "@/lib/use-agent-activity"
 import { useLiveRun } from "@/lib/use-live-run"
 import { useRunState } from "@/lib/use-run-state"
 import { useTypewriter } from "@/lib/use-typewriter"
-import { tokenizeProse, useEntityDict } from "@/lib/prose-highlight"
+import { useAutoRuns } from "@/hooks/use-studio"
+import { isLiveAutoRunStatus } from "@/lib/studio/run-status"
+import { formatEta } from "./batch-progress"
+import { useEntityDict } from "@/lib/prose-highlight"
 import { agentColor } from "@/lib/agent-identity"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { PixelCat } from "@/components/design/pixel-cat"
 import { CelebrationBurst } from "./celebration-burst"
+import { StreamingProse, splitStreamParagraphs } from "./streaming-prose"
+import { StreamFollowChip } from "./stream-follow-chip"
+import { useStickToBottom } from "@/hooks/use-stick-to-bottom"
 import "./workflow-theater.css"
 
 /**
@@ -90,154 +96,9 @@ function computeStepStatus(
   return "pending"
 }
 
-/**
- * 自动排版:把 live.text 切成段落渲染。
- *
- * 策略层级(从权威到启发):
- *   1. 优先按 `\n\n` 切显式段落
- *   2. 单 `\n` 也算段落分隔
- *   3. 完全没换行 → 启发式自动分段(像编辑帮你顺):
- *      a. 对话「...」/ 『...』/ "..."闭合后,如果后面接叙事 → 切段
- *      b. `——` 破折号常起新拍 → 切段(除非太短)
- *      c. 段累计超过 ~140 字 + 遇到 `。` → 切段
- *      d. 最长不超过 280 字硬切
- *   每段渲染为 <p>,首行缩进由 CSS 控制
- */
-function splitParagraphs(text: string): string[] {
-  if (!text) return []
-  // 1) 显式换行优先
-  const normalized = text.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n")
-  if (normalized.includes("\n\n")) {
-    return normalized.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean)
-  }
-  if (normalized.includes("\n")) {
-    return normalized.split(/\n/).map((s) => s.trim()).filter(Boolean)
-  }
-  // 2) 启发式 — LLM 流式给一长串没换行时,用它分段
-  return heuristicSplit(normalized)
-}
-
-/**
- * 启发式分段:扫一遍,在"自然换段点"切。
- *  - 对话闭合 `」` / `』` / `"` 后,如果还有正文跟在后面 → 切
- *  - 段长度 >= 120 字且遇到 `。`/`!`/`?` → 切
- *  - `——` 后另起一段(除非段太短)
- *  - 硬上限 280 字
- *
- * 流式安全:不切最后一段(写手可能还在写),让 caret 跟住。
- */
-function heuristicSplit(text: string): string[] {
-  if (text.length < 140) return [text]
-  const OPEN = new Set(["「", "『", "“", "‘"])
-  const CLOSE = new Set(["」", "』", "”", "’"])
-  const END = new Set(["。", "!", "?", "！", "?"])
-  // 跟标点(逗号/分号/冒号/顿号 中英) — 这些 NEVER 可以做段首,出现就要"吸回"上一段
-  const TRAILING_PUNCT = new Set([",", ",", ";", ";", ":", ":", "、", "。", "!", "?", "！", "?", "…", "—"])
-  // 段长目标:140 字开始才考虑切,400 字必须切
-  const SOFT = 140
-  const HARD = 400
-
-  const out: string[] = []
-  let buf = ""
-  let i = 0
-  let inDialog = 0  // 嵌套深度(允许 「『...』」)
-
-  // flush 时调用:把 buf 收到 out;清空 buf;返回新的 i(不变)
-  const flush = () => {
-    const t = buf.trim()
-    if (t) out.push(t)
-    buf = ""
-  }
-  // 关键防御:每次推进 i 之前,如果 buf 现在是空的、而且 text[i] 是孤立的标点,
-  // 把这个标点追加到上一段末尾,不要让它做新段开头(修"标点漂下去"bug)
-  const absorbStrayPunct = () => {
-    while (buf.length === 0 && i < text.length && TRAILING_PUNCT.has(text[i]!)) {
-      if (out.length > 0) {
-        out[out.length - 1] = out[out.length - 1] + text[i]
-        i++
-      } else {
-        // 还没有 out 段?让标点进 buf 也算
-        buf += text[i]
-        i++
-      }
-    }
-  }
-
-  while (i < text.length) {
-    absorbStrayPunct()
-    if (i >= text.length) break
-    const ch = text[i]
-    const next = text[i + 1] ?? ""
-    buf += ch
-
-    // 引号嵌套深度
-    if (OPEN.has(ch)) { inDialog++; i++; continue }
-    if (CLOSE.has(ch)) {
-      inDialog = Math.max(0, inDialog - 1)
-      // 闭引号后只有一种情形切段:**下一个非标点字符也是开引号**(对话 A 收 / 对话 B 起)
-      // 并且 buf 已经够长。其他情形(说话归属 / 动作 / 描述)绝不切 — 让它们留在同段
-      // 跳过后面的连续标点,看真正的下一个字
-      let k = i + 1
-      while (k < text.length && TRAILING_PUNCT.has(text[k]!)) k++
-      const realNext = text[k] ?? ""
-      if (OPEN.has(realNext) && buf.length >= SOFT) {
-        // 把闭引号后面的标点全部吃进本段
-        while (i + 1 < k) { buf += text[i + 1]; i++ }
-        flush()
-        i++  // 跳过闭引号本身
-        continue
-      }
-      i++
-      continue
-    }
-
-    // 在对话内:不切
-    if (inDialog > 0) { i++; continue }
-
-    // 破折号 —— 一般起新拍:切段
-    if (ch === "—" && next === "—" && buf.length >= SOFT) {
-      // 把 buf 末尾这个 — 也算入上一段(buf 已经包含了 ch)
-      buf += next
-      i += 2
-      flush()
-      continue
-    }
-
-    // 句末 + 段够长 → 切
-    if (END.has(ch) && buf.length >= SOFT) {
-      // 把后续可能的"」"或其他闭引号 / 引号后的标点也吸进本段,再切
-      let k = i + 1
-      while (k < text.length && (CLOSE.has(text[k]!) || TRAILING_PUNCT.has(text[k]!))) {
-        buf += text[k]
-        k++
-      }
-      i = k
-      flush()
-      continue
-    }
-
-    // 硬上限:必须切,但找最近的句末/闭引号下手
-    if (buf.length >= HARD && inDialog === 0) {
-      let j = buf.length - 1
-      while (j > 40 && !END.has(buf[j]!) && !CLOSE.has(buf[j]!)) j--
-      if (j > 40) {
-        out.push(buf.slice(0, j + 1).trim())
-        buf = buf.slice(j + 1)
-      } else {
-        flush()
-      }
-      i++
-      continue
-    }
-
-    i++
-  }
-  flush()
-  return out
-}
-
-/* 正文「语义分色」分词器已抽到 lib/prose-highlight,工作台 / 剧场共用一套
-   (在原 dialog/num/dash/ellipsis/interjection/thought 之上,新增人物/地点字典 + 时间)。 */
+/* 自动分段(splitStreamParagraphs)与流式渲染(StreamingProse)已抽到 ./streaming-prose,
+   工作台 / 编辑器 / 剧场三处流式画布共用一套;
+   正文「语义分色」分词器在 lib/prose-highlight(人物/地点字典 + 时间)。 */
 
 type Mode = "full" | "mini" | "closed"
 
@@ -246,6 +107,13 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
   const live = useLiveRun(bookId)
   const activity = useAgentActivity(bookId)
   const proseDict = useEntityDict(bookId) // 人物/地点字典(story-graph),供正文语义分色
+  // 连续写批次(auto-runs,与 /runs 共享 SWR key):剧场头部给「本批第几章/共几章 + 预计剩余」,
+  // 挂机长任务不必离开剧场就知道还剩多少、卡没卡;单章续写查不到活跃批次时不渲染,零噪音。
+  const { data: autoRuns } = useAutoRuns()
+  const batchRun = React.useMemo(
+    () => (autoRuns ?? []).find((r) => r.bookId === bookId && isLiveAutoRunStatus(r.status)),
+    [autoRuns, bookId],
+  )
 
   // 写手 done 后,后续 agent(章节分析官/审稿等)不发 token,live.text 会清空 →
   // 用户最小化再展开后看到空白页。这里缓存"本轮见过的最长文本",作为后备显示。
@@ -395,12 +263,9 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
     return () => clearInterval(t)
   }, [isRunning])
 
-  // 滚动 typewriter 到底
+  // 贴底才跟随 typewriter:用户上翻回读即解除自动滚底,浮出「回到最新」;贴回底部恢复
   const paperRef = React.useRef<HTMLDivElement>(null)
-  React.useEffect(() => {
-    const el = paperRef.current
-    if (el && live.active) el.scrollTop = el.scrollHeight
-  }, [typed, live.active])
+  const stick = useStickToBottom(paperRef, typed, live.active)
 
   // 滚动事件流到顶(最新在上)
   const feedRef = React.useRef<HTMLDivElement>(null)
@@ -458,7 +323,7 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
 
   // 拆段;只把"已稳定"的段交给 typewriter 不太现实(typewriter 拿到的是累计 full text)
   // 直接用累计 text 拆 → 渲染多个 <p>。最后一段会有 caret。
-  const paragraphs = splitParagraphs(typed)
+  const paragraphs = splitStreamParagraphs(typed)
 
   // 接力链:每个角色取它最近一条事件文案,挂到对应节点上(让真实事件流在结构化接力里就地呈现)
   const lastTextByFid: Record<string, string> = {}
@@ -482,7 +347,7 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
           <div className="theater-head-left">
             <span className="theater-live-dot" aria-hidden />
             <span className="theater-status">
-              {isRunning ? "正在写作中" : "刚跑完"}
+              {live.reconnecting ? "连接中断 · 重连中…" : isRunning ? "正在写作中" : "刚跑完"}
             </span>
             <span className="theater-sep">·</span>
             <span className="theater-book">《{bookTitle}》</span>
@@ -503,6 +368,22 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
             )}
           </div>
           <div className="theater-head-right">
+            {/* 批次进度:本批 X/N 章 + 预计剩余(数据与运行台 RunCard 同源,每秒重渲让 ETA 活着) */}
+            {batchRun && (
+              <div
+                className="theater-stat theater-stat-batch"
+                title={`本批连写 第 ${batchRun.fromChapter}–${batchRun.toChapter} 章 · 还剩 ${Math.max(0, batchRun.toChapter - batchRun.currentChapter)} 章${batchRun.currentRewrite > 0 ? ` · 重写 ${batchRun.currentRewrite}/${batchRun.maxRewritesPerChapter}` : ""}`}
+              >
+                <span className="theater-stat-k">本批</span>
+                <span className="theater-stat-v">{batchRun.currentChapter}/{batchRun.toChapter}<small>章</small></span>
+              </div>
+            )}
+            {batchRun?.eta && isRunning ? (
+              <div className="theater-stat">
+                <span className="theater-stat-k">预计剩余</span>
+                <span className="theater-stat-v">{formatEta(Math.max(0, batchRun.eta - Date.now()))}</span>
+              </div>
+            ) : null}
             <div className="theater-stat">
               <span className="theater-stat-k">耗时</span>
               <span className="theater-stat-v">{elapsed}</span>
@@ -636,20 +517,16 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
             </div>
             <div className="theater-paper scroll-thin" ref={paperRef}>
               {paragraphs.length > 0 ? (
-                paragraphs.map((p, i) => {
-                  const isLast = i === paragraphs.length - 1
-                  const tokens = tokenizeProse(p, proseDict)
-                  return (
-                    <p key={i} className="theater-paragraph">
-                      {tokens.map((tk, ti) =>
-                        tk.kind === "default"
-                          ? <React.Fragment key={ti}>{tk.text}</React.Fragment>
-                          : <span key={ti} className={`tk tk-${tk.kind}`}>{tk.text}</span>
-                      )}
-                      {isLast && live.active && <span className="theater-caret" aria-hidden />}
-                    </p>
-                  )
-                })
+                <>
+                  {/* 已完成段 memo 冻结,每 tick 只重分词正在生长的尾段(长章不掉帧) */}
+                  <StreamingProse
+                    text={typed}
+                    dict={proseDict}
+                    paragraphClassName="theater-paragraph"
+                    caret={live.active ? <span className="theater-caret" aria-hidden /> : null}
+                  />
+                  <StreamFollowChip show={live.active && !stick.following} onJump={stick.jumpToBottom} />
+                </>
               ) : noVisibleOutput ? (
                 <div className="theater-warmup">
                   <span className="theater-warmup-dots" aria-hidden><i /><i /><i /></span>

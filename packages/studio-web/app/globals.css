@@ -43,26 +43,27 @@
   --input: #ECE3D4;
   --ring: #6E5BFA;
 
-  /* —— 语义色（纯色 + soft 浅底）—— */
+  /* —— 语义色（纯色 + soft 浅底）；info=沉静青,与 design.css --c-fore 同族(冷蓝是雷区) —— */
   --brand: #6E5BFA;        --brand-soft: #F0EDFF;
   --success: #16a34a;      --success-soft: #e7f6ed;
   --warning: #d97706;      --warning-soft: #fdf0dd;
   --danger: #e5484d;       --danger-soft: #fcebec;
-  --info: #0ea5e9;         --info-soft: #e3f4fc;
+  --info: #2FA39A;         --info-soft: #DCF1EE;
   --purple: #7c3aed;       --purple-soft: #f1ebfe;
   --pink: #db2777;         --pink-soft: #fce8f1;
 
-  /* —— 实体气泡（知识图谱 / 记忆长卷）：世界观 / 角色 / 长期记忆 / 伏笔 / 焦点 / 风格指纹 —— */
+  /* —— 实体气泡（知识图谱 / 记忆长卷）：世界观 / 角色 / 长期记忆 / 伏笔 / 焦点 / 风格指纹
+     色值与 design.css 的 --c-memory/--c-fore 保持同源,两层契约不许漂移 —— */
   --entity-world:  #8b7dff; --entity-world-soft:  #efecff;
   --entity-char:   #2bb97a; --entity-char-soft:   #e4f6ec;
-  --entity-memory: #4a8ae0; --entity-memory-soft: #e6eefb;
-  --entity-fore:   #4fb0e0; --entity-fore-soft:   #e2f2fa;
+  --entity-memory: #D86C8E; --entity-memory-soft: #FBEAF0;
+  --entity-fore:   #2FA39A; --entity-fore-soft:   #DCF1EE;
   --entity-focus:  #f08a4b; --entity-focus-soft:  #fdecdf;
   --entity-style:  #b173e8; --entity-style-soft:  #f4eafb;
 
   /* —— 运行状态机（写作流 / runs / agent）—— */
   --state-idle: #94a3b8;
-  --state-queued: #0ea5e9;
+  --state-queued: #6E5BFA;  /* 对齐 design.css --st-queued,排队=品牌紫而非冷蓝 */
   --state-running: #5b5bd6;
   --state-streaming: #5b5bd6;
   --state-paused: #d97706;
@@ -83,7 +84,7 @@
   --chart-2: #16a34a;
   --chart-3: #d97706;
   --chart-4: #db2777;
-  --chart-5: #0ea5e9;
+  --chart-5: #2FA39A;
 
   --radius: 0.75rem;
 
@@ -169,20 +170,20 @@
   --success: #34d399;      --success-soft: #0f2b22;
   --warning: #fbbf24;      --warning-soft: #2e2510;
   --danger: #f2555a;       --danger-soft: #311618;
-  --info: #38bdf8;         --info-soft: #0b2733;
+  --info: #5FC9BD;         --info-soft: #163230;
   --purple: #a78bfa;       --purple-soft: #221a3b;
   --pink: #f472b6;         --pink-soft: #2f1626;
 
   /* —— 实体气泡 · 夜间 —— */
   --entity-world:  #a99bff; --entity-world-soft:  #232753;
   --entity-char:   #34d399; --entity-char-soft:   #0f2b22;
-  --entity-memory: #5fa0f0; --entity-memory-soft: #0b223a;
-  --entity-fore:   #5cc4f0; --entity-fore-soft:   #0b2733;
+  --entity-memory: #ED8FAB; --entity-memory-soft: #3A2028;
+  --entity-fore:   #5FC9BD; --entity-fore-soft:   #163230;
   --entity-focus:  #f3a36a; --entity-focus-soft:  #2e1d10;
   --entity-style:  #c79bf0; --entity-style-soft:  #221a3b;
 
   --state-idle: #64748b;
-  --state-queued: #38bdf8;
+  --state-queued: #9F8DFF;  /* 对齐 design.css 暗色 --st-queued */
   --state-running: #8b8bf2;
   --state-streaming: #8b8bf2;
   --state-paused: #fbbf24;
@@ -193,7 +194,7 @@
   --chart-2: #34d399;
   --chart-3: #fbbf24;
   --chart-4: #f472b6;
-  --chart-5: #38bdf8;
+  --chart-5: #5FC9BD;
 
   --shadow-xs: 0 1px 0 rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(0, 0, 0, 0.25);
@@ -207,7 +208,7 @@
   --sidebar-primary-foreground: #1A1610;
   --sidebar-accent: #322A44;
   --sidebar-accent-foreground: #CFC3F5;
-  --sidebar-border: #352C20;
+  --sidebar-border: #363050;  /* 堇紫调,与 dark --border 同值;深棕线在紫底上不可见 */
   --sidebar-ring: #9C8BFF;
 }
 

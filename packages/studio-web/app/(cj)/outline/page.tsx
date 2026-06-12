@@ -15,7 +15,7 @@ import {
   Sparkles,
 } from "lucide-react"
 import { toast } from "sonner"
-import { fetchOutline, fetchPlotProgress } from "@/lib/api/client"
+import { fetchOutline, fetchPlotProgress, fetchProjectPrefs } from "@/lib/api/client"
 import type { OutlineAct, OutlineChapter } from "@/lib/api/types"
 import { useWorkspace } from "@/lib/workspace-context"
 import { CjPlaceholder } from "@/components/design/cj-placeholder"
@@ -59,6 +59,8 @@ export default function OutlinePage() {
   const active = books.find((b) => b.id === bookId)
   const { data: outline } = useSWR(bookId ? ["outline", bookId] : null, () => fetchOutline(bookId), soft)
   const { data: plot } = useSWR(bookId ? ["plot", bookId] : null, () => fetchPlotProgress(bookId), soft)
+  // 与工作台同 key 共享缓存:热力图达标基准要用质量门禁同一口径的目标字数,不能拿全书平均自归一化
+  const { data: prefs } = useSWR("prefs", fetchProjectPrefs, soft)
 
   if (!booksLoading && !bookId) {
     return <CjPlaceholder title="大纲与规划" sub="本地工作区还没有作品,创建后这里会出现张力曲线、卷看板与节拍表。" />
@@ -77,6 +79,9 @@ export default function OutlinePage() {
     ? Math.round(allChapters.reduce((s, c) => s + (c.words || 0), 0) / allChapters.length)
     : (writtenCount && active?.totalWords ? Math.round(active.totalWords / writtenCount) : 0)
   const overallPct = totalPlanned ? Math.round((curChapter / totalPlanned) * 100) : 0
+  // 热力图达标基准 = 项目设定的单章目标字数(续写门禁卡的就是它);prefs 缺省才回落到平均/3000。
+  // 书级独立目标字数(book.chapterWordCount)若未来落地,优先级应为 book > prefs。
+  const heatTarget = prefs?.defaultRun.targetWordsPerChapter ?? (avgWords > 0 ? avgWords : 3000)
   // 焦点带「当前阶段」一字总评:优先用进行中的里程碑,但进度尚浅时不信任后端可能给到的
   // 末尾里程碑(避免出现「0% 进度却显示结局」的自相矛盾,与上方统计回落同一考量)。
   const curMilestone = milestones.find((m) => m.status === "current")
@@ -272,7 +277,7 @@ export default function OutlinePage() {
             {allChapters.length > 0 && (
               <section className="chapter-heat">
                 <div className="ch-head">
-                  <h4><Grid3x3 size={14} /> 章节节奏 <span className="muted">· {allChapters.length} 章 · 颜色 = 字数偏离目标</span></h4>
+                  <h4><Grid3x3 size={14} /> 章节节奏 <span className="muted">· {allChapters.length} 章 · 颜色 = 字数 vs 目标 {fmt(heatTarget)} 字</span></h4>
                   <div className="ch-legend">
                     <span><i className="hc hc-low" />偏短</span>
                     <span><i className="hc hc-ok" />达标</span>
@@ -284,8 +289,7 @@ export default function OutlinePage() {
                 <div className="ch-grid" role="list" aria-label="章节热力图">
                   {allChapters.map((c) => {
                     const w = c.words ?? 0
-                    const target = avgWords > 0 ? avgWords : 3000
-                    const ratio = target > 0 ? w / target : 0
+                    const ratio = heatTarget > 0 ? w / heatTarget : 0
                     const tone = w === 0
                       ? "empty"
                       : ratio < 0.65 ? "low"
@@ -297,7 +301,7 @@ export default function OutlinePage() {
                         key={c.num}
                         role="listitem"
                         className={`hc-cell hc-${tone}${isCur ? " hc-cur-cell" : ""}`}
-                        title={`第 ${c.num} 章 · ${c.title.zh || "未命名"} · ${w ? `${fmt(w)} 字 (${Math.round(ratio * 100)}%)` : "未写"}`}
+                        title={`第 ${c.num} 章 · ${c.title.zh || "未命名"} · ${w ? `${fmt(w)} 字 (目标的 ${Math.round(ratio * 100)}%)` : "未写"}`}
                       >
                         <span className="hc-num">{c.num}</span>
                       </div>

@@ -379,12 +379,12 @@ export default function KnowledgePage() {
                           <rect x={4} y={4} width={3} height={1} fill="#3A2E20" />
                           <rect x={9} y={4} width={3} height={1} fill="#3A2E20" />
                           {/* 脸 + 描边 */}
-                          <rect x={4} y={4} width={1} height={3} fill="#1A1F2E" />
-                          <rect x={11} y={4} width={1} height={3} fill="#1A1F2E" />
+                          <rect x={4} y={4} width={1} height={3} fill="#2B2620" />
+                          <rect x={11} y={4} width={1} height={3} fill="#2B2620" />
                           <rect x={5} y={5} width={6} height={2} fill="#F5D3A8" />
                           {/* 眼睛 */}
-                          <rect x={6} y={5} width={1} height={1} fill="#1A1F2E" />
-                          <rect x={9} y={5} width={1} height={1} fill="#1A1F2E" />
+                          <rect x={6} y={5} width={1} height={1} fill="#2B2620" />
+                          <rect x={9} y={5} width={1} height={1} fill="#2B2620" />
                           {/* 嘴 / 腮红 */}
                           <rect x={7} y={6} width={2} height={1} fill="#F3A8A0" />
                           {/* 脖子 */}
@@ -392,8 +392,8 @@ export default function KnowledgePage() {
                           {/* 衣服(faction 色)*/}
                           <rect x={4} y={8} width={8} height={1} fill={fill} />
                           <rect x={3} y={9} width={10} height={4} fill={fill} />
-                          <rect x={3} y={9} width={1} height={4} fill="#1A1F2E" opacity={0.4} />
-                          <rect x={12} y={9} width={1} height={4} fill="#1A1F2E" opacity={0.4} />
+                          <rect x={3} y={9} width={1} height={4} fill="#2B2620" opacity={0.4} />
+                          <rect x={12} y={9} width={1} height={4} fill="#2B2620" opacity={0.4} />
                           <rect x={3} y={13} width={4} height={1} fill={fill} />
                           <rect x={9} y={13} width={4} height={1} fill={fill} />
                         </svg>

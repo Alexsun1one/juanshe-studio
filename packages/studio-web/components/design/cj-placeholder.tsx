@@ -1,4 +1,5 @@
 import Link from "next/link"
+import type { ReactNode } from "react"
 
 type EmptyArtVariant =
   | "default"
@@ -182,6 +183,36 @@ export function CjPlaceholder({
           </Link>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * 卡片内迷你空态 — 一枚 22px 像素道具 + 一句编辑部口吻的话。
+ * 与整页空态(像素剧场)同语言但更克制:横排单行,不抢数据区的戏。
+ */
+export function MiniEmpty({
+  icon = "sleeping-cat",
+  fill,
+  children,
+}: {
+  /** /brand/props 下的像素道具名,按场景选(sleeping-cat / ink-quill / stamp-seal …) */
+  icon?: string
+  /** 撑满父容器高度 — 用于固定高度的图表区,保证整行垂直居中 */
+  fill?: boolean
+  children: ReactNode
+}) {
+  return (
+    <div className={`empty empty-mini${fill ? " empty-mini-fill" : ""}`}>
+      <img
+        className="empty-mini-ico"
+        src={`/brand/props/${icon}.webp`}
+        alt=""
+        width={22}
+        height={22}
+        draggable={false}
+      />
+      <span>{children}</span>
     </div>
   )
 }

@@ -3,9 +3,10 @@
 import * as React from "react"
 import useSWR from "swr"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { AlertTriangle, CheckCircle2, Copy, ExternalLink, FileWarning, ShieldCheck, Wrench } from "lucide-react"
 import { toast } from "sonner"
-import { fetchChapters, fetchQuality, repairLowScore } from "@/lib/api/client"
+import { fetchChapters, fetchQuality, repairLowScore, startRepairQualityBatch } from "@/lib/api/client"
 import type { QualityMetrics } from "@/lib/api/types"
 import { useWorkspace } from "@/lib/workspace-context"
 import { blockerLabel, blockerLabels } from "@/lib/blocker-labels"
@@ -13,9 +14,26 @@ import { CjPlaceholder } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { bandLabel } from "@/lib/labels"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import "./consistency.css"
 
 const soft = { shouldRetryOnError: false }
+// 扫描范围:挂机连写几十章后,「最近 6」看不全欠债清单 —— 给分段切换,「全部」分批拉不打爆后端
+type ScanRange = 6 | 20 | "all"
+const SCAN_RANGES: { key: ScanRange; label: string }[] = [
+  { key: 6, label: "最近 6" },
+  { key: 20, label: "最近 20" },
+  { key: "all", label: "全部" },
+]
 const DIMS: { key: keyof QualityMetrics; label: string }[] = [
   { key: "consistency", label: "一致性" },
   { key: "pacing", label: "节奏" },
@@ -64,14 +82,27 @@ function qualityPrompt(scan: Scan) {
 
 export default function ConsistencyPage() {
   const { books, bookId, booksLoading } = useWorkspace()
+  const router = useRouter()
   const active = books.find((b) => b.id === bookId)
   const { data: chapters } = useSWR(bookId ? ["chapters", bookId] : null, () => fetchChapters(bookId), soft)
 
-  const recent = React.useMemo(() => (chapters ?? []).slice(-6).reverse(), [chapters])
+  const [scanRange, setScanRange] = React.useState<ScanRange>(6)
+  const recent = React.useMemo(() => {
+    const list = chapters ?? []
+    return (scanRange === "all" ? [...list] : list.slice(-scanRange)).reverse()
+  }, [chapters, scanRange])
   const { data: scans, isLoading } = useSWR<Scan[]>(
-    bookId && recent.length ? ["qscans", bookId, recent.map((c) => c.num).join(",")] : null,
-    async () => Promise.all(recent.map((c) =>
-      fetchQuality(bookId, c.num).then((q) => ({ num: c.num, title: c.title.zh, q })).catch(() => ({ num: c.num, title: c.title.zh, q: null })))),
+    bookId && recent.length ? ["qscans", bookId, scanRange, recent.map((c) => c.num).join(",")] : null,
+    async () => {
+      // 按章并发但分批(每批 10 章):「全部」对 200+ 章的书也不会一次打爆后端;单章失败不拖垮整批
+      const out: Scan[] = []
+      for (let i = 0; i < recent.length; i += 10) {
+        const batch = recent.slice(i, i + 10)
+        out.push(...(await Promise.all(batch.map((c) =>
+          fetchQuality(bookId, c.num).then((q) => ({ num: c.num, title: c.title.zh, q })).catch(() => ({ num: c.num, title: c.title.zh, q: null }))))))
+      }
+      return out
+    },
     soft,
   )
 
@@ -97,7 +128,7 @@ export default function ConsistencyPage() {
   const confidence: { tone: "ok" | "warn" | "muted"; line: string } = !rows.length
     ? { tone: "muted", line: "还没有可读的章节质量报告。补做后,这里会判断这本离能稳定上架/适配平台还差哪几章。" }
     : ready
-      ? { tone: "ok", line: `最近 ${rows.length} 章全部过 ${rows[0].q.gate?.target ?? 85} 门禁 — 连贯度扛得住平台读者,这批已具备上架信心。` }
+      ? { tone: "ok", line: `${scanRange === "all" ? "全书" : "最近"} ${rows.length} 章全部过 ${rows[0].q.gate?.target ?? 85} 门禁 — 连贯度扛得住平台读者,这批已具备上架信心。` }
       : { tone: "warn", line: `还有 ${blocked.length} 章卡在门禁线下,先把它们推到达标,成品才稳得住追读与变现。` }
 
   // 最该先修的一章:卡门禁里分数最低的那章(只读真实分,不排已通过/缺失章)
@@ -135,6 +166,32 @@ export default function ConsistencyPage() {
   // 按严重度分组:卡门禁(最该动手)→ 已达标(轻量收束)→ 报告缺失(补做)。组内保持新章在前。
   const failRows = rows.filter((s) => !s.q.gate?.pass)
   const passRows = rows.filter((s) => s.q.gate?.pass)
+
+  // 一键批量复修:兑现工作台无人值守承诺的「事后批量重修」—— 取待修章号区间走 repair-quality-batch。
+  // 这是全站最烧 token 的操作:必须先弹确认列清章数/区间/门槛;区间内已达标章后端会按分数自动跳过。
+  const failNums = failRows.map((s) => s.num)
+  const batchFrom = failNums.length ? Math.min(...failNums) : 0
+  const batchTo = failNums.length ? Math.max(...failNums) : 0
+  const batchTarget = failRows[0]?.q.gate?.target ?? 85
+  const batchSpansPassed = batchTo - batchFrom + 1 > failNums.length
+  const [batchConfirm, setBatchConfirm] = React.useState(false)
+  const [batchBusy, setBatchBusy] = React.useState(false)
+  const onBatchRepair = async () => {
+    if (!bookId || batchBusy || !failNums.length) return
+    setBatchBusy(true)
+    try {
+      await startRepairQualityBatch(bookId, { fromChapter: batchFrom, toChapter: batchTo, targetScore: batchTarget })
+      setBatchConfirm(false)
+      toast.success(`已开始批量复修第 ${batchFrom}–${batchTo} 章`, {
+        description: `逐章修到 ${batchTarget} 分门槛,已达标章自动跳过;修完自动复验,回来刷新看新分。`,
+        action: { label: "去运行台", onClick: () => router.push("/runs") },
+      })
+    } catch (e) {
+      toast.error(`批量复修触发失败:${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setBatchBusy(false)
+    }
+  }
 
   const renderFail = (s: Scan & { q: QualityMetrics }, isWorst: boolean) => {
     const q = s.q
@@ -192,7 +249,23 @@ export default function ConsistencyPage() {
           <PixelBadge kind="detect" size={28} className="page-title-pixel" ariaLabel="一致性扫描" />
           <h1 className="page-title">一致性扫描</h1>
         </div>
-        <span className="head-sub">《{active?.title.zh ?? "—"}》最近 {recent.length} 章质量门禁逐章扫描</span>
+        <div className="head-sub-row">
+          <span className="head-sub">《{active?.title.zh ?? "—"}》{scanRange === "all" ? `全部 ${recent.length}` : `最近 ${recent.length}`} 章质量门禁逐章扫描</span>
+          <div className="con-range" role="tablist" aria-label="扫描范围">
+            {SCAN_RANGES.map((r) => (
+              <button
+                key={String(r.key)}
+                type="button"
+                role="tab"
+                aria-selected={scanRange === r.key}
+                className={scanRange === r.key ? "on" : ""}
+                onClick={() => setScanRange(r.key)}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* 焦点带:综合评分环 + 「能不能上架」一句话信心判读(可爱像素点睛,数据原地呈现) */}
@@ -235,10 +308,21 @@ export default function ConsistencyPage() {
         </div>
       )}
 
-      {/* 卡门禁的章节:最该动手,放最前并给最重的视觉权重 */}
+      {/* 卡门禁的章节:最该动手,放最前并给最重的视觉权重;批量复修是这组的主动线 */}
       {!isLoading && failRows.length > 0 && (
         <section className="con-group">
-          <h3 className="sh sev-warn">需修复 <span className="c">{failRows.length} 章</span><span className="sh-hint">未过门禁 · 修完即可纳入可上架批次</span></h3>
+          <h3 className="sh sev-warn">
+            需修复 <span className="c">{failRows.length} 章</span><span className="sh-hint">未过门禁 · 修完即可纳入可上架批次</span>
+            <button
+              type="button"
+              className="btn sm primary sh-act"
+              onClick={() => setBatchConfirm(true)}
+              disabled={batchBusy || repairing !== null}
+              title={`派修稿师把这 ${failRows.length} 章逐章复修到 ${batchTarget} 分门槛 —— 会调用写作流水线、消耗 token`}
+            >
+              <Wrench size={12} /> {batchBusy ? "派工中…" : `一键复修这 ${failRows.length} 章`}
+            </button>
+          </h3>
           <div className="issue-list">
             {failRows.map((s) => renderFail(s, worst != null && s.num === worst.num))}
           </div>
@@ -286,6 +370,35 @@ export default function ConsistencyPage() {
           </div>
         </section>
       )}
+
+      {/* 批量复修确认:guardrail 文案沿用工作台模式 —— 列清范围/门槛/token 代价,界面检查时保持当前状态 */}
+      <AlertDialog open={batchConfirm} onOpenChange={(open) => { if (!open) setBatchConfirm(false) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>批量复修 {failRows.length} 章到 {batchTarget} 分？</AlertDialogTitle>
+            <AlertDialogDescription className="grid gap-3 text-left text-xs leading-relaxed">
+              <span>这会启动质量复修流水线,从第 {batchFrom} 章修到第 {batchTo} 章,逐章复修并自动复验;每章都可能消耗 LLM token 并更新稿件文件。</span>
+              <span className="border-border bg-secondary text-foreground/80 rounded-md border px-3 py-2 font-mono text-[11px] leading-relaxed">
+                《{active?.title.zh ?? "—"}》 · 待修 {failRows.length} 章 · 区间 第 {batchFrom}–{batchTo} 章 · 门槛 {batchTarget} 分
+              </span>
+              <span>{batchSpansPassed ? "区间内已达标的章会按分数自动跳过,只修没过门禁的。" : ""}修不到门槛不硬放行,会停在那一章等你处置。只做界面检查时请保持当前状态。</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button" disabled={batchBusy}>保持当前状态</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              disabled={batchBusy}
+              onClick={(event) => {
+                event.preventDefault()
+                void onBatchRepair()
+              }}
+            >
+              确认复修 {failRows.length} 章
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

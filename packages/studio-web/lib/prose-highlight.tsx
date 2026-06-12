@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * 小说正文「语义分色」分词器 — 全站流式/正文共用一套(工作台 + 剧场)。
+ * 小说正文「语义分色」分词器 — 全站流式/正文共用一套(工作台 + 剧场 + 沉浸阅读)。
  *
  * 设计原则:克制。只给能可靠识别、且对读者有意义的语义上色,绝不靠正则乱猜人名地名。
  *   · 对话 dialog   — 「」『』""'' 引号内,显场景节奏(最高价值,纯正则,通用)
@@ -158,6 +158,31 @@ export function tokenizeProse(text: string, dict?: EntityDict | null): ProseToke
     else out.push(t)
   }
   return out
+}
+
+/** 段落分类 —— 稿件里偶发的 markdown 残留不该当正文裸渲染(原始数据外泄):
+ *    · `---` / `***` 分隔线 → scene-break,渲染层输出居中「✦」场景分隔符
+ *    · `# 第N章…` 章题行 → heading,页面标题区已显示,渲染层直接跳过
+ *    · 其余 `#` 行拿不准就保守剥掉 markdown 前缀当正文段,绝不吞字
+ *  纯函数,只服务阅读渲染;编辑态(textarea)保持原文不动,复制本章不受影响。 */
+export type ProseParagraphType = "scene-break" | "heading" | "normal"
+
+const SCENE_BREAK_RE = /^(?:-{3,}|\*{3,}|✦+)$/
+// `#` 后带空格的标准 markdown 标题,或 # 紧跟「第N章/回」的章题(写手两种都写过);
+// 不带空格的「#话题#」式正文不在此列,避免误伤
+const HEADING_RE = /^#{1,3}(?:\s+(.+)|\s*(第.{1,9}[章回].*))$/
+
+export function classifyParagraph(text: string): { type: ProseParagraphType; text: string } {
+  const t = (text ?? "").trim()
+  if (SCENE_BREAK_RE.test(t)) return { type: "scene-break", text: "" }
+  const m = t.match(HEADING_RE)
+  if (m) {
+    const inner = (m[1] ?? m[2] ?? "").trim()
+    // 重复章题或空标题 → 跳过;其余剥掉 # 前缀保留全文
+    if (!inner || /^第.{1,9}[章回]/.test(inner)) return { type: "heading", text: inner }
+    return { type: "normal", text: inner }
+  }
+  return { type: "normal", text }
 }
 
 /** 人物/地点点击回调:把"读到谁 → 想查谁"的上下文切换,从「离开当前页去翻」降成「就地一点」。 */

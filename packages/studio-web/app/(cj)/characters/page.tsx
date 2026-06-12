@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import { fetchCast, fetchRelationshipGraph, fetchWorld } from "@/lib/api/client"
 import type { Cast, Relation } from "@/lib/studio-data"
 import { useWorkspace } from "@/lib/workspace-context"
-import { CjPlaceholder, EmptyArt } from "@/components/design/cj-placeholder"
+import { CjPlaceholder, EmptyArt, MiniEmpty } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { KpiChip, StatLine, Meter, FoldCard } from "@/components/design/kit"
 import "./characters.css"
@@ -186,7 +186,7 @@ export default function CharactersPage() {
               </div>
               <div className="roster-chips">
                 {!cast && <div className="skel" style={{ height: 36, gridColumn: "1 / -1" }} />}
-                {cast && filtered.length === 0 && <div className="empty">没有匹配的角色</div>}
+                {cast && filtered.length === 0 && <MiniEmpty icon="flower-branch">没有找到这位角色,换个名字或标签再试试</MiniEmpty>}
                 {filtered.map((c) => {
                   const color = colorOf(c)
                   const arcPct = Math.round((c.arc || 0) * 100)
@@ -282,7 +282,7 @@ export default function CharactersPage() {
                   </div>
                 </>
               ) : (
-                <div className="empty">选择左侧角色查看档案</div>
+                <MiniEmpty icon="flower-bouquet">还没选中角色 —— 点名册或网络图里的任意一位</MiniEmpty>
               )}
             </section>
 

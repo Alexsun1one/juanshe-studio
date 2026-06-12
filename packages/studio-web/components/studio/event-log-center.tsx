@@ -4,11 +4,14 @@
 // EventLogCenter — 全局「运行日志 / 错误中心」
 // - 订阅当前书的 SSE 事件流(共享通道,不新开连接)
 // - 任何 error 级事件(*:error / log level=error)→ 立刻弹 toast,用户一定看得到
-// - 一个浮动按钮(带未读错误红点)→ 滑出抽屉,按级别列出所有日志/错误,可筛选/清空
+// - 入口停靠在底部状态条右侧(带未读错误红点)→ 滑出抽屉,按级别列出所有日志/错误
 // 设计目标:错误绝不再"静默吞进后台 stdout / run.error",而是浮到前台。
+// 入口为何停靠而非浮动:fixed 胶囊悬在内容上,在 /llm 等右栏到底的页面会压住
+// API Key 输入框;状态条是常驻 chrome,永不与内容碰撞。拿不到状态条时才退回浮动。
 // ============================================================================
 
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { toast } from "sonner"
 import { useWorkspace } from "@/lib/workspace-context"
 import { useAgentEvents } from "@/hooks/use-agent-events"
@@ -146,37 +149,75 @@ export function EventLogCenter() {
 
   const errorCount = React.useMemo(() => logRows.slice(cleared).filter((r) => r.level === "error").length, [logRows, cleared])
 
+  // 停靠插槽:底部状态条右侧(cj-shell 的常驻 chrome)。undefined=未探测(SSR/首帧不渲染入口),
+  // null=状态条不存在(布局变更兜底)→ 退回右下浮动胶囊。
+  const [dock, setDock] = React.useState<HTMLElement | null | undefined>(undefined)
+  React.useEffect(() => {
+    setDock(document.querySelector<HTMLElement>(".desktop-statusbar .desktop-status-right"))
+  }, [])
+
+  const toggleOpen = () => {
+    setOpen((v) => !v)
+    setUnreadErrors(0)
+  }
+
+  const unreadBadge = unreadErrors > 0 && (
+    <span
+      className="ml-0.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-tight"
+      style={{ background: "var(--destructive)", color: "var(--destructive-foreground, #fff)" }}
+    >
+      {unreadErrors > 99 ? "99+" : unreadErrors}
+    </span>
+  )
+
+  // 状态条入口:与「智能体待命 / ⌘K 搜索」同语言的轻量文字项,只多一颗健康色点
+  const dockedEntry = (
+    <button
+      type="button"
+      onClick={toggleOpen}
+      aria-label="运行日志与错误"
+      className="flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1.5 py-0.5 transition-colors hover:bg-[var(--bg-hover)]"
+      style={{
+        font: "inherit",
+        color: unreadErrors > 0 ? "var(--destructive)" : "inherit",
+      }}
+    >
+      <span
+        className="inline-block h-1.5 w-1.5 rounded-full"
+        style={{ background: errorCount > 0 ? "var(--destructive)" : "var(--chart-2)" }}
+        aria-hidden
+      />
+      运行日志
+      {unreadBadge}
+    </button>
+  )
+
+  // 浮动兜底:仅在拿不到状态条时使用(老布局/极端窗口),贴角小胶囊
+  const floatingEntry = (
+    <button
+      type="button"
+      onClick={toggleOpen}
+      aria-label="运行日志与错误"
+      className="fixed bottom-14 right-4 z-40 flex h-10 items-center gap-2 rounded-full border px-3 text-xs shadow-lg backdrop-blur transition-colors motion-safe:transition-all hover:brightness-105"
+      style={{
+        background: "color-mix(in oklab, var(--card) 92%, transparent)",
+        borderColor: unreadErrors > 0 ? "var(--destructive)" : "var(--border)",
+        color: "var(--foreground)",
+      }}
+    >
+      <span
+        className="inline-block h-2 w-2 rounded-full"
+        style={{ background: errorCount > 0 ? "var(--destructive)" : "var(--chart-2)" }}
+        aria-hidden
+      />
+      运行日志
+      {unreadBadge}
+    </button>
+  )
+
   return (
     <>
-      {/* 浮动入口:右下角,带未读错误红点 */}
-      <button
-        type="button"
-        onClick={() => {
-          setOpen((v) => !v)
-          setUnreadErrors(0)
-        }}
-        aria-label="运行日志与错误"
-        className="fixed bottom-14 right-4 z-40 flex h-10 items-center gap-2 rounded-full border px-3 text-xs shadow-lg backdrop-blur transition-colors motion-safe:transition-all hover:brightness-105"
-        style={{
-          background: "color-mix(in oklab, var(--card) 92%, transparent)",
-          borderColor: unreadErrors > 0 ? "var(--destructive)" : "var(--border)",
-          color: "var(--foreground)",
-        }}
-      >
-        <span
-          className="inline-block h-2 w-2 rounded-full"
-          style={{ background: errorCount > 0 ? "var(--destructive)" : "var(--chart-2)" }}
-        />
-        运行日志
-        {unreadErrors > 0 && (
-          <span
-            className="ml-0.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full px-1 text-[10px] font-semibold"
-            style={{ background: "var(--destructive)", color: "var(--destructive-foreground, #fff)" }}
-          >
-            {unreadErrors > 99 ? "99+" : unreadErrors}
-          </span>
-        )}
-      </button>
+      {dock === undefined ? null : dock ? createPortal(dockedEntry, dock) : floatingEntry}
 
       {/* 抽屉 */}
       {open && (

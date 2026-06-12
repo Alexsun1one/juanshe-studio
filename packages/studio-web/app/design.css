@@ -69,6 +69,7 @@
   --pixel-ink:        #2B2620;   /* 像素描边:暖棕墨 */
   --pixel-paper:      #FFFAF0;   /* 像素纸米白 */
   --pixel-paper-dark: #16162B;   /* 暗夜纸 */
+  --wechat-card-tint: var(--pixel-paper);  /* 公众号卡顶部纸感渐变(暗色换暗夜纸,别让奶白残片贴在深堇紫上) */
   --pixel-blush:      #F3A8A0;   /* 像素人物腮红 */
   --pixel-skin:       #F5D3A8;   /* 像素人物肤色 */
 
@@ -110,6 +111,10 @@
   --sh-2: 0 2px 10px rgba(74, 58, 36, 0.08);
   --sh-3: 0 8px 26px rgba(74, 58, 36, 0.11);
   --sh-pop: 0 16px 40px rgba(74, 58, 36, 0.18);
+
+  /* 弹层遮罩 — 全站唯一来源(ui/dialog·alert-dialog·sheet·drawer + kit.css tour):
+     暖墨而非冷黑(近黑是雷区),暗色换深堇紫系 */
+  --scrim: rgba(43, 38, 32, 0.45);
 
   /* Focus rings */
   --ring:     0 0 0 3px rgba(110, 91, 250, 0.22);
@@ -176,18 +181,20 @@
   --bg-active:  #322A44;
   --bg-inverse: #FFFDF8;
 
-  --line-1: #332B20;
-  --line-2: #3E3424;
-  --line-3: #4C4030;
-  --line-dashed: #5A4C38;
+  /* 暗色 hairline:堇紫调(与 globals.css dark --border #363050 同族)——
+     深棕线在深堇紫底上亮度同档,边框形同消失,且深棕是雷区 */
+  --line-1: #353050;
+  --line-2: #403A5C;
+  --line-3: #4C4670;
+  --line-dashed: #5C548A;
 
   --ink-900: #ECE3D2;
   --ink-800: #DCCFB8;
   --ink-700: #C2B49A;
   --ink-600: #A1937C;
   --ink-500: #897C66;
-  --ink-400: #6B5F4A;
-  --ink-300: #4D4232;
+  --ink-400: #837660;  /* caption/图标:提到卡面 ≥3:1(原 #6B5F4A 仅 2.2:1),仍低于 500 保住阶序 */
+  --ink-300: #5C5244;
   --ink-200: #3A3122;
   --ink-inv: #1A1610;
 
@@ -197,6 +204,11 @@
   --c-fore:     #5FC9BD; --c-fore-bg:   #163230;
   --c-focus:    #FFA56A; --c-focus-bg:  #3A2218;
   --c-style:    #C998F2; --c-style-bg:  #2A1B3A;
+
+  /* 像素色板暗色档:深琥珀 #B5710A 压在暗底上读不出来 → 提亮;
+     公众号卡的纸感渐变跟着换暗夜纸(消费方:.sidebar-wechat / 无人值守勾选) */
+  --accent-amber-deep: #E8B25C;
+  --wechat-card-tint:  var(--pixel-paper-dark);
 
   --st-pending:    #8888A0;  --st-pending-bg:    #1E1E2A;
   --st-queued:     #9F8DFF;  --st-queued-bg:     #221C3E;
@@ -219,6 +231,8 @@
   --sh-2: 0 2px 8px rgba(0, 0, 0, 0.45);
   --sh-3: 0 8px 24px rgba(0, 0, 0, 0.55);
   --sh-pop: 0 12px 32px rgba(0, 0, 0, 0.7);
+
+  --scrim: rgba(20, 16, 34, 0.62);  /* 深堇紫系遮罩 */
 
   --ring:     0 0 0 3px rgba(139, 121, 255, 0.32);
   --ring-err: 0 0 0 3px rgba(255, 110, 110, 0.28);
@@ -411,7 +425,13 @@
    配上像素 logo 与编辑部像素角色,保留童话像素魂,但不再让满屏中文字发糊。
    输入框 / 书正文 / 长阅读各自 override。 */
 .app { font-family: var(--font-pixel-ui); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }  /* 默认全站 UI = 缝合像素;正文(下一条)+ 输入框(再下条)用更高优先级钉回宋体/sans */
-.app button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; padding: 0; }
+/* 元素 reset 放过 shadcn Button(data-slot="button"):此前 (0,1,1) 的 reset 把
+   runs/assistant 等页的主操作打成裸文字。:where() 让排除项不抬特异度,
+   .topbar .search-box / .nav-group-head 等既有的 (0,2,0) 补偿规则继续生效。 */
+.app button:where(:not([data-slot="button"])) { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; padding: 0; }
+/* shadcn Button 拿回自己的形态(bg-primary 已映射柔紫,见 globals.css);
+   这里只接上 .app 世界观:像素 UI 字 + 手型指针(Tailwind v4 preflight 不给 pointer)。 */
+.app button[data-slot="button"] { font-family: var(--font-pixel-ui); letter-spacing: 0.02em; cursor: pointer; }
 .app input, .app textarea, .app select { font-family: var(--font-sans-ui); -webkit-font-smoothing: auto; color: inherit; }
 .app .writer-body, .app .theater-paper, .app .theater-paragraph, .app .prose, .app .reading-body { font-family: var(--font-serif-prose); -webkit-font-smoothing: auto; }
 /* 像素点缀:仅限品牌字标与显式声明处(crispEdges 让点阵在原生 12/24px 更锐) */
@@ -482,7 +502,8 @@ select,
   -webkit-appearance: none;
   -moz-appearance: none;
   background-color: var(--bg-card);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%238a8aa8' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  /* chevron 描边=暖墨(亮色 --ink-400 字面量;data-URI 吃不到 var,暗色由下方覆盖规则换深色版) */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%239B8E77' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 9px center;
   background-size: 14px;
@@ -509,6 +530,11 @@ select:focus-visible,
 }
 select:disabled,
 .cj-select:disabled { opacity: 0.55; cursor: default; }
+/* 暗色 chevron:换暗色 --ink-500(#897C66) 字面量;:where() 保持零特异度,靠书写顺序覆盖上面的亮色版 */
+:where([data-theme="dark"], .dark) select,
+:where([data-theme="dark"], .dark) .cj-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%23897C66' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+}
 /* option 列表:多数浏览器只认有限属性,尽量给暗/亮模式一致的底色 */
 select option,
 .cj-select option {
@@ -1291,7 +1317,7 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
 .avatar {
   width: 30px; height: 30px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--brand-500), #9D8AFF);
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-400, #9D8AFF));  /* 第二档跟主题走,切 jade/rouge 不残留紫 */
   color: white;
   font-size: 12px;
   font-weight: 700;
@@ -1467,14 +1493,54 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
     padding: 8px;
   }
 
+  /* 公众号卡:手机上没法"再拿一台手机"扫码,竖排还会挤爆 mini 侧栏 → 整块隐藏。
+     用 (0,2,0) 压过文件后段的 .sidebar-wechat 基础规则(同特异度按源序会输) */
+  .sidebar .sidebar-wechat {
+    display: none;
+  }
+
+  /* 分组折叠按钮:mini 列里塞不下「创 作 + 计数 + 箭头」→ 压成纯图标
+     (与 .sidebar-collapsed 同款形态,见 ~896 行;不动 sidebar-collapsed 路径本身) */
+  .sidebar .nav-group-head {
+    height: auto;
+    padding: 9px 0 7px;
+    margin-top: 8px;
+    font-size: 0;
+    letter-spacing: 0;
+    justify-content: center;
+    background: transparent !important;
+    color: transparent;
+  }
+  .sidebar .nav-group-head .nav-group-label,
+  .sidebar .nav-group-head .nav-group-count,
+  .sidebar .nav-group-head .nav-group-chevron {
+    display: none;
+  }
+  .sidebar .nav-group-head .nav-group-pixel {
+    flex: 0 0 24px;
+    width: 24px;
+    height: 24px;
+  }
+
+  /* 底部「设置」按钮同步只留像素图标(设置菜单本来就从右侧浮出,mini 宽度可用) */
+  .sidebar .sidebar-foot-btn {
+    justify-content: center;
+    padding: 10px 0;
+  }
+  .sidebar .sidebar-foot-btn .sidebar-foot-label,
+  .sidebar .sidebar-foot-btn .sidebar-foot-caret {
+    display: none;
+  }
+
   .topbar {
     gap: 8px;
     padding: 0 10px;
   }
 
+  /* 作品切换器只留图标 + 箭头(菜单展开仍是全名),不再让「选择作品」截成「选…」 */
   .workspace-sel {
     min-width: 0;
-    width: min(176px, 46vw);
+    width: auto;
   }
 
   .ws-trigger {
@@ -1482,10 +1548,26 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   }
 
   .ws-name {
-    max-width: none;
+    display: none;
   }
 
-  .search-box,
+  /* 搜索框收成纯放大镜按钮(点击仍开 ⌘K)。基础规则是 .topbar .search-box(0,2,0),
+     裸 .search-box 的 display:none 会被它压掉——这里必须同特异度覆盖 */
+  .topbar .search-box {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .topbar .search-box .search-box-text,
+  .topbar .search-box .kbd {
+    display: none;
+  }
+
   .env-chip,
   .lang-chip,
   .user-cell .name {
@@ -1501,6 +1583,19 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   .theme-toggle,
   .user-cell {
     flex: 0 0 auto;
+  }
+
+  /* 状态条:禁项内折行 + 收掉次要项(分区名/书名/⌘K 提示),留工作区点、任务态、API */
+  .desktop-statusbar {
+    gap: 10px;
+    padding: 0 10px;
+    white-space: nowrap;
+  }
+
+  .desktop-status-seg,
+  .desktop-status-book,
+  .desktop-status-hint {
+    display: none;
   }
 }
 
@@ -1817,6 +1912,22 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   display: grid; place-items: center;
   color: var(--ink-400);
 }
+
+/* 卡片内迷你空态(MiniEmpty)— 一枚小像素道具 + 一句话,与整页像素剧场同语言但更克制 */
+.empty-mini {
+  flex-direction: row;
+  width: 100%;
+  gap: 8px;
+  padding: 14px 12px;
+  font-size: 12.5px;
+}
+.empty-mini .empty-mini-ico {
+  flex: none;
+  opacity: 0.8;
+  filter: var(--brand-asset-filter, saturate(1));
+}
+/* 固定高度的图表区里撑满,保证整行垂直居中 */
+.empty-mini-fill { height: 100%; }
 
 /* 整页空态(CjPlaceholder / 首屏无作品)— 温和的占位插画 + 引导,而非报错 */
 .empty-lg {
@@ -2191,6 +2302,98 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   animation: cj-skel-shimmer 1.4s linear infinite;
   border-radius: var(--r-sm);
 }
+/* shimmer 的显式 reduce 守护(不依赖 globals.css 的全局兜底):静止为暖灰底块 */
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
+
+/* ════════════════════════════════════════════════════════════════
+   ⌘K 命令面板皮肤 — .cj-cmdk(command-palette.tsx → DialogContent)
+   面板经 Radix portal 挂在 body 上、不在 .app 内,选择器必须裸写;
+   token 全在 :root / html.dark,portal 里照常可用。
+   规则不进 @layer:未分层声明天然压过 Tailwind utilities 层,
+   不用跟 tw-animate 的 zoom-in-95 之类拼 class 合并。
+   ════════════════════════════════════════════════════════════════ */
+.cj-cmdk {
+  /* 从屏幕正中改为贴近顶栏:上 1/5 处自上轻落,符合命令面板惯例 */
+  top: 21%;
+  translate: -50% 0;
+  --tw-enter-translate-y: -10px;  /* 入场:自上滑落(盖掉 zoom-in-95 的缩放) */
+  --tw-enter-scale: 1;
+  --tw-exit-translate-y: -10px;   /* 退场对称:向上收走 */
+  --tw-exit-scale: 1;
+  max-width: min(580px, calc(100vw - 2rem));
+  background: var(--bg-card);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-pop);
+  color: var(--ink-800);
+  font-family: var(--font-pixel-ui);
+  letter-spacing: 0.02em;
+}
+.cj-cmdk [data-slot="command-input-wrapper"] {
+  height: 46px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line-1);
+}
+.cj-cmdk [data-slot="command-input-wrapper"] svg { color: var(--ink-400); opacity: 1; }
+/* 字体铁律:输入框 = sans;占位语保持像素 UI 腔(与顶栏搜索框同语言) */
+.cj-cmdk [data-slot="command-input"] { font-family: var(--font-sans-ui); font-size: 13.5px; color: var(--ink-900); letter-spacing: normal; }
+.cj-cmdk [data-slot="command-input"]::placeholder { font-family: var(--font-pixel-ui); font-size: 12px; letter-spacing: 0.02em; color: var(--ink-400); }
+.cj-cmdk [data-slot="command-list"] {
+  max-height: 380px;
+  padding: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-3) transparent;
+}
+.cj-cmdk [cmdk-group-heading] {
+  font-family: var(--font-pixel-ui);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--brand-600);
+}
+.cj-cmdk [cmdk-item] {
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+  color: var(--ink-700);
+  transition: background var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft);
+}
+/* 选中态:brand-50 暖紫底(暗色下 token 自动翻成深堇紫)+ 左侧 2px 品牌指示条 */
+.cj-cmdk [cmdk-item][data-selected="true"] {
+  background: var(--brand-50);
+  color: var(--ink-900);
+  box-shadow: inset 2px 0 0 var(--brand-500);
+}
+.cj-cmdk [data-slot="command-empty"] { color: var(--ink-400); font-size: 12px; }
+
+/* ════════════════════════════════════════════════════════════════
+   sonner toast 皮肤 — 全站唯一反馈通道(ui/sonner.tsx 挂根布局)。
+   同样是 body portal,裸选择器;sonner 自带样式优先级高,关键面属性上 !important。
+   ════════════════════════════════════════════════════════════════ */
+[data-sonner-toast] {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--line-2) !important;
+  border-radius: var(--r-lg) !important;
+  box-shadow: var(--sh-3) !important;
+  color: var(--ink-800) !important;
+  font-family: var(--font-pixel-ui);
+  letter-spacing: 0.02em;
+}
+[data-sonner-toast] [data-title] { font-family: var(--font-pixel-ui); font-size: 12px; color: var(--ink-900); }
+[data-sonner-toast] [data-description] { font-size: 12px; color: var(--ink-600); }
+[data-sonner-toast] [data-icon] { color: var(--brand-500); }
+[data-sonner-toast][data-type="success"] [data-icon] { color: var(--ok-500); }
+[data-sonner-toast][data-type="error"] [data-icon] { color: var(--err-500); }
+[data-sonner-toast][data-type="warning"] [data-icon] { color: var(--warn-600); }
+/* toast 内动作按钮:品牌紫小药丸(sonner 默认是黑底) */
+[data-sonner-toast] [data-button] {
+  background: var(--brand-500) !important;
+  color: #FFFDF8 !important;
+  border-radius: var(--r-sm) !important;
+  font-family: var(--font-pixel-ui);
+}
+[data-sonner-toast] [data-button][data-cancel] {
+  background: var(--bg-sunken) !important;
+  color: var(--ink-700) !important;
+}
 
 /* 文稿衬线(写作器 / 沉浸 / 章节预览) */
 .prose-serif {
@@ -2268,11 +2471,11 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   align-items: center;
   gap: 7px;
   background:
-    linear-gradient(180deg, color-mix(in oklab, var(--pixel-paper, #FFFAF0) 46%, transparent), transparent 42%),
+    linear-gradient(180deg, color-mix(in oklab, var(--wechat-card-tint, #FFFAF0) 46%, transparent), transparent 42%),
     var(--bg-card);
   border: 1px solid var(--line-1);
   border-radius: var(--r-md, 9px);
-  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--pixel-paper, #FFFAF0) 64%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--wechat-card-tint, #FFFAF0) 64%, transparent);
   text-align: center;
 }
 .sidebar-wechat__hook {
@@ -2292,7 +2495,7 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   font-size: 11px; line-height: 1.35;
   color: var(--ink-500);
 }
-.sidebar-wechat__cap b { color: var(--ink-700); font-weight: 400; }
+.sidebar-wechat__cap b { color: var(--ink-700); font-weight: 400; white-space: nowrap; }  /* 品牌名「正在逐渐AI化」整体换行,不拆字 */
 
 /* ── 无人值守续写开关(连续写控件行) ───────── */
 .writer-unattended-field { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }

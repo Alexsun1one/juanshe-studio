@@ -14,7 +14,8 @@ import {
 } from "lucide-react"
 
 import { AssistantConsole } from "@/components/assistant/assistant-console"
-import { KpiChip, StatLine } from "@/components/design/kit"
+import { KpiChip } from "@/components/design/kit"
+import { EDITORIAL_STAFF_COUNT } from "@/lib/agent-identity"
 import "./assistant.css"
 
 // 「能直接对它说什么」—— 一行带语义图标的 chip,把真实工作流摊开,替代空白与等大卡片。
@@ -38,13 +39,14 @@ export default function AssistantPage() {
           </div>
           <div className="as-headline-text">
             <span className="as-kicker">
-              <Sparkles aria-hidden /> 17 位编辑 + 1 只猫 · 真实 Agent 会话
+              <Sparkles aria-hidden /> {EDITORIAL_STAFF_COUNT} 位编辑 + 1 只猫 · 真实 Agent 会话
             </span>
             <div className="page-title-row">
               <h1 className="page-title">编辑部的猫</h1>
             </div>
+            {/* 单行省略的页头契约下文案必须短到放得下:保住「小事自己办 / 大事叫编辑」的预期管理 */}
             <p className="page-sub">
-              大白话说你想怎么改 —— 这一章、整本书、大纲、文风都行。小事猫自己顺手办,要正经动笔的大事(写新章、整章重写、审稿),它去叫醒对应的编辑。
+              大白话说你想怎么改;小事猫顺手办,大事它去叫醒对应编辑。
             </p>
           </div>
           <div className="as-kpis" role="group" aria-label="助手能力概览">
@@ -93,10 +95,7 @@ export default function AssistantPage() {
               )
             })}
           </div>
-          <StatLine
-            className="as-cues-tail"
-            items={[{ n: CUES.length, label: "项模板", tone: "brand" }]}
-          />
+          {/* 模板数量只在左上 KpiChip 展示一次,行尾不再重复计数 */}
         </div>
       </header>
 

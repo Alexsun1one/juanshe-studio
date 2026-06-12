@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import useSWR from "swr"
 import { toast } from "sonner"
 import {
   ArrowUpRight,
@@ -99,8 +100,30 @@ export default function LibraryPage() {
   const [deleting, setDeleting] = React.useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = React.useState<ContentDraft | null>(null)
 
-  const [chapters, setChapters] = React.useState<Chapter[]>([])
-  const [chaptersLoading, setChaptersLoading] = React.useState(false)
+  // 章节列表走 SWR(与工作台共享 ["chapters", bookId] 缓存 + 6s 轮询):
+  // 连写中新完稿的章自己浮现进列表,不用手动刷新页面。
+  const { data: chaptersData, isLoading: chaptersFetching } = useSWR(
+    bookId ? ["chapters", bookId] : null,
+    () => fetchChapters(bookId),
+    { refreshInterval: 6000, shouldRetryOnError: false },
+  )
+  const chapters = React.useMemo<Chapter[]>(() => chaptersData ?? [], [chaptersData])
+  const chaptersLoading = Boolean(bookId) && chaptersFetching && !chaptersData
+
+  // 连写中刚完稿的章:与上一轮列表 diff 出新增章号 → 行标「新」+ 柔紫进场光;切书时重置,不误标全列表
+  const [newNums, setNewNums] = React.useState<ReadonlySet<number>>(new Set())
+  const prevChapterNumsRef = React.useRef<{ book: string | null; nums: Set<number> }>({ book: null, nums: new Set() })
+  React.useEffect(() => {
+    const cur = new Set(chapters.map((c) => c.num))
+    const prev = prevChapterNumsRef.current
+    if (prev.book === (bookId ?? null) && prev.nums.size > 0) {
+      const fresh = [...cur].filter((n) => !prev.nums.has(n))
+      if (fresh.length > 0) setNewNums(new Set(fresh))
+    } else {
+      setNewNums((old) => (old.size > 0 ? new Set() : old))
+    }
+    prevChapterNumsRef.current = { book: bookId ?? null, nums: cur }
+  }, [chapters, bookId])
 
   const loadDrafts = React.useCallback(async () => {
     setDraftsLoading(true)
@@ -115,16 +138,6 @@ export default function LibraryPage() {
   }, [])
 
   React.useEffect(() => { void loadDrafts() }, [loadDrafts])
-  React.useEffect(() => {
-    if (!bookId) { setChapters([]); setChaptersLoading(false); return }
-    let alive = true
-    setChaptersLoading(true)
-    fetchChapters(bookId)
-      .then((c) => { if (alive) setChapters(Array.isArray(c) ? c : []) })
-      .catch(() => { if (alive) setChapters([]) })
-      .finally(() => { if (alive) setChaptersLoading(false) })
-    return () => { alive = false }
-  }, [bookId])
 
   const filtered = React.useMemo(() => {
     const kw = q.trim().toLowerCase()
@@ -452,10 +465,13 @@ export default function LibraryPage() {
                 ) : (
                   <div className="lib-list">
                     {[...chapters].sort((a, b) => b.num - a.num).map((c) => (
-                      <Link className="lib-row chap" key={c.id} href={`/editor?chapter=${c.num}`}>
+                      <Link className={`lib-row chap${newNums.has(c.num) ? " is-new" : ""}`} key={c.id} href={`/editor?chapter=${c.num}`}>
                         <div className="lib-row-main">
                           <span className="lib-num">{String(c.num).padStart(2, "0")}</span>
-                          <span className="lib-title">{c.title.zh}</span>
+                          <span className="lib-title">
+                            {c.title.zh}
+                            {newNums.has(c.num) && <span className="lib-new-tag">新</span>}
+                          </span>
                           <span className="lib-meta">{c.words ? `${c.words.toLocaleString()} 字` : "未写"}</span>
                           <span className="pill" data-state={CH_PILL[c.status] ?? "draft"}><span className="dot" />{CH_STATE[c.status] ?? c.status}</span>
                         </div>

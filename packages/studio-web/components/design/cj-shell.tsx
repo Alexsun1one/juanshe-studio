@@ -266,7 +266,8 @@ function CjStatusBar({ routeSection }: { routeSection: string }) {
           {runningCount > 0 && <span className="desktop-status-runs-dot" aria-hidden />}
           {runningCount > 0 ? `${runningCount} 个任务运行中` : "智能体待命"}
         </button>
-        <span>⌘K 搜索</span>
+        {/* ⌘K 是键盘专属提示,≤760px 触屏没有意义 → design.css 窄屏断点隐藏 */}
+        <span className="desktop-status-hint">⌘K 搜索</span>
         <span>API 4569</span>
       </div>
     </footer>

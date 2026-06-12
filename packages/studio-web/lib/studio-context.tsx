@@ -14,6 +14,7 @@ import {
   Theater,
   Wand2,
 } from "lucide-react"
+import { EDITORIAL_STAFF_COUNT } from "@/lib/agent-identity"
 import { useWorkspace } from "@/lib/workspace-context"
 
 const ONBOARDING_GENRES = [
@@ -278,7 +279,7 @@ function EmptyBookState() {
         </div>
 
         <p className="text-muted-foreground/70 mt-5 text-center text-[12px]">
-          所有数据保存在本地 · 15 位智能体随时待命
+          所有数据保存在本地 · {EDITORIAL_STAFF_COUNT} 位编辑随时待命
         </p>
       </div>
     </div>

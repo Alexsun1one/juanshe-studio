@@ -263,6 +263,27 @@
   min-width: 240px;
 }
 
+/* ── ≤760px:侧栏被 design.css 同断点压成 mini 图标列,但 collapsed prop 仍是 false
+   → 文字/计数/箭头照常渲染,76px 里必然挤爆;这里按折叠态同款收成纯图标 ── */
+@media (max-width: 760px) {
+  .bsi-pill {
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 0;
+  }
+  .bsi-text,
+  .bsi-sub,
+  .bsi-caret {
+    display: none;
+  }
+  .bsi-menu {
+    left: calc(100% + 8px);
+    right: auto;
+    bottom: 0;
+    min-width: 240px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bsi-spark,
   .bsi-dot,

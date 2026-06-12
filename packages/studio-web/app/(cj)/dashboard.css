@@ -234,8 +234,16 @@
   font-size: 12.5px;
   border-radius: var(--r-md);
   display: inline-flex; align-items: center; gap: 6px;
+  /* 三态齐全:hover 不再瞬跳,按压有回弹 —— 与全站 .btn(design.css)同一套弹簧手感 */
+  transition: transform 130ms var(--ease-spring-cj, cubic-bezier(.34,1.56,.64,1)),
+              background .14s ease, border-color .14s ease, box-shadow .14s ease, color .14s ease;
 }
 .cj-dashboard .writer .ctrl:hover { background: var(--bg-hover); border-color: var(--line-3); }
+.cj-dashboard .writer .ctrl:not(:disabled):hover { transform: translateY(-1px); }
+.cj-dashboard .writer .ctrl:not(:disabled):active { transform: translateY(0) scale(0.96); }
+.cj-dashboard .writer .ctrl:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-dashboard .writer .ctrl.danger:focus-visible { box-shadow: var(--ring-err); }
+.cj-dashboard .writer .ctrl.approve:focus-visible { box-shadow: var(--ring-ok); }
 .cj-dashboard .writer .ctrl.primary {
   background: var(--brand-500);
   border-color: var(--brand-500);
@@ -738,6 +746,15 @@
   background: linear-gradient(135deg, #5C49E8, #8B79FF);
   box-shadow: 0 4px 12px -2px rgba(110, 91, 250, 0.6);
   transform: translateY(-1px);
+}
+/* 按压/焦点要写到与上面 hover 同特异度,否则被 (0,7,0) 的 hover 钉死回弹与焦点环 */
+.cj-dashboard .writer .ctrl.batch.primary:not(:disabled):active { transform: translateY(0) scale(0.96); }
+.cj-dashboard .writer .ctrl.batch.primary:focus-visible { box-shadow: var(--ring), 0 2px 8px -2px rgba(110, 91, 250, 0.5); }
+@media (prefers-reduced-motion: reduce) {
+  .cj-dashboard .writer .ctrl:not(:disabled):hover,
+  .cj-dashboard .writer .ctrl:not(:disabled):active,
+  .cj-dashboard .writer .ctrl.batch.primary:not(:disabled):hover,
+  .cj-dashboard .writer .ctrl.batch.primary:not(:disabled):active { transform: none; }
 }
 .cj-dashboard .writer .ctrl.batch.primary:disabled {
   background: rgba(110, 91, 250, 0.22);
@@ -1267,6 +1284,73 @@
   .cj-workbench .wb-companion-pixel,
   .cj-workbench .wb-companion-stage[data-running] .wb-companion-pixel { animation: wb-companion-in 0.3s ease both; }
 }
+
+/* ── 实时数字 tick:值一变(key 重挂)闪一下品牌紫再退回墨色 —— 「写作正在发生」的微反馈 ── */
+@keyframes dash-num-tick { from { color: var(--brand-600); } }
+.cj-dashboard .num-tick { animation: dash-num-tick .4s var(--ease-soft, ease-out); }
+@media (prefers-reduced-motion: reduce) { .cj-dashboard .num-tick { animation: none; } }
+
+/* ── 上次写作失败/中断横幅:暖纸警示(warn 浅底 + 描边),说清原因 + 给恢复入口;不用红色大块 ── */
+.cj-dashboard .run-fail-banner {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 10px 20px 0;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in oklab, var(--warn-500) 30%, transparent);
+  background: color-mix(in oklab, var(--warn-500) 8%, var(--bg-card));
+  border-radius: var(--r-lg);
+  font-size: 12px;
+  color: var(--ink-700);
+  animation: cj-fade-in var(--motion-base, .24s) var(--ease-soft, ease) both;
+}
+.cj-dashboard .run-fail-banner .rfb-ic {
+  flex: none;
+  width: 18px; height: 18px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: color-mix(in oklab, var(--warn-500) 18%, transparent);
+  color: var(--warn-600, var(--warn-500));
+  font-weight: 800;
+}
+.cj-dashboard .run-fail-banner .rfb-text { min-width: 0; flex: 1 1 240px; display: inline-flex; align-items: baseline; gap: 8px; }
+.cj-dashboard .run-fail-banner .rfb-text b { color: var(--warn-600, var(--warn-500)); white-space: nowrap; }
+.cj-dashboard .run-fail-banner .rfb-reason {
+  min-width: 0; color: var(--ink-600);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cj-dashboard .run-fail-banner .rfb-actions { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.cj-dashboard .run-fail-banner .rfb-btn {
+  display: inline-flex; align-items: center;
+  height: 24px; padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11.5px; font-weight: 600;
+  color: var(--ink-700);
+  background: var(--bg-card);
+  border: 1px solid var(--line-2);
+  text-decoration: none; cursor: pointer;
+  transition: background var(--motion-fast, .15s) var(--ease-soft, ease), border-color var(--motion-fast, .15s) var(--ease-soft, ease);
+}
+.cj-dashboard .run-fail-banner .rfb-btn:hover { background: var(--bg-hover); border-color: var(--line-3); }
+.cj-dashboard .run-fail-banner .rfb-btn.primary {
+  color: #FFFDF8; background: var(--brand-500); border-color: var(--brand-500);
+}
+.cj-dashboard .run-fail-banner .rfb-btn.primary:hover { background: var(--brand-600); }
+.cj-dashboard .run-fail-banner .rfb-btn.ghost { background: transparent; border-color: transparent; color: var(--ink-500); }
+.cj-dashboard .run-fail-banner .rfb-btn.ghost:hover { color: var(--ink-700); background: var(--bg-hover); }
+
+/* ── 正文预览截断明示:9 段之后就地给出口(展开编辑器 / 全屏沉浸),不让长章被"读短" ── */
+.cj-dashboard .writer-more {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px dashed var(--line-2);
+  font-size: 12px;
+  font-family: var(--font-pixel-ui, inherit);
+  line-height: 1.6;
+}
+.cj-dashboard .writer-more .wm-text { color: var(--ink-500); }
+.cj-dashboard .writer-more .wm-link { color: var(--brand-600); text-decoration: none; font-weight: 600; white-space: nowrap; }
+.cj-dashboard .writer-more .wm-link:hover { text-decoration: underline; }
+
+/* writer-head 里的批次微进度:挤不下时允许整行换行,但进度条不被压没 */
+.cj-dashboard .writer-head .batch-progress { flex: 0 1 auto; min-width: 0; }
 
 /* —— 写作强度档位选择器(轻/中/重 = 省 token ↔ 最高质量;按激活等级锁定)—— */
 .cj-dashboard .write-mode-seg { display: inline-flex; gap: 2px; padding: 2px; background: var(--bg-sunken); border: 1px solid var(--line-1); border-radius: var(--r-md); margin-right: 6px; flex: 0 0 auto; }

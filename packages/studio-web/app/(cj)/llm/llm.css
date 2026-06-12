@@ -344,6 +344,9 @@
   margin-bottom: 9px;
 }
 .cj-llm .llm-field-label svg { color: var(--ink-400); }
+/* 暗色下 ink-500 压深堇紫底偏弱,分组标签抬一档保证可读(层级仍低于卡片标题 ink-800) */
+[data-theme="dark"] .cj-llm .llm-field-label,
+.dark .cj-llm .llm-field-label { color: var(--ink-600); }
 
 /* 预设网格:每格一枚图标 + 名 + 提示 */
 .cj-llm .llm-preset-grid {
@@ -420,7 +423,9 @@
   font-size: 11px; color: var(--ink-400);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
 }
-.cj-llm .llm-auto-tip { flex: 0 0 100%; font-size: 10.5px; color: var(--ink-300); }
+/* 接私有端点的唯一指路文案:不许用 ink-300 这种装饰灰,「自定义」三字用品牌色作视觉锚点 */
+.cj-llm .llm-auto-tip { flex: 0 0 100%; font-size: 11.5px; color: var(--ink-500); }
+.cj-llm .llm-auto-tip b { color: var(--brand-600); font-weight: 600; }
 
 /* 表单字段(纵向单列,标签带图标) */
 .cj-llm .llm-form { display: flex; flex-direction: column; gap: 11px; }
@@ -446,7 +451,7 @@
   width: 100%;
   transition: border-color var(--motion-fast) var(--ease-soft), box-shadow var(--motion-fast) var(--ease-soft);
 }
-.cj-llm .llm-fld input::placeholder { color: var(--ink-300); }
+.cj-llm .llm-fld input::placeholder { color: var(--ink-400); }
 .cj-llm .llm-fld input:focus-visible { outline: none; border-color: var(--brand-300); box-shadow: var(--ring); }
 .cj-llm .llm-key-wrap { position: relative; display: flex; min-width: 0; }
 .cj-llm .llm-key-wrap input { flex: 1; padding-right: 40px; font-family: var(--font-mono); }

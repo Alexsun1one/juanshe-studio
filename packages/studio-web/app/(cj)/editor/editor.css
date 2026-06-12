@@ -123,6 +123,8 @@
   font-family: var(--font-serif); font-size: 16.5px; line-height: 2.0; letter-spacing: 0.01em;
   white-space: pre-wrap; word-break: break-word;
 }
+/* 流式分段(StreamingProse):中文段落首行缩进 + 段距,与剧场/定稿阅读同构 */
+.cj-editor .paper-stream p { margin: 0 0 1em; text-indent: 2em; }
 .cj-editor .type-caret {
   display: inline-block; width: 2px; height: 1.05em; margin-left: 1px;
   vertical-align: text-bottom; background: var(--brand-500); border-radius: 1px;

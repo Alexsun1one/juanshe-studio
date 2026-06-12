@@ -6,6 +6,13 @@
 .cj-consistency .head-eyebrow { font-size: var(--text-micro); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-warm-deep); }
 .cj-consistency .consistency-head .page-title { font-size: var(--text-h1); }
 .cj-consistency .head-sub { color: var(--ink-500); font-size: var(--text-cap); font-weight: 500; line-height: 1.5; }
+.cj-consistency .head-sub-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* 扫描范围分段切换:与编辑器视图切换同语言(sunken 槽 + 选中浮起),挂机欠债多时切「全部」看全清单 */
+.cj-consistency .con-range { display: inline-flex; background: var(--bg-sunken); border: 1px solid var(--line-2); border-radius: var(--r-pill); padding: 2px; gap: 2px; }
+.cj-consistency .con-range button { border: 0; background: transparent; color: var(--ink-600); font-size: var(--text-cap); padding: 3px 10px; border-radius: var(--r-pill); cursor: pointer; transition: all var(--motion-fast) var(--ease-soft); }
+.cj-consistency .con-range button.on { background: var(--bg-card); color: var(--brand-600); font-weight: 600; box-shadow: var(--shadow-xs, 0 1px 2px rgba(0,0,0,.06)); }
+.cj-consistency .con-range button:focus-visible { outline: none; box-shadow: var(--ring); }
 
 /* ── 焦点带:评分环 + 上架信心一句话(深色面,内部强调用 on-dark 高亮,不随主题切换) ── */
 .cj-consistency .con-hero {
@@ -69,6 +76,8 @@
 .cj-consistency .sh .c { font-family: var(--font-num); font-weight: 700; letter-spacing: 0; text-transform: none; padding: 1px 8px; border-radius: var(--r-pill); }
 .cj-consistency .sh .sh-hint { display: inline-flex; align-items: center; gap: 7px; font-family: var(--font-sans-cj); font-size: var(--text-micro); font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--ink-400); }
 .cj-consistency .sh .sh-hint::before { content: ""; width: 3px; height: 3px; border-radius: 50%; background: var(--ink-300); }
+/* 分组头主动作(一键批量复修):右贴,重置标题的大写/字距,不被 h3 样式污染 */
+.cj-consistency .sh .sh-act { margin-left: auto; letter-spacing: 0; text-transform: none; }
 .cj-consistency .sh.sev-warn { color: var(--warn-500); }
 .cj-consistency .sh.sev-warn .c { background: var(--warn-50); color: var(--warn-500); }
 .cj-consistency .sh.sev-ok { color: var(--ok-600, var(--ok-500)); }

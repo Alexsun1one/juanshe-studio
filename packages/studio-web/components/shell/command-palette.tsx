@@ -113,6 +113,7 @@ export function CommandPalette({
       title="搜索 / 跳转 / 动作"
       description="搜索动作、角色、页面、作品,快速跳转"
       className="cj-cmdk"
+      showCloseButton={false}  /* 命令面板惯例无 X:Esc / 点遮罩关闭;X 会压住输入行右端 */
     >
       <CommandInput
         placeholder="搜索动作、角色、页面、作品,或输入章号直达…"

@@ -7,6 +7,7 @@ import {
   HeartHandshake,
 } from "lucide-react"
 import { useLocale } from "@/lib/i18n"
+import { EDITORIAL_STAFF_COUNT } from "@/lib/agent-identity"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
@@ -31,8 +32,8 @@ export function AboutTab() {
               </h2>
               <p className="text-muted-foreground mt-1 text-sm">
                 {lang === "en"
-                  ? "A 15-agent collaborative writing console for novelists who run their own AI workshop."
-                  : "面向把 AI 视为合作伙伴的小说作者的 15-agent 协同创作控制台。"}
+                  ? `A collaborative writing console with ${EDITORIAL_STAFF_COUNT} AI editors, for novelists who run their own AI workshop.`
+                  : `面向把 AI 视为合作伙伴的小说作者的 ${EDITORIAL_STAFF_COUNT} 位编辑协同创作控制台。`}
               </p>
               <p className="text-muted-foreground/70 mt-2 font-mono text-[10.5px]">
                 v0.4.0 · build 2026.05.11
@@ -68,8 +69,8 @@ export function AboutTab() {
           </h3>
           <p className="text-muted-foreground text-xs leading-relaxed">
             {lang === "en"
-              ? "Built with Next.js, the AI SDK and shadcn/ui. The 15-agent chain is inspired by the workflows of working novelists. Thanks to all who shared their craft."
-              : "基于 Next.js、AI SDK、shadcn/ui 构建。15-agent 工作流灵感来自一线网络作家的真实创作流程；感谢所有愿意分享方法论的从业者。"}
+              ? "Built with Next.js, the AI SDK and shadcn/ui. The editorial chain is inspired by the workflows of working novelists. Thanks to all who shared their craft."
+              : "基于 Next.js、AI SDK、shadcn/ui 构建。编辑部工作流灵感来自一线网络作家的真实创作流程；感谢所有愿意分享方法论的从业者。"}
           </p>
         </CardContent>
       </Card>

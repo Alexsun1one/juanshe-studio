@@ -27,6 +27,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   bookExportUrl,
   createBook,
   stopBookWorkflow,
@@ -686,9 +692,9 @@ export default function BooksPage() {
                             onFoundation={() => void repairFoundation(book)}
                             onStop={() => void stopWriting(book)}
                             onRename={() => startRename(book)}
-                            onExport={() =>
+                            onExport={(format) =>
                               window.open(
-                                bookExportUrl(book.id, "txt"),
+                                bookExportUrl(book.id, format),
                                 "_blank",
                                 "noopener,noreferrer",
                               )
@@ -922,7 +928,7 @@ function RowActions({
   onFoundation: () => void
   onStop: () => void
   onRename: () => void
-  onExport: () => void
+  onExport: (format: "txt" | "md") => void
   onDelete: () => void
 }) {
   switch (meta.state) {
@@ -999,9 +1005,29 @@ function RowActions({
           <IconAct title="改名" onClick={onRename} disabled={busy}>
             <Pencil size={14} />
           </IconAct>
-          <IconAct title="导出 TXT" onClick={onExport} disabled={busy}>
-            <Download size={14} />
-          </IconAct>
+          {/* 导出走后端 buildExportArtifact 清洗流(统一章题/剥 markdown/规整空行):
+              TXT=纯文本可直接粘发布后台,MD=保留「# 书名 + ## 章题」层级留档 */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="bk-ic"
+                title="导出全本"
+                aria-label="导出全本"
+                disabled={busy}
+              >
+                <Download size={14} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => onExport("txt")}>
+                TXT · 纯文本
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onExport("md")}>
+                Markdown · 带章节标记
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <IconAct title="删除" tone="danger" onClick={onDelete} disabled={busy}>
             <Trash2 size={14} />
           </IconAct>

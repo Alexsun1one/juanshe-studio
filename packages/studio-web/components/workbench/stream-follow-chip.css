@@ -1,0 +1,54 @@
+/* 流式画布「回到最新」浮钮 — 回读时钉在滚动容器可视区底部,不占正文排版高度。
+   sticky + height:0 锚点:按钮向上翻出,贴底跟随时整个组件不渲染。 */
+.stream-follow {
+  position: sticky;
+  bottom: 14px;
+  height: 0;
+  display: flex;
+  justify-content: center;
+  z-index: 5;
+  pointer-events: none; /* 锚点不挡正文;按钮自己接事件 */
+}
+.stream-follow-btn {
+  pointer-events: auto;
+  transform: translateY(-100%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-family: var(--font-pixel-ui);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--brand-700);
+  background: var(--brand-50);
+  border: 1px solid var(--brand-300);
+  border-radius: var(--r-pill, 999px);
+  box-shadow: 0 6px 18px -8px rgba(110, 91, 250, 0.45);
+  cursor: pointer;
+  white-space: nowrap;
+  animation: stream-follow-in var(--motion-base, 220ms) var(--ease-soft, ease) both;
+  transition: transform 130ms var(--ease-spring-cj, cubic-bezier(0.34, 1.56, 0.64, 1)),
+    background-color 140ms ease;
+}
+.stream-follow-btn:hover {
+  background: var(--brand-100);
+  transform: translateY(calc(-100% - 1px));
+}
+.stream-follow-btn:active {
+  transform: translateY(-100%) scale(0.96);
+}
+.stream-follow-arrow {
+  animation: stream-follow-bob 1.4s var(--ease-soft, ease) infinite;
+}
+@keyframes stream-follow-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes stream-follow-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stream-follow-btn { animation: none; transition: none; }
+  .stream-follow-arrow { animation: none; }
+}

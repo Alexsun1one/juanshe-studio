@@ -2,8 +2,12 @@
 
 import * as React from "react"
 
+import { EDITORIAL_STAFF_COUNT, PIPELINE_AGENT_COUNT } from "@/lib/agent-identity"
+
 // ----------------------------------------------------------------------
 // 轻量 i18n — 不引第三方库，最小可用：dictionary + Provider + useT()
+// 人数口径:编辑部对外说 EDITORIAL_STAFF_COUNT 位编辑,泳道/链路说 PIPELINE_AGENT_COUNT 条
+// (常量定义见 lib/agent-identity.ts),文案里不手写 15/17,避免再打架。
 // ----------------------------------------------------------------------
 
 export type Locale = "zh-CN" | "en"
@@ -143,7 +147,7 @@ const zh: Dict = {
   "workflow.current": "当前阶段",
   "workflow.activeAgents": "在场角色",
   "workflow.totalProgress": "总进度",
-  "workflow.subtitle": "15 位 AI 角色按调度链协作",
+  "workflow.subtitle": `${PIPELINE_AGENT_COUNT} 条泳道按调度链接力`,
 
   // relations
   "relations.subtitle": "从书里自动提取的角色关系",
@@ -250,7 +254,7 @@ const zh: Dict = {
   "runs.subtitle": "多本书同时自动续写 · 实时进度 · 质量阈值控制",
   "runs.newRun": "新建续写任务",
   "runs.empty.title": "还没有运行中的任务",
-  "runs.empty.desc": "点击「新建续写任务」让 15 位智能体接力写下去 — 达不到目标会自动改写",
+  "runs.empty.desc": `点击「新建续写任务」让 ${EDITORIAL_STAFF_COUNT} 位编辑接力写下去 — 达不到目标会自动改写`,
   "runs.status.running": "续写中",
   "runs.status.rewriting": "改写中",
   "runs.status.model_done": "模型完成",
@@ -285,7 +289,7 @@ const zh: Dict = {
 
   // Agent Lab
   "agents.title": "编辑部成员中心",
-  "agents.subtitle": "调教 17 位编辑部成员的提示词、模型与发稿职责",
+  "agents.subtitle": `调教 ${EDITORIAL_STAFF_COUNT} 位编辑部成员的提示词、模型与发稿职责`,
   "agents.tabs.prompts": "提示词",
   "agents.tabs.workflow": "工作流",
   "agents.tabs.connectivity": "连通性",
@@ -451,7 +455,7 @@ const en: Dict = {
   "workflow.current": "Current stage",
   "workflow.activeAgents": "Active agents",
   "workflow.totalProgress": "Total progress",
-  "workflow.subtitle": "15 agents along a dispatch chain",
+  "workflow.subtitle": `${PIPELINE_AGENT_COUNT} lanes along the dispatch chain`,
 
   "relations.subtitle": "Auto-extracted from the manuscript",
   "relations.kind.ally": "Ally",
@@ -551,7 +555,7 @@ const en: Dict = {
   "runs.subtitle": "Auto-continue multiple books in parallel · realtime progress · quality-gated rewrite",
   "runs.newRun": "New auto-run",
   "runs.empty.title": "No active runs",
-  "runs.empty.desc": "Click \"New auto-run\" to let the 15-agent chain keep writing — it will rewrite until quality is met.",
+  "runs.empty.desc": `Click "New auto-run" to let the ${EDITORIAL_STAFF_COUNT}-editor chain keep writing — it will rewrite until quality is met.`,
   "runs.status.running": "Writing",
   "runs.status.rewriting": "Rewriting",
   "runs.status.model_done": "Model done",
@@ -585,7 +589,7 @@ const en: Dict = {
   "runs.viewBook": "Open book",
 
   "agents.title": "Editorial Members",
-  "agents.subtitle": "Tune prompts, models and publishing duties for all 17 editorial members",
+  "agents.subtitle": `Tune prompts, models and publishing duties for all ${EDITORIAL_STAFF_COUNT} editorial members`,
   "agents.tabs.prompts": "Prompts",
   "agents.tabs.workflow": "Workflow",
   "agents.tabs.connectivity": "Connectivity",

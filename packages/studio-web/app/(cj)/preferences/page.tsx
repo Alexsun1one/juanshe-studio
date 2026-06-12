@@ -31,6 +31,7 @@ import {
 import Link from "next/link"
 import { fetchProjectPrefs, updateProjectPrefs } from "@/lib/api/client"
 import type { ProjectPrefs } from "@/lib/api/types"
+import { useNotifyPermission } from "@/components/settings/use-notify-permission"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
 import "./settings.css"
@@ -63,7 +64,13 @@ export default function PreferencesPage() {
     }
   }
   const saveRun = (key: keyof ProjectPrefs["defaultRun"], val: number) => prefs && save({ defaultRun: { ...prefs.defaultRun, [key]: val } })
-  const saveNotify = (key: keyof ProjectPrefs["notify"], val: boolean) => prefs && save({ notify: { ...prefs.notify, [key]: val } })
+  // 首次开启任一通知开关时才向浏览器要权限;被拒不阻断保存(降级为标签页标题提醒),下方显示小字提示
+  const { permission: notifyPerm, ensurePermission } = useNotifyPermission()
+  const saveNotify = async (key: keyof ProjectPrefs["notify"], val: boolean) => {
+    if (!prefs) return
+    if (val) await ensurePermission()
+    save({ notify: { ...prefs.notify, [key]: val } })
+  }
 
   const go = (id: string) => {
     setActive(id)
@@ -202,6 +209,12 @@ export default function PreferencesPage() {
                   <div className="oc"><button type="button" className={`sw${nt?.[key] ? " on" : ""}`} role="switch" aria-checked={!!nt?.[key]} onClick={() => saveNotify(key, !nt?.[key])} aria-label={`${name}${nt?.[key] ? "已开启" : "已关闭"}`} /></div>
                 </div>
               ))}
+              {notifyPerm === "denied" && notifyOn > 0 && (
+                <p className="notify-perm-tip" role="status">
+                  <TriangleAlert size={12} aria-hidden="true" />
+                  浏览器已拦截系统通知 —— 去浏览器设置允许本站通知,否则只能靠标签页标题提醒。
+                </p>
+              )}
             </section>
 
             {/* 大模型 */}

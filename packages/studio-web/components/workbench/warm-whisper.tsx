@@ -71,7 +71,7 @@ function PixelGlyph({ bucket }: { bucket: Bucket }) {
         <rect x="6" y="4" width="3" height="3" fill="#2BB97A" />
         <rect x="4" y="6" width="3" height="3" fill="#2BB97A" />
         <rect x="3" y="9" width="2" height="2" fill="#F8C994" />
-        <rect x="2" y="11" width="2" height="1" fill="#5C6478" />
+        <rect x="2" y="11" width="2" height="1" fill="#6B6258" />
       </svg>
     )
   }

@@ -6,6 +6,12 @@
 // ============================================================================
 import { FRONTEND_AGENT_IDS, toFrontendAgentId } from "@/lib/api/agent-aliases"
 
+// ── 编辑部人数的单一事实源(由 agent 清单 length 派生,严禁在文案里手写数字)──
+// 调度链泳道 agent 数(15):工作流泳道/接力链等「链路」语境用它。
+export const PIPELINE_AGENT_COUNT = FRONTEND_AGENT_IDS.length
+// 编辑部对外口径(17 = 调度链 15 + 执行主编 + 总编):一切「编辑部几位编辑」的文案用它。
+export const EDITORIAL_STAFF_COUNT = PIPELINE_AGENT_COUNT + 2
+
 const GOLDEN_ANGLE = 137.508
 
 // 规范 15 agent 按链路顺序取色:相邻 agent 用黄金角拉开色相,彼此最不易混。

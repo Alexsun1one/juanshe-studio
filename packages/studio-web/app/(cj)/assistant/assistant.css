@@ -211,10 +211,6 @@
 .cj-assistant .as-cue:nth-child(4) .as-cue-ico { color: #E0728E; }
 .cj-assistant .as-cue:nth-child(5) .as-cue-ico { color: #2BB97A; }
 .cj-assistant .as-cue:hover .as-cue-ico { transform: scale(1.18) rotate(-4deg); }
-.cj-assistant .as-cues-tail {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
 @media (prefers-reduced-motion: reduce) {
   .cj-assistant .as-cue,
   .cj-assistant .as-cue-ico,
@@ -346,9 +342,6 @@
   .cj-assistant .as-cues {
     flex-wrap: wrap;
     align-items: flex-start;
-  }
-  .cj-assistant .as-cues-tail {
-    display: none;
   }
   .cj-assistant .assistant-empty-prop {
     width: min(280px, 78vw);

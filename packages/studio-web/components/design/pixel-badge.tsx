@@ -45,7 +45,10 @@ export type PixelBadgeKind =
   | "grp-settings"   // 设置:齿轮(简化版)
 
 const SKIN = "#FFD9A8"
-const INK  = "#1F2433"
+const INK  = "#2B2620"  // = design.css --pixel-ink 暖棕墨
+
+// 调色板纪律:冷蓝(#4A8AE0 系)与钢海军灰(#586378 系)是雷区——
+// "蓝位"用沉静青 #2FA39A/#1E7A68(= --c-fore 同族),"工具灰"用暖钢 #7A6F5B/#4E4638(= --ink-500/700 字面量)。
 
 // 每个 kind 一个 16×16 矩阵,字符 → 颜色 / 透明
 // "." = 透明,"#" = INK(描边),"0" = 主色,"1" = 深色,"2" = 高亮,"S" = SKIN
@@ -72,7 +75,7 @@ const PIXELS: Record<PixelBadgeKind, { palette: { "0": string; "1": string; "2"?
     ],
   },
   outline: {
-    palette: { "0": "#4A8AE0", "1": "#2563A8", "2": "#FFC76A" },
+    palette: { "0": "#2FA39A", "1": "#1E7A68", "2": "#FFC76A" },
     grid: [
       "................",
       "..############..",
@@ -156,7 +159,7 @@ const PIXELS: Record<PixelBadgeKind, { palette: { "0": string; "1": string; "2"?
     ],
   },
   system: {
-    palette: { "0": "#586378", "1": "#2F3848", "2": "#FFC76A" },
+    palette: { "0": "#7A6F5B", "1": "#4E4638", "2": "#FFC76A" },
     grid: [
       "................",
       "......####......",
@@ -198,7 +201,7 @@ const PIXELS: Record<PixelBadgeKind, { palette: { "0": string; "1": string; "2"?
     ],
   },
   library: {
-    palette: { "0": "#6E5BFA", "1": "#4A38C7", "2": "#4A8AE0" },
+    palette: { "0": "#6E5BFA", "1": "#4A38C7", "2": "#FFC76A" },  /* 高亮位金色,与其它书本类图标统一(原冷蓝 #4A8AE0) */
     grid: [
       "................",
       "..#####..#####..",
@@ -240,7 +243,7 @@ const PIXELS: Record<PixelBadgeKind, { palette: { "0": string; "1": string; "2"?
     ],
   },
   platform: {
-    palette: { "0": "#4A8AE0", "1": "#2563A8", "2": "#F08A4B" },
+    palette: { "0": "#2FA39A", "1": "#1E7A68", "2": "#F08A4B" },
     grid: [
       "................",
       "..#####..#####..",
@@ -304,7 +307,7 @@ const PIXELS: Record<PixelBadgeKind, { palette: { "0": string; "1": string; "2"?
     ],
   },
   genres: {
-    palette: { "0": "#4A8AE0", "1": "#2563A8", "2": "#F08A4B" },
+    palette: { "0": "#2FA39A", "1": "#1E7A68", "2": "#F08A4B" },
     grid: [
       "................",
       "................",
@@ -472,7 +475,7 @@ const PIXELS: Record<PixelBadgeKind, { palette: { "0": string; "1": string; "2"?
     ],
   },
   capabilities: {
-    palette: { "0": "#586378", "1": "#2F3848", "2": "#FFC76A" },
+    palette: { "0": "#7A6F5B", "1": "#4E4638", "2": "#FFC76A" },
     grid: [
       "................",
       "..####..####....",
@@ -493,7 +496,7 @@ const PIXELS: Record<PixelBadgeKind, { palette: { "0": string; "1": string; "2"?
     ],
   },
   llm: {
-    palette: { "0": "#4A8AE0", "1": "#2563A8", "2": "#FFC76A" },
+    palette: { "0": "#2FA39A", "1": "#1E7A68", "2": "#FFC76A" },
     grid: [
       "................",
       "....#.#.#.#.....",
@@ -514,7 +517,7 @@ const PIXELS: Record<PixelBadgeKind, { palette: { "0": string; "1": string; "2"?
     ],
   },
   preferences: {
-    palette: { "0": "#586378", "1": "#2F3848", "2": "#6E5BFA" },
+    palette: { "0": "#7A6F5B", "1": "#4E4638", "2": "#6E5BFA" },
     grid: [
       "................",
       "................",
@@ -535,7 +538,7 @@ const PIXELS: Record<PixelBadgeKind, { palette: { "0": string; "1": string; "2"?
     ],
   },
   shortcuts: {
-    palette: { "0": "#586378", "1": "#2F3848", "2": "#FFC76A" },
+    palette: { "0": "#7A6F5B", "1": "#4E4638", "2": "#FFC76A" },
     grid: [
       "................",
       "................",
@@ -625,7 +628,7 @@ const PIXELS: Record<PixelBadgeKind, { palette: { "0": string; "1": string; "2"?
   },
   // 系统与智能体:芯片 + 三层服务器架
   "grp-system": {
-    palette: { "0": "#586378", "1": "#2F3848", "2": "#9D8AFF" },
+    palette: { "0": "#7A6F5B", "1": "#4E4638", "2": "#9D8AFF" },
     grid: [
       "................",
       "....#.#.#.#.....",
@@ -647,7 +650,7 @@ const PIXELS: Record<PixelBadgeKind, { palette: { "0": string; "1": string; "2"?
   },
   // 设置:大齿轮(简洁,跟 system 区别开)
   "grp-settings": {
-    palette: { "0": "#586378", "1": "#2F3848", "2": "#FFC76A" },
+    palette: { "0": "#7A6F5B", "1": "#4E4638", "2": "#FFC76A" },
     grid: [
       "................",
       ".......##.......",

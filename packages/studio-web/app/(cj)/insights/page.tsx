@@ -33,7 +33,7 @@ import {
 } from "recharts"
 import { fetchBookAnalytics, fetchChapters, fetchDockMetrics, fetchOpportunities, fetchPlotProgress, fetchReaderFeedback } from "@/lib/api/client"
 import { useWorkspace } from "@/lib/workspace-context"
-import { CjPlaceholder } from "@/components/design/cj-placeholder"
+import { CjPlaceholder, MiniEmpty } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { KpiChip, Meter, FoldCard } from "@/components/design/kit"
@@ -314,7 +314,7 @@ export default function InsightsPage() {
                       <Area yAxisId="t" type="monotone" dataKey="tension" name="张力" stroke="var(--brand-500)" strokeWidth={2.2} fill="url(#tg)" dot={{ r: 2.5, fill: "var(--brand-500)" }} isAnimationActive animationDuration={850} animationEasing="ease-out" />
                     </ComposedChart>
                   </ResponsiveContainer>
-                ) : <div className="empty" style={{ height: "100%" }}>暂无章节趋势数据</div>}
+                ) : <MiniEmpty fill icon="ink-quill">张力曲线等首章开笔,写起来这里就会爬坡</MiniEmpty>}
               </div>
             </section>
 
@@ -343,7 +343,7 @@ export default function InsightsPage() {
                       <Bar dataKey="totalTokens" name="token" fill="url(#tkg)" radius={[4, 4, 0, 0]} barSize={12} isAnimationActive animationDuration={700} animationEasing="ease-out" />
                     </ComposedChart>
                   </ResponsiveContainer>
-                ) : <div className="empty" style={{ height: "100%" }}>本书还没有 token 用量记录 —— 写几章就有啦 🐾</div>}
+                ) : <MiniEmpty fill icon="sleeping-cat">本书还没有 token 用量记录 —— 写几章就有啦 🐾</MiniEmpty>}
               </div>
             </section>
 
@@ -423,7 +423,7 @@ export default function InsightsPage() {
                   })}
                 </div>
               ) : (
-                <div className="empty" style={{ padding: "24px 0" }}>暂无读者信号 — 写出章节后,读者评审官会在每章 Gate 前产出「追读意愿 / 开篇钩子 / 沉浸感」等信号。</div>
+                <MiniEmpty icon="editor-bot">读者评审官还在等首批章节 —— 每章 Gate 前,这里会给出「追读意愿 / 开篇钩子 / 沉浸感」信号</MiniEmpty>
               )}
             </section>
           </div>

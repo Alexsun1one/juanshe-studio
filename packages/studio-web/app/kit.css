@@ -96,11 +96,11 @@
 
 /* ── 新手引导 spotlight(配 components/shell/cj-tour.tsx)── */
 .cj-tour { position: fixed; inset: 0; z-index: 200; }
-.cj-tour-scrim { position: absolute; inset: 0; background: rgba(43, 38, 32, 0.5); }
+.cj-tour-scrim { position: absolute; inset: 0; background: var(--scrim); }  /* 遮罩唯一来源:design.css --scrim */
 .cj-tour-hole {
   position: fixed;
   border-radius: var(--r-lg, 12px);
-  box-shadow: 0 0 0 9999px rgba(43, 38, 32, 0.52);
+  box-shadow: 0 0 0 9999px var(--scrim);
   pointer-events: none;
   transition: left var(--motion-base) var(--ease-out-cj, ease), top var(--motion-base) var(--ease-out-cj, ease), width var(--motion-base) var(--ease-out-cj, ease), height var(--motion-base) var(--ease-out-cj, ease);
 }

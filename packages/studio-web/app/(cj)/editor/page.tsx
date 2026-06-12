@@ -37,6 +37,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import {
+  approveChapter,
   fetchChapters,
   fetchManuscript,
   fetchQuality,
@@ -65,6 +66,10 @@ import { useLiveRun } from "@/lib/use-live-run"
 import { useRunState } from "@/lib/use-run-state"
 import { useAgentActivity } from "@/lib/use-agent-activity"
 import { useTypewriter } from "@/lib/use-typewriter"
+import { useEntityDict } from "@/lib/prose-highlight"
+import { StreamingProse } from "@/components/workbench/streaming-prose"
+import { StreamFollowChip } from "@/components/workbench/stream-follow-chip"
+import { useStickToBottom } from "@/hooks/use-stick-to-bottom"
 import { showWriteBlockToast } from "@/lib/write-block-toast"
 import {
   AlertDialog,
@@ -80,7 +85,8 @@ import "./editor.css"
 
 const soft = { shouldRetryOnError: false }
 const CH_STATE: Record<string, string> = { published: "已发布", done: "完成", review: "审校", writing: "写作中", queued: "排队", draft: "草稿" }
-type EditorAiAction = "continue" | "repair" | "polish" | "expand" | "review" | "eic-review"
+// approve 不是 AI 动作(纯状态变更、不耗 token),但低分强制签发要借同一个确认弹窗把语义说清
+type EditorAiAction = "continue" | "repair" | "polish" | "expand" | "review" | "eic-review" | "approve"
 
 // 章节状态 → 设计系统状态 pill 的 data-state(语义色只走状态)+ 一个贴切的 lucide 图标。
 // 不新增配色:直接复用 .pill[data-state] 的 10 态;图标只为「一眼可辨」。
@@ -142,6 +148,8 @@ export default function EditorPage() {
   const live = useLiveRun(bookId)
   // 优雅逐字:无论上游块大块小,前端都一个字一个字吐
   const typed = useTypewriter(live.text, live.active)
+  // 人物/地点字典(story-graph),流式正文语义分色 —— 与工作台/剧场同一套
+  const proseDict = useEntityDict(bookId)
   // 真实写作状态:正在跑时禁用 AI 操作,避免并发触发 → 后端 409 报错
   const run = useRunState(bookId)
   // 实时编辑部流水线:当前 agent + 最近步骤(规划/草稿/审校/裁决…)
@@ -193,11 +201,10 @@ export default function EditorPage() {
     if (live.active && live.chapter && live.chapter !== cur) setSelNum(live.chapter)
   }, [live.active, live.chapter, cur])
 
-  // 流式文本增长时自动滚到底(跟随逐字进度)
-  React.useEffect(() => {
-    const el = streamRef.current
-    if (el && live.active) el.scrollTop = el.scrollHeight
-  }, [typed, live.active])
+  // 流式文本增长时贴底跟随:用户上翻回读即解除,浮出「回到最新」;贴回底部恢复。
+  // 只在「正文流式分支真的渲染着」时生效 —— 评审视图复用同一个 .paper 容器,不能被钉底劫持。
+  const streamPinActive = live.active && view !== "review"
+  const stick = useStickToBottom(streamRef, typed, streamPinActive)
 
   // 一轮生成结束(active true→false):拉回已保存的正文与质量/工作流
   React.useEffect(() => {
@@ -331,9 +338,34 @@ export default function EditorPage() {
       await repairChapter()
     } else if (action === "eic-review") {
       await runEditorialReview()
+    } else if (action === "approve") {
+      await doApprove()
     } else {
       await aiAction(action)
     }
+  }
+
+  // 批准本章 = 强制签发(无视分数的纯状态变更,不耗 token):读完觉得行,就地放行,不必绕回工作台。
+  // 达标章(≥85)直接签;低分章先弹确认 —— 强制签发会稀释质量门禁,语义必须说清再放行。
+  const [approving, setApproving] = React.useState(false)
+  const doApprove = async () => {
+    if (!bookId || !cur) return
+    setApproving(true)
+    try {
+      await approveChapter(bookId, cur)
+      mutate(["chapters", bookId])
+      toast.success(`第 ${cur} 章已签发`, { description: "已标记为通过 —— 续写会把它当定稿继续往下写。" })
+    } catch (e) {
+      toast.error(`签发失败:${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setApproving(false)
+    }
+  }
+  const onApproveClick = () => {
+    if (!bookId || !cur || approving) return
+    // 没有质量报告 = 分数未知,与低分同样要先确认,不能静默强签
+    if (!quality || Math.round(quality.overall) < 85) setConfirmAction("approve")
+    else void doApprove()
   }
 
   const aiAction = async (kind: "continue" | "review" | "polish" | "expand") => {
@@ -409,7 +441,7 @@ export default function EditorPage() {
     { l: "情感", v: Math.round(quality.emotion) },
     { l: "文笔", v: Math.round(quality.diction) },
   ] : []
-  const confirmCopy = confirmAction ? editorActionCopy(confirmAction, cur ?? 0, lastChapterNum) : null
+  const confirmCopy = confirmAction ? editorActionCopy(confirmAction, cur ?? 0, lastChapterNum, quality ? Math.round(quality.overall) : null) : null
 
   // 剧场态:写作流水线在跑时,正文区放大字号,左右栏淡化半透明,焦点回到字上
   const writingTheater = run.isRunning || live.active
@@ -495,7 +527,12 @@ export default function EditorPage() {
             <button type="button" className="ed-drawer-btn" onClick={() => setDrawer("chapters")} title="章节目录" aria-label="章节目录"><ListTree size={16} /></button>
             <PixelBadge kind="editor" size={28} className="page-title-pixel" ariaLabel="章节编辑" />
             <span className="tt">{selChapter ? `第 ${cur} 章 · ${selChapter.title.zh}` : cur ? `第 ${cur} 章` : "选择章节"}</span>
-            {live.active ? (
+            {live.reconnecting ? (
+              <span className="ed-live" style={{ ["--live-color" as string]: "var(--warn-500, #D97706)" }}>
+                <span className="ed-live-dot" />
+                连接中断 · 重连中…
+              </span>
+            ) : live.active ? (
               <span className="ed-live" style={{ ["--live-color" as string]: agentColor(live.agentId ?? "writer") }}>
                 <span className="ed-live-dot" />
                 {live.agentName ?? "智能体"}正在{live.stageText || "生成"}
@@ -612,8 +649,9 @@ export default function EditorPage() {
               </div>
             ) : live.active && live.text ? (
               <div className="paper-stream prose-serif">
-                {typed}
-                <span className="type-caret" aria-hidden />
+                {/* 流式分段渲染 + 语义分色(editor 在 .app 内,.tk-* 直接生效),与另两处画布同构 */}
+                <StreamingProse text={typed} dict={proseDict} caret={<span className="type-caret" aria-hidden />} />
+                <StreamFollowChip show={!stick.following} onJump={stick.jumpToBottom} />
               </div>
             ) : (
               <div className="ed-write-wrap">
@@ -653,6 +691,20 @@ export default function EditorPage() {
             <span className="ed-foot-dim">· 第 {cur ?? "—"} 章 · {wordCount.toLocaleString()} 字</span>
             <span className="sp" />
             <button type="button" className="btn ghost sm" onClick={onCopy} disabled={!cur}><Copy size={12} /> 复制本章</button>
+            {/* 读完即批:status=review 且无未保存改动时,把批准动作放到读完的终点(达标直签,低分先确认) */}
+            {selChapter?.status === "review" && !dirty && (
+              <button
+                type="button"
+                className={`btn primary sm${approving ? " is-loading" : ""}`}
+                onClick={onApproveClick}
+                disabled={approving || !cur}
+                title={quality && Math.round(quality.overall) < 85
+                  ? `本章 ${Math.round(quality.overall)} 分未达 85 门禁 —— 点击会先确认再强制签发`
+                  : "批准本章:标记为通过,纯状态变更,不耗 token"}
+              >
+                <BadgeCheck size={12} /> {quality && Math.round(quality.overall) < 85 ? `批准本章 · ${Math.round(quality.overall)} 分` : "批准本章"}
+              </button>
+            )}
             <button type="button" className={`btn primary sm${saving ? " is-loading" : ""}`} onClick={onSave} disabled={saving || !dirty}><Check size={12} /> 保存</button>
           </div>
         </div>
@@ -818,6 +870,12 @@ export default function EditorPage() {
                   <span className={`eic-verdict ${review.verdict}`}>{review.verdict === "pass" ? "已签发" : "判返工"}</span>
                   {review.editorialScore != null && <span className="eic-score">编辑分 {review.editorialScore}</span>}
                   <button type="button" className="btn ghost sm" style={{ marginLeft: "auto" }} onClick={() => openAiConfirm("eic-review")} disabled={reviewBusy || aiBusy}>{reviewBusy ? <Loader2 size={12} className="spin" /> : <Gavel size={12} />} 复审</button>
+                  {/* 总编已 pass 而章仍待批:把「裁决通过」自然接到「正式批准」,不必绕回工作台 */}
+                  {review.verdict === "pass" && selChapter?.status === "review" && (
+                    <button type="button" className={`btn primary sm${approving ? " is-loading" : ""}`} onClick={onApproveClick} disabled={approving || !cur}>
+                      <BadgeCheck size={12} /> 签发本章
+                    </button>
+                  )}
                 </div>
                 <p className="eic-note">{review.rationale}</p>
                 {review.strengths.length > 0 && <div className="eic-list ok"><span className="lab"><Lightbulb size={11} aria-hidden /> 亮点</span><ul>{review.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul></div>}
@@ -850,10 +908,10 @@ export default function EditorPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel type="button" disabled={busy || reviewBusy}>保持当前状态</AlertDialogCancel>
+              <AlertDialogCancel type="button" disabled={busy || reviewBusy || approving}>保持当前状态</AlertDialogCancel>
               <AlertDialogAction
                 type="button"
-                disabled={busy || reviewBusy}
+                disabled={busy || reviewBusy || approving}
                 className={confirmCopy.destructive ? "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20" : undefined}
                 onClick={(event) => {
                   event.preventDefault()
@@ -870,7 +928,7 @@ export default function EditorPage() {
   )
 }
 
-function editorActionCopy(action: EditorAiAction, cur: number, lastChapterNum: number) {
+function editorActionCopy(action: EditorAiAction, cur: number, lastChapterNum: number, qualityOverall: number | null) {
   const rewritesTail = cur > 0 && lastChapterNum > cur
   const tailScope = rewritesTail ? `会回滚并重写第 ${cur + 1}–${lastChapterNum} 章(后端会自动备份)。` : "当前已是最后一章,主要更新本章改写结果。"
 
@@ -921,6 +979,14 @@ function editorActionCopy(action: EditorAiAction, cur: number, lastChapterNum: n
         description: "总编会读取质量分、连续性、读者评审、风格和审稿信号做整体裁决,可能消耗 LLM token。",
         guardrail: "不会直接改写正文,但会更新总编批语/签发或返工裁决。",
         confirmLabel: "确认复审",
+        destructive: false,
+      }
+    case "approve":
+      return {
+        title: "强制签发本章？",
+        description: `第 ${cur || "—"} 章${qualityOverall != null ? `当前质量 ${qualityOverall} 分,未达 85 分门禁` : "还没有质量评分"}。批准是无视分数的强制签发 —— 签发后它会被当作定稿,续写不再回头修它。`,
+        guardrail: "纯状态变更,不耗 token;想先把分拉上去再签,请保持当前状态并改用“修复本章”。",
+        confirmLabel: "确认强制签发",
         destructive: false,
       }
   }

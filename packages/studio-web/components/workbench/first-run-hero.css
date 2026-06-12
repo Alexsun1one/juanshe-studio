@@ -158,6 +158,33 @@
 .first-run .fr-step-cta.solid { color: #fff; background: var(--brand-500); border-color: var(--brand-500); }
 .first-run .fr-step-cta.solid:hover { background: var(--brand-600); }
 
+/* 三步引导的真实完成态:配好模型回来,第一步打勾降噪、第二步升为视觉焦点 */
+.first-run .fr-step.done {
+  border-color: color-mix(in oklab, var(--ok-500) 30%, var(--line-1));
+  background: color-mix(in oklab, var(--ok-500) 4%, var(--bg-card));
+}
+.first-run .fr-step.done .fr-step-ic {
+  background: color-mix(in oklab, var(--ok-500) 12%, transparent);
+  color: var(--ok-600, var(--ok-500));
+}
+.first-run .fr-step.done .fr-step-ic::after { content: "✓"; background: var(--ok-500); }
+.first-run .fr-step.done .fr-step-body b { color: var(--ink-600); }
+.first-run .fr-step.done .fr-step-body span { color: var(--ink-400); }
+.first-run .fr-step-cta.done {
+  display: inline-flex; align-items: center; gap: 4px;
+  color: var(--ok-600, var(--ok-500));
+  background: color-mix(in oklab, var(--ok-500) 10%, transparent);
+  border-color: color-mix(in oklab, var(--ok-500) 28%, transparent);
+}
+/* 当前步(上一步刚完成):描边点亮 + CTA 轻呼吸,把"现在该做这步"的推力给足 */
+.first-run .fr-step.current { border-color: color-mix(in oklab, var(--brand-500) 38%, var(--line-1)); box-shadow: var(--sh-2); }
+.first-run .fr-step-cta.pulse { animation: fr-cta-pulse 1.8s ease-in-out infinite; }
+@keyframes fr-cta-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand-500) 36%, transparent); }
+  50%      { box-shadow: 0 0 0 6px transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .first-run .fr-step-cta.pulse { animation: none; } }
+
 @media (max-width: 600px) {
   .fr-title { font-size: 24px; }
   .fr-office { grid-template-columns: 1fr; padding: 14px; }

@@ -10,8 +10,11 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { KeyRound, Sparkles, PenSquare, Wand2 } from "lucide-react"
+import useSWR from "swr"
+import { Check, KeyRound, Sparkles, PenSquare, Wand2 } from "lucide-react"
+import { fetchLLMProviders } from "@/lib/api/client"
 import { AgentPixel } from "@/components/design/agent-pixel"
+import { EDITORIAL_STAFF_COUNT } from "@/lib/agent-identity"
 import { useAuthorName } from "@/lib/use-author-name"
 import "./first-run-hero.css"
 
@@ -72,12 +75,16 @@ const DEPTS: ReadonlyArray<{
 export function FirstRunHero({ onCreate }: { onCreate: () => void }) {
   const authorName = useAuthorName()
   const authorSalutation = authorName.trim().endsWith("大大") ? authorName.trim() : `${authorName.trim()} 大大`
+  // 三步引导的真实完成态:第一步「配模型」按 provider 是否已配 key 判定 ——
+  // 配好回来就打勾、视觉焦点自动移到第二步。取数失败保持静态三步,绝不误标完成。
+  const { data: providers } = useSWR("llm-providers", fetchLLMProviders, { shouldRetryOnError: false })
+  const llmReady = (providers ?? []).some((p) => p.hasKey && p.enabled)
   return (
     <div className="first-run">
       <header className="fr-head">
         <span className="fr-badge">
           <span className="fr-badge-dot" />
-          卷舍 · 17 位 AI 编辑已就位
+          卷舍 · {EDITORIAL_STAFF_COUNT} 位 AI 编辑已就位
         </span>
         <h1 className="fr-title">{authorSalutation},你的编辑部待命中</h1>
         <p className="fr-desc">
@@ -87,21 +94,25 @@ export function FirstRunHero({ onCreate }: { onCreate: () => void }) {
 
         {/* 开张三步:新手引导 */}
         <ol className="fr-steps">
-          <li className="fr-step">
-            <span className="fr-step-ic"><KeyRound size={15} /></span>
+          <li className={`fr-step${llmReady ? " done" : ""}`}>
+            <span className="fr-step-ic">{llmReady ? <Check size={15} /> : <KeyRound size={15} />}</span>
             <span className="fr-step-body">
               <b>配置写作模型(BYOK)</b>
               <span>填你自己的模型 Key(DeepSeek / Kimi / 智谱…),仅存本地、不上传。</span>
             </span>
-            <Link href="/llm" className="fr-step-cta">去配置 →</Link>
+            {llmReady ? (
+              <Link href="/llm" className="fr-step-cta done"><Check size={12} /> 已配置</Link>
+            ) : (
+              <Link href="/llm" className="fr-step-cta">去配置 →</Link>
+            )}
           </li>
-          <li className="fr-step">
+          <li className={`fr-step${llmReady ? " current" : ""}`}>
             <span className="fr-step-ic"><PenSquare size={15} /></span>
             <span className="fr-step-body">
               <b>开建第一本作品</b>
               <span>说一句想写的样子(题材/时代/主角/基调),编辑部几十秒起好框架与章节地图。</span>
             </span>
-            <button type="button" className="fr-step-cta solid" onClick={onCreate}>开建 →</button>
+            <button type="button" className={`fr-step-cta solid${llmReady ? " pulse" : ""}`} onClick={onCreate}>开建 →</button>
           </li>
           <li className="fr-step">
             <span className="fr-step-ic"><Wand2 size={15} /></span>
@@ -119,7 +130,7 @@ export function FirstRunHero({ onCreate }: { onCreate: () => void }) {
         </div>
       </header>
 
-      <div className="fr-office" role="img" aria-label="编辑部 17 位 AI 角色">
+      <div className="fr-office" role="img" aria-label={`编辑部 ${EDITORIAL_STAFF_COUNT} 位 AI 角色`}>
         {DEPTS.map((dept) => (
           <section className="fr-dept" key={dept.id}>
             <div className="fr-dept-tag">{dept.label}</div>

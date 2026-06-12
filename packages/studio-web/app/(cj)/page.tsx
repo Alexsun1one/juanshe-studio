@@ -37,6 +37,10 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useLiveRun } from "@/lib/use-live-run"
 import { useRunState } from "@/lib/use-run-state"
+import { useAutoRuns } from "@/hooks/use-studio"
+import { useEasedNumber } from "@/hooks/use-eased-number"
+import { isLiveAutoRunStatus } from "@/lib/studio/run-status"
+import { BatchProgress } from "@/components/workbench/batch-progress"
 import { useAgentActivity } from "@/lib/use-agent-activity"
 import { useTypewriter } from "@/lib/use-typewriter"
 import { toFrontendAgentId } from "@/lib/api/agent-aliases"
@@ -47,6 +51,9 @@ import { AgentPixel } from "@/components/design/agent-pixel"
 import { CjTour } from "@/components/shell/cj-tour"
 import { PixelCat } from "@/components/design/pixel-cat"
 import { renderProse, useEntityDict } from "@/lib/prose-highlight"
+import { StreamingProse } from "@/components/workbench/streaming-prose"
+import { StreamFollowChip } from "@/components/workbench/stream-follow-chip"
+import { useStickToBottom } from "@/hooks/use-stick-to-bottom"
 import { VipUpgradeDialog } from "@/components/cj/vip-upgrade-dialog"
 import "./dashboard.css"
 
@@ -106,6 +113,9 @@ function dimTier(v: number): string {
 const fmt = (n: number | undefined | null) =>
   typeof n === "number" && Number.isFinite(n) ? n.toLocaleString("en-US") : "—"
 
+// 工作台正文是预览位(全文在编辑器/沉浸页),只显示开头几段 —— 但截断必须明示,不能让长章被"读短"
+const PREVIEW_PARAGRAPHS = 9
+
 function describeHandoffReason(stage: string | undefined, currentAgentId: string | undefined) {
   const text = `${stage ?? ""} ${currentAgentId ?? ""}`
   if (/规划|意图|上下文|planner/i.test(text)) return "规划师完成章节意图、规则栈和上下文包后交给写手落正文。"
@@ -159,7 +169,7 @@ function dashboardWorkflowActionCopy(input: {
 
 export default function CjDashboard() {
   const router = useRouter()
-  const { books, bookId, booksLoading } = useWorkspace()
+  const { books, bookId, booksLoading, refreshBooks } = useWorkspace()
   const active = books.find((b) => b.id === bookId)
   const key = (name: string) => (bookId ? [name, bookId] : null)
 
@@ -176,10 +186,8 @@ export default function CjDashboard() {
   // 实时流水线状态机:哪个 agent 已完成 / 正在跑 / 待命
   const activity = useAgentActivity(bookId)
   const streamRef = React.useRef<HTMLDivElement>(null)
-  React.useEffect(() => {
-    const el = streamRef.current
-    if (el && live.active) el.scrollTop = el.scrollHeight
-  }, [typed, live.active])
+  // 贴底才跟随:用户上翻回读即解除自动滚底,浮出「回到最新」;贴回底部恢复跟随
+  const stick = useStickToBottom(streamRef, typed, live.active)
 
   // 按书域数据可能对某些书缺失,容错:错误不重试,缺失则走兜底
   const soft = { shouldRetryOnError: false }
@@ -200,6 +208,13 @@ export default function CjDashboard() {
     bookId && curChapter ? ["ms", bookId, curChapter] : null,
     () => fetchManuscript(bookId, curChapter),
     fresh,
+  )
+  // 连续写批次进度(auto-runs):与 /runs 共享 SWR key,不新增轮询通道。
+  // 「第几章/还剩几章/重写几轮/ETA」这些挂机最核心的安心感信息,就地摆在写作器头部,不必跑去运行台。
+  const { data: autoRuns } = useAutoRuns()
+  const batchRun = React.useMemo(
+    () => (autoRuns ?? []).find((r) => r.bookId === bookId && isLiveAutoRunStatus(r.status)),
+    [autoRuns, bookId],
   )
 
   const [busy, setBusy] = React.useState(false)
@@ -243,6 +258,17 @@ export default function CjDashboard() {
   const liveStage = activity.currentText || run.currentStage || (live.active ? live.stageText : undefined)
   const liveAgentId = activity.currentAgentId || run.currentAgentId || (live.active ? live.agentId : undefined)
   const agentList = agents ?? []
+  // 失败/中断横幅的本地 dismiss:按错误文本记到 sessionStorage,同一条错误不再纠缠(新错误会再次浮现)
+  const [dismissedError, setDismissedError] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    try { setDismissedError(sessionStorage.getItem("cj.dismissedRunError")) } catch { /* ignore */ }
+  }, [])
+  const dismissLastError = React.useCallback(() => {
+    const text = run.lastError ?? ""
+    try { sessionStorage.setItem("cj.dismissedRunError", text) } catch { /* ignore */ }
+    setDismissedError(text)
+  }, [run.lastError])
+  const showFailBanner = !isRunning && !!run.lastError && run.lastError !== dismissedError
   // 「续写一开,创作流程自动进入剧场态」:刚从待命切到运行 → 把右栏滚进可视区
   React.useEffect(() => {
     const sig = isRunning ? (liveAgentId || "running") : "idle"
@@ -252,13 +278,27 @@ export default function CjDashboard() {
     lastRunSig.current = sig
   }, [isRunning, liveAgentId])
 
-  // 进展庆祝:写作从"运行"回到"待命"(一章/一轮刚写完)→ 触发一次温暖的像素庆祝
-  const [celebrateSig, setCelebrateSig] = React.useState(0)
+  // 进展庆祝:写作从"运行"回到"待命"(一章/一轮刚写完)→ 触发一次温暖的像素庆祝。
+  // tone 区分场景:write=写完一章 / approve=批准达标 / finish=全书完本,文案池各自独立。
+  const [celebrate, setCelebrate] = React.useState<{
+    sig: number
+    tone: "write" | "approve" | "finish"
+    note?: string
+  }>({ sig: 0, tone: "write" })
   const prevRunning = React.useRef(false)
   React.useEffect(() => {
-    if (prevRunning.current && !isRunning) setCelebrateSig((s) => s + 1)
+    if (prevRunning.current && !isRunning) {
+      setCelebrate((c) => ({ sig: c.sig + 1, tone: "write" }))
+      // 完稿事件 → 解冻工作台数字:books(章号/累计字数/进度)、本章质量分、情节里程碑。
+      // 不刷的话庆祝动画放完页面数字纹丝不动,奖励感落空;chapters/ms 已有 6s 轮询,这里不重复。
+      void refreshBooks()
+      if (bookId) {
+        if (curChapter) void mutate(["quality", bookId, curChapter])
+        void mutate(["plot", bookId])
+      }
+    }
     prevRunning.current = isRunning
-  }, [isRunning])
+  }, [isRunning, bookId, curChapter, refreshBooks])
 
   const handoffCurrentId = isRunning ? (liveAgentId || "planner") : "planner"
   const handoffCurrentIndex = agentList.findIndex((a) => toFrontendAgentId(a.id) === handoffCurrentId)
@@ -270,12 +310,19 @@ export default function CjDashboard() {
     : "点击继续创作后，规划师先读取设定、记忆和章节索引，再把章节意图交给写手。"
 
   // "模型准备中"态:run 真跑起来(isRunning)即解除;30s 兜底防卡死。期间写作按钮显示"模型准备中…"
+  // 兜底超时不再静默复位按钮 —— 说清"可能哪儿出了问题 + 去哪查",否则用户只觉得"点了没反应"。
   React.useEffect(() => {
     if (!preparing) return
     if (isRunning) { setPreparing(false); return }
-    const t = window.setTimeout(() => setPreparing(false), 30000)
+    const t = window.setTimeout(() => {
+      setPreparing(false)
+      toast.warning("模型迟迟没动静", {
+        description: "可能是 LLM 配置或后端没响应 —— 去检查模型配置,或到「系统」看运行日志。",
+        action: { label: "去配模型", onClick: () => router.push("/llm") },
+      })
+    }, 30000)
     return () => window.clearTimeout(t)
-  }, [preparing, isRunning])
+  }, [preparing, isRunning, router])
 
   const onContinue = async () => {
     if (!bookId) return
@@ -357,9 +404,12 @@ export default function CjDashboard() {
       const n = res.approved?.length ?? 0
       if (n > 0) {
         const rest = reviewCount - n
-        toast.success(`已批准 ${n} 章达标稿`, {
-          description: rest > 0 ? `还有 ${rest} 章没到 ${targetQuality} 分门槛,复修达标后再批准。` : "本批待审章已全部达标并批准。",
-        })
+        // 过审是收获感最强的动作 —— 庆祝交给 CelebrationBurst(approve 档);
+        // toast 只在还有未达标章时补一句"接下来怎么办",避免与庆祝卡信息重复。
+        setCelebrate((c) => ({ sig: c.sig + 1, tone: "approve", note: `${n} 章正式定稿` }))
+        if (rest > 0) {
+          toast.info(`还有 ${rest} 章没到 ${targetQuality} 分门槛`, { description: "复修达标后再来批准。" })
+        }
       } else {
         toast.info("暂无达标章可批准", { description: `待审章都还没到 ${targetQuality} 分门槛,先点「修复本章」复修再批准。` })
       }
@@ -384,7 +434,7 @@ export default function CjDashboard() {
       setPreparing(true)
       toast.success(unattended ? `已开始无人值守连写 ${batchN} 章` : `已开始连续写 ${batchN} 章`, {
         description: unattended
-          ? `无人值守:每章先自动复修,修不到 ${targetQuality} 分也先接受、继续往下写(标记为待重修),全程不停。挂机即可,事后再批量重修。`
+          ? `无人值守:每章先自动复修,修不到 ${targetQuality} 分也先接受、继续往下写(标记为待重修),全程不停。挂机即可,写完到「一致性扫描」一键批量重修。`
           : `每章按 ${targetQuality} 分把关:达不到先自动复修,修不到就停在那一章,绝不硬往下写。`,
       })
       run.refresh()
@@ -477,6 +527,26 @@ export default function CjDashboard() {
   const chapterPct = targetWords ? Math.min(100, Math.round((chapterWords / targetWords) * 100)) : 0
   const planned = active?.plannedChapters || active?.chapterCount || 0
   const bookPct = planned ? Math.round((curChapter / planned) * 100) : (active?.currentChapterPct ?? 0)
+  // 实时数字滚动:字数/进度这些核心数字从旧值缓动到新值,流式期间不再生硬瞬移(reduced-motion 直接跳)
+  const totalWordsEased = useEasedNumber(typeof active?.totalWords === "number" ? active.totalWords : 0)
+  const chapterWordsEased = useEasedNumber(chapterWords)
+  const liveWordsEased = useEasedNumber(live.active ? live.charCount : chapterWords)
+  const chapterPctEased = useEasedNumber(chapterPct)
+  // 完本时刻:同一本书的进度首次跨过 100% → finish 档庆祝。
+  // 只在 prev>0 且 <100 时触发一次(容忍轮询抖动);切书时重置,不把"切到一本已完本的书"误判成完本。
+  const prevBookPct = React.useRef<{ book: string | null; pct: number }>({ book: bookId ?? null, pct: bookPct })
+  React.useEffect(() => {
+    const prev = prevBookPct.current
+    if (prev.book === (bookId ?? null) && prev.pct > 0 && prev.pct < 100 && bookPct >= 100) {
+      setCelebrate((c) => ({
+        sig: c.sig + 1,
+        tone: "finish",
+        note: `全书 ${planned || curChapter} 章 · ${fmt(active?.totalWords)} 字`,
+      }))
+    }
+    prevBookPct.current = { book: bookId ?? null, pct: bookPct }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookPct, bookId])
   const confirmCopy = confirmAction
     ? dashboardWorkflowActionCopy({
         action: confirmAction,
@@ -554,7 +624,7 @@ export default function CjDashboard() {
             {curChapterRow?.title.zh ? ` · ${curChapterRow.title.zh}` : ""}
           </span>
           <span className="meta-cell">
-            累计 <strong className="num mv-words">{fmt(active?.totalWords)}</strong> 字
+            累计 <strong className="num mv-words">{typeof active?.totalWords === "number" ? fmt(totalWordsEased) : "—"}</strong> 字
           </span>
           <span className="meta-cell">
             进度 <strong className="num mv-prog">{bookPct}%</strong>
@@ -580,10 +650,11 @@ export default function CjDashboard() {
             </div>
             <span className="dq-sep" aria-hidden />
             <div className="dq-metrics">
-              <span className="dq-m">本章 <b className="num mm-brand">{fmt(chapterWords)}</b><span className="u">/ {fmt(targetWords)} 字</span></span>
-              <span className="dq-m">Token <b className="num">{fmt(quality?.tokens)}</b></span>
-              <span className="dq-m">速度 <b className="num">{quality?.speedWordsPerMinute ? Math.round(quality.speedWordsPerMinute) : "—"}</b><span className="u">字/分</span></span>
-              <span className="dq-m">采纳 <b className="num ok">{quality?.adopted ? fmt(Math.round(quality.adopted)) : "—"}</b><span className="u">字</span></span>
+              {/* 本章字数走缓动滚数;Token/速度/采纳这类小值用 num-tick(key 重挂):变化瞬间闪一下品牌紫再退回墨色 */}
+              <span className="dq-m">本章 <b className="num mm-brand">{fmt(chapterWordsEased)}</b><span className="u">/ {fmt(targetWords)} 字</span></span>
+              <span className="dq-m">Token <b key={`tk-${quality?.tokens ?? "—"}`} className="num num-tick">{fmt(quality?.tokens)}</b></span>
+              <span className="dq-m">速度 <b key={`sp-${quality?.speedWordsPerMinute ?? "—"}`} className="num num-tick">{quality?.speedWordsPerMinute ? Math.round(quality.speedWordsPerMinute) : "—"}</b><span className="u">字/分</span></span>
+              <span className="dq-m">采纳 <b key={`ad-${quality?.adopted ?? "—"}`} className="num ok num-tick">{quality?.adopted ? fmt(Math.round(quality.adopted)) : "—"}</b><span className="u">字</span></span>
             </div>
           </div>
         )}
@@ -605,8 +676,30 @@ export default function CjDashboard() {
 
       </header>
 
+      {/* 上次写作失败/中断:说清原因 + 给恢复入口(重试/去运行台),不再只留两个字「已清理」 */}
+      {showFailBanner && (
+        <div className="run-fail-banner" role="status">
+          <span className="rfb-ic" aria-hidden>!</span>
+          <span className="rfb-text">
+            <b>上次写作中断</b>
+            <span className="rfb-reason" title={run.lastError}>{(run.lastError ?? "").slice(0, 80)}</span>
+          </span>
+          <span className="rfb-actions">
+            <button
+              type="button"
+              className="rfb-btn primary"
+              onClick={() => { dismissLastError(); openWorkflowConfirm("continue") }}
+            >
+              重试续写
+            </button>
+            <Link href="/runs" className="rfb-btn">去运行台 →</Link>
+            <button type="button" className="rfb-btn ghost" onClick={dismissLastError}>知道了</button>
+          </span>
+        </div>
+      )}
+
       <WarmWhisper writing={isRunning} />
-      <CelebrationBurst signal={celebrateSig} />
+      <CelebrationBurst signal={celebrate.sig} tone={celebrate.tone} note={celebrate.note} />
 
       {/* ── 主体:中央写作工作区 + 右侧 Inspector(滚动只在各自 pane 内)── */}
       <div className="cj-screen-body wb-body">
@@ -616,11 +709,13 @@ export default function CjDashboard() {
             <div className="writer-head">
               <span className={`writer-status${isRunning ? "" : " idle"}`}>
                 <span className="pulse" />
-                {isRunning ? "AI 写作中" : "等候继续"}
+                {live.reconnecting ? "连接中断 · 重连中…" : isRunning ? "AI 写作中" : "等候继续"}
               </span>
               <span className="writer-elapsed">
                 {isRunning && liveStage ? `阶段 · ${liveStage}` : `第 ${curChapter} 章 · ${curChapterRow?.title.zh ?? "未命名"}`}
               </span>
+              {/* 连续写批次进度:第几章/还剩几章/重写几轮/ETA + 按章刻度细进度条(数据与运行台同源) */}
+              {batchRun && <BatchProgress run={batchRun} />}
               <div className="writer-actions">
                 <div className="write-mode-seg" role="group" aria-label="写作强度档位">
                   {(([["light", "轻"], ["standard", "中"], ["max", "重"]] as const)).map(([m, label]) => {
@@ -679,15 +774,31 @@ export default function CjDashboard() {
 
             <div className="writer-body cj-pane-scroll" ref={streamRef}>
               {live.active && live.text ? (
-                <p className="live-stream">{renderProse(typed, proseDict)}<span className="dash-caret" aria-hidden /></p>
+                <>
+                  {/* 流式按空行分段渲染(与定稿同构),已完成段 memo 冻结,每 tick 只重分词尾段 */}
+                  <StreamingProse text={typed} dict={proseDict} caret={<span className="dash-caret" aria-hidden />} />
+                  <StreamFollowChip show={!stick.following} onJump={stick.jumpToBottom} />
+                </>
               ) : manuscript?.paragraphs?.length ? (
-                manuscript.paragraphs.slice(0, 9).map((p, i) =>
-                  p.quote ? (
-                    <p key={i}><span className="accent">{renderProse(p.zh, proseDict, `q${i}-`, goEntity)}</span></p>
-                  ) : (
-                    <p key={i}>{renderProse(p.zh, proseDict, `p${i}-`, goEntity)}</p>
-                  ),
-                )
+                <>
+                  {manuscript.paragraphs.slice(0, PREVIEW_PARAGRAPHS).map((p, i) =>
+                    p.quote ? (
+                      <p key={i}><span className="accent">{renderProse(p.zh, proseDict, `q${i}-`, goEntity)}</span></p>
+                    ) : (
+                      <p key={i}>{renderProse(p.zh, proseDict, `p${i}-`, goEntity)}</p>
+                    ),
+                  )}
+                  {/* 截断必须明示:眼睛读到这里时就地给出口,不让"100% 进度 + 戛然而止的正文"互相打架 */}
+                  {manuscript.paragraphs.length > PREVIEW_PARAGRAPHS && (
+                    <div className="writer-more">
+                      <span className="wm-text">
+                        …后面还有 {manuscript.paragraphs.length - PREVIEW_PARAGRAPHS} 段(全章 {fmt(chapterWords)} 字)
+                      </span>
+                      <Link href={`/editor?chapter=${curChapter}`} className="wm-link">展开编辑器读全文</Link>
+                      <Link href={immersiveHref} className="wm-link">全屏沉浸</Link>
+                    </div>
+                  )}
+                </>
               ) : (
                 <p className="writer-empty">本章还是一张白纸。点「继续创作」就让写手接着上一章往下写。</p>
               )}
@@ -698,9 +809,9 @@ export default function CjDashboard() {
               <div className="writer-foot-row writer-foot-progress">
                 <span className="writer-foot-label">本章</span>
                 <div className="pbar"><i style={{ width: `${chapterPct}%` }} /></div>
-                <span className="num">{chapterPct}%</span>
+                <span className="num">{chapterPctEased}%</span>
                 <span className="writer-foot-words">
-                  <span className="delta">{fmt(live.active ? live.charCount : chapterWords)}</span>
+                  <span className="delta">{fmt(liveWordsEased)}</span>
                   <span className="muted-slash">/</span>
                   {fmt(targetWords)}
                   <span className="muted-slash">字</span>
@@ -767,7 +878,7 @@ export default function CjDashboard() {
                 </label>
                 <span className={`writer-batch-state${isRunning ? " is-running" : run.lastError ? " is-error" : " is-idle"}`}>
                   <span className="dot" aria-hidden />
-                  {isRunning ? "运行中" : run.lastError ? "已清理" : "待命"}
+                  {isRunning ? "运行中" : run.lastError ? "上次中断" : "待命"}
                 </span>
                 <button
                   type="button"

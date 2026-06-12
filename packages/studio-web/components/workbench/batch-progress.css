@@ -1,0 +1,37 @@
+/* 连续写批次微进度 —— 写作器头部的「还剩多少 / 卡没卡」安心感信息条 */
+.batch-progress {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--ink-600);
+}
+.batch-progress .bp-chip {
+  display: inline-flex; align-items: baseline; gap: 3px;
+  white-space: nowrap;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--brand-50);
+  border: 1px solid var(--brand-200);
+  color: var(--brand-700);
+  font-weight: 600;
+}
+.batch-progress .bp-chip .num { font-family: var(--font-num); font-weight: 800; font-variant-numeric: tabular-nums; }
+.batch-progress .bp-dim { color: var(--ink-500); font-weight: 500; }
+.batch-progress .bp-rewrite { color: var(--warn-600, var(--warn-500)); font-weight: 700; }
+/* 按章打刻度的细进度条:刻度线用纸色断开,一格 = 一章 */
+.batch-progress .bp-bar {
+  position: relative;
+  flex: 0 1 120px; min-width: 56px; height: 4px;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+.batch-progress .bp-bar > i {
+  display: block; height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--brand-500), #9D8AFF);
+  transition: width .5s var(--ease-soft, ease);
+}
+.batch-progress .bp-bar > em { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--bg-card); }
+.batch-progress .bp-link { white-space: nowrap; color: var(--brand-600); text-decoration: none; font-weight: 600; }
+.batch-progress .bp-link:hover { text-decoration: underline; }

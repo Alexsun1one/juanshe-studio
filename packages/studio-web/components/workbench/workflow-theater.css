@@ -101,6 +101,8 @@
 .theater-stat-k { font-size: 10px; color: #6A6A85; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 .theater-stat-v { font-size: 16px; color: var(--ink-900, #ECE3D2); font-weight: 700; line-height: 1.1; margin-top: 2px; }
 .theater-stat-v small { font-size: 10px; color: #8A8AA8; font-weight: 400; margin-left: 2px; }
+/* 本批 X/N 章:批次维度用品牌紫点出来,与耗时/字数的中性数字区分(数据与 /runs RunCard 同源) */
+.theater-stat-batch .theater-stat-v { color: var(--brand-300, #B9A8FF); }
 
 .theater-icon-btn {
   width: 32px; height: 32px;
@@ -818,6 +820,7 @@
 :where(html:not(.dark)) .theater-stat-k { color: var(--ink-400, #9B8E77); }
 :where(html:not(.dark)) .theater-stat-v { color: var(--ink-900, #3B2E1B); }
 :where(html:not(.dark)) .theater-stat-v small { color: var(--ink-400, #9B8E77); }
+:where(html:not(.dark)) .theater-stat-batch .theater-stat-v { color: var(--brand-600, #5B47E0); }
 :where(html:not(.dark)) .theater-icon-btn {
   background: var(--bg-sunken, rgba(31, 36, 51, 0.04));
   border-color: var(--line-1, rgba(31, 36, 51, 0.08));

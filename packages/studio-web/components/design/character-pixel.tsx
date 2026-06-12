@@ -13,7 +13,7 @@ import * as React from "react"
 
 const SKIN = "#F5D3A8"
 const BLUSH = "#F3A8A0"
-const INK = "#1A1F2E"
+const INK = "#2B2620"   // = design.css --pixel-ink 暖棕墨
 
 export function CharacterPixel({
   color,

@@ -22,11 +22,11 @@ type Rect = [x: number, y: number, w: number, h: number, color?: string]
 
 const SKIN = "#f5d3a8"
 const BLUSH = "#f3a8a0"
-const INK = "#1a1f2e"
+const INK = "#2B2620"   // = design.css --pixel-ink 暖棕墨
 const WHITE = "#ffffff"
 const GOLD = "#FFC658"
 const RED = "#E04848"
-const STEEL = "#5C6478"
+const STEEL = "#6B6258"  // 暖钢灰,替掉冷钢 #5C6478
 const GREEN = "#2BB97A"
 const PAPER = "#FFFAF0"
 

@@ -25,6 +25,14 @@ const FONT_STYLESHEETS = [
   "/fonts/pixel/index.css",
 ] as const
 
+// 缝合像素是全站 UI 默认字体(design.css .app),但它是 602KB 单体 woff2、未按
+// unicode-range 切片:不 preload 就得等 CSS 下载解析后才排队,首访整页先 PingFang
+// 再翻转像素。preload 让它与样式表并行下载,压缩 swap 跳变窗口。
+// URL 必须与 fusion-pixel/index.css 的 src 逐字一致,否则缓存 key 不同会白下载两份;
+// crossOrigin 必填——字体一律按 CORS 匿名模式拉取,缺了 preload 不会被复用。
+const PIXEL_FONT_PRELOAD_HREF =
+  "/fonts/fusion-pixel/files/fusion-pixel-12px-proportional-sc-latin-400-normal.woff2"
+
 const enableVercelAnalytics =
   process.env.NODE_ENV === "production" &&
   process.env.NEXT_PUBLIC_VERCEL_ANALYTICS === "1"
@@ -57,6 +65,13 @@ export default function RootLayout({
         {/* 主题色防闪:beforeInteractive 在页面交互前加载执行,把 localStorage 选的主题色
             写到 <html data-cj-theme>,避免首屏柔紫闪变。脚本是 public/cj-theme-init.js 静态文件。 */}
         <Script src="/cj-theme-init.js" strategy="beforeInteractive" />
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+          href={PIXEL_FONT_PRELOAD_HREF}
+        />
         {FONT_STYLESHEETS.map((href) => (
           <link key={href} rel="stylesheet" href={href} precedence="default" />
         ))}

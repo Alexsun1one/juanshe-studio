@@ -124,14 +124,35 @@
 .cj-settings .tc:hover { border-color: var(--brand-300); }
 .cj-settings .tc.sel { border-color: var(--brand-500); box-shadow: 0 0 0 3px var(--brand-50); }
 .cj-settings .tc:focus-visible { outline: none; box-shadow: var(--ring); }
-.cj-settings .tc .prev { height: 60px; display: flex; }
+.cj-settings .tc .prev { height: 60px; display: flex; position: relative; }
 .cj-settings .tc .prev .a { width: 30%; } .cj-settings .tc .prev .b { flex: 1; }
+/* 假顶栏:6px 色条让样片读起来像界面缩略图,而不是两块色板 */
+.cj-settings .tc .prev::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 6px; }
 /* 主题预览色板:刻意硬编码、不走主题变量 —— 这是主题选择器的「样品」,
-   浅色卡永远展示浅色调、深色卡永远展示深色调,与当前主题无关(同数据可视化语义色,属规则允许的例外)。 */
-.cj-settings .tc.light .a { background: #EEE9FF; } .cj-settings .tc.light .b { background: #F7F7FB; }
-.cj-settings .tc.dark .a { background: #1A1A26; } .cj-settings .tc.dark .b { background: #0F0F18; }
-.cj-settings .tc.system .a { background: linear-gradient(135deg,#EEE9FF 50%,#1A1A26 50%); } .cj-settings .tc.system .b { background: linear-gradient(135deg,#F7F7FB 50%,#0F0F18 50%); }
+   浅色卡永远展示浅色调、深色卡永远展示深色调,与当前主题无关(同数据可视化语义色,属规则允许的例外)。
+   但样品必须是「真值」:色值为 design.css token 快照(浅=暖纸 --bg-app/--brand-50,
+   深=深堇紫 --bg-app/--bg-card,顶栏=--bg-card/--bg-hover);token 调整时此处同步,别再画回冷紫白/近黑。 */
+.cj-settings .tc.light .a { background: #F0EDFF; } .cj-settings .tc.light .b { background: #F6F2EB; }
+.cj-settings .tc.light .prev::before { background: #FFFEFB; box-shadow: 0 1px 0 #ECE3D4; }
+.cj-settings .tc.dark .a { background: #2E2942; } .cj-settings .tc.dark .b { background: #1F1A2C; }
+.cj-settings .tc.dark .prev::before { background: #363050; }
+/* 跟随系统:浅 / 深柔和对分(左暖纸、右深堇紫,中缝 1px),不再用对角硬渐变切三角 */
+.cj-settings .tc.system .a { width: 50%; background: #F6F2EB; }
+.cj-settings .tc.system .b { background: #1F1A2C; border-left: 1px solid #4A4161; }
+.cj-settings .tc.system .prev::before { background: linear-gradient(90deg, #FFFEFB 0 50%, #363050 50% 100%); }
 .cj-settings .tc .tl { padding: 8px 12px; font-size: 12.5px; font-weight: 600; color: var(--ink-800); display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line-1); }
+
+/* 通知权限提示:浏览器拦截系统通知时的像素小字,挂在三开关下方 */
+.cj-settings .notify-perm-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--warn-600, var(--warn-500));
+}
+.cj-settings .notify-perm-tip > svg { flex: 0 0 auto; }
 
 /* 危险区 */
 .cj-settings .danger-zone { border: 1px solid color-mix(in srgb, var(--err-500) 18%, transparent); border-radius: var(--r-lg); background: var(--err-50); padding: 4px 16px; }

@@ -140,9 +140,25 @@
 
 /* 成品 / 章节列表(轻量行,仅整行一框) */
 .cj-library .lib-list { display: flex; flex-direction: column; gap: 8px; }
-.cj-library .lib-row { border: 1px solid var(--line-1); border-radius: var(--r-lg); background: var(--bg-card); transition: border-color var(--motion-fast) var(--ease-soft), box-shadow var(--motion-fast) var(--ease-soft); text-decoration: none; }
+.cj-library .lib-row { border: 1px solid var(--line-1); border-radius: var(--r-lg); background: var(--bg-card); transition: border-color var(--motion-fast) var(--ease-soft), box-shadow var(--motion-fast) var(--ease-soft); text-decoration: none; animation: cj-fade-in var(--motion-base, .24s) var(--ease-soft, ease) both; }
 .cj-library .lib-row:hover { border-color: var(--brand-300); box-shadow: var(--sh-1); }
 .cj-library .lib-row.open { border-color: var(--brand-300); }
+/* 连写中刚完稿的章:浮现时带一层柔紫暖光再缓缓褪回纸色(配「新」标记,挂机回来一眼认出刚出炉的) */
+@keyframes lib-row-new { from { background: var(--brand-50); border-color: var(--brand-300); } }
+.cj-library .lib-row.is-new { animation: cj-fade-in var(--motion-base, .24s) var(--ease-soft, ease) both, lib-row-new 1.6s var(--ease-soft, ease) both; }
+.cj-library .lib-new-tag {
+  display: inline-flex; align-items: center;
+  margin-left: 6px; padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px; font-weight: 700; line-height: 1.4;
+  color: var(--brand-600); background: var(--brand-50);
+  border: 1px solid var(--brand-200);
+  vertical-align: 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cj-library .lib-row,
+  .cj-library .lib-row.is-new { animation: none; }
+}
 .cj-library .lib-row-line { display: flex; align-items: center; gap: 4px; }
 .cj-library .lib-row-main { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 16px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .cj-library .lib-row-main:focus-visible { outline: none; box-shadow: var(--ring); }

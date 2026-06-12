@@ -510,7 +510,7 @@ export default function LLMConfigPage() {
                     <div className="llm-auto-summary" title={`服务地址 ${baseUrl}`}>
                       模型 <b>{model}</b>
                       <span className="llm-auto-url">{baseUrl}</span>
-                      <span className="llm-auto-tip">需自定义地址/模型?选上方「自定义」</span>
+                      <span className="llm-auto-tip">需自定义地址/模型?选上方<b>「自定义」</b></span>
                     </div>
                   </div>
                 )}

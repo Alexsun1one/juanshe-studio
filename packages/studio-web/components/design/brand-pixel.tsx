@@ -11,7 +11,7 @@
 
 import * as React from "react"
 
-const INK = "#1A1F2E"
+const INK = "#2B2620"       // = design.css --pixel-ink 暖棕墨(SVG 字面量吃不到 var,改值两边同步)
 const BOOK_HI = "#9D8AFF"   // 顶层书:亮紫
 const BOOK_MD = "#6E5BFA"   // 中层书:品牌紫
 const BOOK_LO = "#4A38C7"   // 底层书:深紫

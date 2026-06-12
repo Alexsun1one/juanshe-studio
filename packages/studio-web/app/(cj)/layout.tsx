@@ -1,5 +1,6 @@
 import { CjShell } from "@/components/design/cj-shell"
 import { ActivationGate } from "@/components/auth/activation-gate"
+import { RunNotificationsBridge } from "@/lib/use-run-notifications"
 
 /**
  * 设计外壳路由组 (cj) — Claude Design 全量对接的新前端。
@@ -9,6 +10,7 @@ import { ActivationGate } from "@/components/auth/activation-gate"
 export default function CjLayout({ children }: { children: React.ReactNode }) {
   return (
     <ActivationGate>
+      <RunNotificationsBridge />
       <CjShell>{children}</CjShell>
     </ActivationGate>
   )

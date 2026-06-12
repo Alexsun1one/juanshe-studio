@@ -24,6 +24,12 @@ import {
 } from "@/lib/api/client"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
@@ -134,8 +140,9 @@ export function BooksTab() {
     }
   }
 
-  function handleExport(book: (typeof books)[number]) {
-    window.open(bookExportUrl(book.id, "txt"), "_blank", "noopener,noreferrer")
+  // 与作品库页同一约定:TXT=纯文本(粘发布后台),MD=保留章题层级;清洗在后端 buildExportArtifact
+  function handleExport(book: (typeof books)[number], format: "txt" | "md") {
+    window.open(bookExportUrl(book.id, format), "_blank", "noopener,noreferrer")
   }
 
   return (
@@ -396,16 +403,27 @@ export function BooksTab() {
                     {lang === "en" ? "Activate" : "切换为当前"}
                   </Button>
                 )}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => handleExport(b)}
-                  className="size-7"
-                  title={lang === "en" ? "Export TXT" : "导出 TXT"}
-                  aria-label={lang === "en" ? "Export TXT" : "导出 TXT"}
-                >
-                  <Download className="size-3.5" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7"
+                      title={lang === "en" ? "Export" : "导出全本"}
+                      aria-label={lang === "en" ? "Export" : "导出全本"}
+                    >
+                      <Download className="size-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => handleExport(b, "txt")}>
+                      {lang === "en" ? "TXT (plain text)" : "TXT · 纯文本"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleExport(b, "md")}>
+                      {lang === "en" ? "Markdown" : "Markdown · 带章节标记"}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Link
                   href="/"
                   className="text-muted-foreground hover:text-foreground inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px]"

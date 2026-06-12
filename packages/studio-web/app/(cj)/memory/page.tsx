@@ -17,7 +17,7 @@ import {
 import { fetchMemory, fetchOutline, fetchPlotProgress } from "@/lib/api/client"
 import type { MemoryItem } from "@/lib/studio-data"
 import { useWorkspace } from "@/lib/workspace-context"
-import { CjPlaceholder, EmptyArt } from "@/components/design/cj-placeholder"
+import { CjPlaceholder, EmptyArt, MiniEmpty } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
@@ -440,7 +440,7 @@ export default function MemoryPage() {
                   })}
                 </div>
               ) : (
-                <div className="empty" style={{ padding: "16px 8px" }}>暂无记忆条目</div>
+                <MiniEmpty icon="manuscript-stack">记忆抽屉还空着,开笔后会按类型慢慢攒满</MiniEmpty>
               )}
             </FoldCard>
 
@@ -474,7 +474,7 @@ export default function MemoryPage() {
                   })}
                 </div>
               ) : (
-                <div className="empty" style={{ padding: "16px 8px" }}>暂无里程碑</div>
+                <MiniEmpty icon="stamp-seal">里程碑还空着,写到关键章会自动立起来</MiniEmpty>
               )}
             </FoldCard>
 
@@ -503,7 +503,7 @@ export default function MemoryPage() {
                   })}
                 </div>
               ) : (
-                <div className="empty" style={{ padding: "16px 8px" }}>开始写作后,记忆会按章沉淀到这里</div>
+                <MiniEmpty icon="ink-quill">最新记忆会按章沉淀到这里,等首章落笔</MiniEmpty>
               )}
             </FoldCard>
           </div>
