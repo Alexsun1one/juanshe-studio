@@ -11,7 +11,7 @@ import "./vip-upgrade-dialog.css"
 type Tier = "normal" | "pro" | "ultra"
 
 const TIERS: ReadonlyArray<{ id: Tier; name: string; mode: string; tagline: string; perks: string[] }> = [
-  { id: "normal", name: "普通会员", mode: "轻", tagline: "最省 token,够用顺手", perks: ["「轻」档写作", "规划 → 写手 → 审稿", "全部基础功能"] },
+  { id: "normal", name: "普通会员", mode: "轻", tagline: "免激活码,进站就能写", perks: ["「轻」档写作", "规划 → 写手 → 审稿", "全部基础功能"] },
   { id: "pro", name: "Pro 会员", mode: "中", tagline: "加一轮复修 + 润色,质量更稳", perks: ["解锁「中」档", "复修 + 润色", "更高质量门槛"] },
   { id: "ultra", name: "Ultra 会员", mode: "重", tagline: "全流程精修,最高质量", perks: ["解锁「重」档", "全流程复修", "读者 + 风格评审", "去 AI 味"] },
 ]
@@ -30,7 +30,8 @@ export function VipUpgradeDialog({
         <DialogHeader>
           <DialogTitle className="vip-title"><Crown size={17} /> 成为 VIP，解锁更强的编辑部</DialogTitle>
           <DialogDescription>
-            写作强度档位「轻 / 中 / 重」由会员等级决定。等级编进激活码——<b>升级 = 用更高等级的激活码进站</b>。
+            不需要激活码也能写书——普通会员免码进站,「轻」档够用顺手。
+            想要更强的编辑部?「中 / 重」档由 Pro / Ultra 激活码解锁——<b>升级 = 用更高等级的激活码进站</b>。
           </DialogDescription>
         </DialogHeader>
 
@@ -60,8 +61,8 @@ export function VipUpgradeDialog({
         <div className="vip-how">
           <span className="vip-how-h"><Sparkles size={13} /> 怎么成为 VIP?</span>
           <p>
-            关注公众号<b>「正在逐渐AI化」</b>回复<b>「领码」</b>领取,或用已购的 Pro / Ultra 激活码——
-            点下面切换激活码、重新进站即生效。
+            关注公众号<b>「正在逐渐AI化」</b>回复<b>「领码」</b>领 <b>Pro 体验码</b>;
+            或用已购的 Pro / Ultra 激活码——点下面输入激活码、重新进站即生效。
           </p>
         </div>
 

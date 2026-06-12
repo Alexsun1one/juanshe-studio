@@ -577,6 +577,31 @@ describe("createStudioServer daemon lifecycle", () => {
     });
   });
 
+  it("allows free entry when activation is configured but not explicitly required", async () => {
+    // 2026-06-12 产品决策:配置密钥(可校验升级码)≠ 硬卡;免码可进站写书(普通会员轻档)。
+    const prevRequired = process.env.HARDWRITE_ACTIVATION_REQUIRED;
+    const prevSecret = process.env.HARDWRITE_ACTIVATION_SECRET;
+    delete process.env.HARDWRITE_ACTIVATION_REQUIRED;
+    process.env.HARDWRITE_ACTIVATION_SECRET = "test-secret-for-upgrade-codes";
+    try {
+      const { createStudioServer } = await import("./server.js");
+      const app = createStudioServer(cloneProjectConfig() as never, root);
+
+      const open = await app.request("http://localhost/api/v1/doctor");
+      expect(open.status).not.toBe(403);
+
+      const activation = await app.request("http://localhost/api/v1/auth/activation");
+      const state = (await activation.json()) as { required: boolean; configured: boolean };
+      expect(state.required).toBe(false);
+      expect(state.configured).toBe(true);
+    } finally {
+      if (prevRequired === undefined) delete process.env.HARDWRITE_ACTIVATION_REQUIRED;
+      else process.env.HARDWRITE_ACTIVATION_REQUIRED = prevRequired;
+      if (prevSecret === undefined) delete process.env.HARDWRITE_ACTIVATION_SECRET;
+      else process.env.HARDWRITE_ACTIVATION_SECRET = prevSecret;
+    }
+  });
+
   it("keeps /healthz available when activation is required", async () => {
     const previousRequired = process.env.HARDWRITE_ACTIVATION_REQUIRED;
     process.env.HARDWRITE_ACTIVATION_REQUIRED = "1";

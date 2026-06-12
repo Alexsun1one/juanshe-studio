@@ -130,7 +130,8 @@ function spawnBackends() {
         JUANSHE_WORKSPACE: workspace,
         HARDWRITE_STUDIO_PORT: String(API_PORT),
         HARDWRITE_PROJECT_ROOT: workspace,
-        HARDWRITE_ACTIVATION_REQUIRED: activationExplicitlyDisabled ? "0" : process.env.HARDWRITE_ACTIVATION_REQUIRED || "1",
+        // 2026-06-12 起默认免码进站(普通会员/轻档),激活码只解锁 Pro/Ultra;发行方仍可设 REQUIRED=1 恢复整站硬卡。
+        HARDWRITE_ACTIVATION_REQUIRED: activationExplicitlyDisabled ? "0" : process.env.HARDWRITE_ACTIVATION_REQUIRED || "0",
         HARDWRITE_ACTIVATION_VERIFY_URL: activationVerifyUrl,
       },
       serviceName: "Juanshe Studio API",

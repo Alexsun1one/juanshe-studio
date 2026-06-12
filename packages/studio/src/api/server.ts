@@ -917,11 +917,23 @@ function activationCodesFromEnv() {
         .map(normalizeActivationCode)
         .filter(Boolean);
 }
-function activationRequired() {
-    return process.env.HARDWRITE_ACTIVATION_REQUIRED === "1"
-        || Boolean(process.env.HARDWRITE_ACTIVATION_VERIFY_URL)
+// 配置了任一激活校验源(verify URL / HMAC secret / 名单)= 本机能校验升级码。
+// 注意:这不再等于"必须有码才能进站"。
+function activationConfigured() {
+    return Boolean(process.env.HARDWRITE_ACTIVATION_VERIFY_URL)
         || Boolean(process.env.HARDWRITE_ACTIVATION_SECRET)
         || activationCodesFromEnv().length > 0;
+}
+// 2026-06-12 产品决策:免码可进站、可写书(普通会员=轻档),激活码只解锁 Pro/Ultra。
+// 仅显式 HARDWRITE_ACTIVATION_REQUIRED=1 才整站硬卡(留给特殊分发场景),
+// 配置密钥/校验源(activationConfigured)只代表"可校验升级码",不再触发硬卡。
+function activationRequired() {
+    return process.env.HARDWRITE_ACTIVATION_REQUIRED === "1";
+}
+// 普通会员(商业安装已配激活校验、但本机未解锁任何码)默认写作档位 = 轻;
+// 纯自部署(未配置激活)不限档,维持开源既有行为(默认 max)。
+function freeTierWriteMode(activation) {
+    return activationConfigured() && !activation?.unlocked ? "light" : undefined;
 }
 async function loadActivation(root) {
     try {
@@ -8997,8 +9009,9 @@ export function createStudioServer(initialConfig, root) {
     }
     app.use("/*", cors());
     // ── 激活强制门(后端强制,不再只靠前端 localStorage)──────────────────────
-    // 仅当卖方配置了激活(verify URL / secret / 名单 / HARDWRITE_ACTIVATION_REQUIRED)时生效;
-    // 未配置 = 单机直通,绝不把开发者/试用者锁在门外。放行 /auth/* 与 OPTIONS,其余未解锁一律 403。
+    // 仅在显式 HARDWRITE_ACTIVATION_REQUIRED=1 时生效(特殊分发场景的整站硬卡);
+    // 常规商业包/自部署 = 免码直通进站写书(普通会员轻档),激活码只解锁 Pro/Ultra。
+    // 放行 /auth/* 与 OPTIONS,其余未解锁一律 403。
     app.use("/*", async (c, next) => {
         if (c.req.method === "OPTIONS" || !activationRequired()) {
             await next();
@@ -9159,6 +9172,7 @@ export function createStudioServer(initialConfig, root) {
         const expired = activation?.expiresAt ? Date.parse(activation.expiresAt) < Date.now() : false;
         return c.json({
             required: activationRequired(),
+            configured: activationConfigured(),
             unlocked: Boolean(activation?.unlocked) && !expired,
             expired,
             authorName: activation?.authorName ?? null,
@@ -13129,7 +13143,7 @@ export function createStudioServer(initialConfig, root) {
         const requestedWordCount = Number(body.wordCount) || undefined;
         // 轻中重档位:读 body.mode + 当前激活等级(②)→ 限档(未指定 mode = 既有 max 行为)
         const _activationForMode = await loadActivation(root).catch(() => null);
-        const writeIntensity = resolveWriteIntensity(body.mode, _activationForMode?.tier);
+        const writeIntensity = resolveWriteIntensity(body.mode || freeTierWriteMode(_activationForMode), _activationForMode?.tier);
         const autoRepair = body.autoRepair !== false;
         if (body.ignoreFoundationGate !== true) {
             const foundation = await inspectBookFoundationForWriting(state, id);
@@ -13275,7 +13289,7 @@ export function createStudioServer(initialConfig, root) {
         const autoRepair = body.autoRepair !== false;
         // 轻中重档位:连续写也读 body.mode + 激活等级 → 限档(与单章 write-next 一致;未指定 mode = 既有 max 行为)
         const _activationForBatch = await loadActivation(root).catch(() => null);
-        const batchWriteIntensity = resolveWriteIntensity(body.mode, _activationForBatch?.tier);
+        const batchWriteIntensity = resolveWriteIntensity(body.mode || freeTierWriteMode(_activationForBatch), _activationForBatch?.tier);
         if (body.ignoreExistingQualityGate !== true && !livestream) {
             const qualityBlocker = await findExistingQualityGateBlocker(id, targetScore);
             if (qualityBlocker) {

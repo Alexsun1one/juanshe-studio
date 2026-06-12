@@ -242,7 +242,7 @@ export default function LoginPage() {
             <span className="hint">
               {activationRequired
                 ? `没有激活码?关注公众号「${WECHAT_NAME}」回复「${WECHAT_KEYWORD}」领取。`
-                : "自助部署免激活码 —— 留空直接「进入」即可;有激活码可解锁 Pro / Ultra。"}
+                : "免激活码 = 普通会员直接进站,轻档写作;填 Pro / Ultra 码解锁更强编辑部。"}
             </span>
           </label>
 
@@ -262,7 +262,7 @@ export default function LoginPage() {
 
           {!code.trim() && (
             <div className="code-claim">
-              <span className="cc-title">{activationRequired ? "还没有激活码?" : "自助部署免激活 · 也欢迎关注公众号"}</span>
+              <span className="cc-title">{activationRequired ? "还没有激活码?" : "免码即可开写 · 关注公众号领 Pro 体验码"}</span>
               {!qrError ? (
                 // eslint-disable-next-line @next/next/no-img-element -- 公众号横条是用户自备静态素材,无需 next/image 优化
                 <img
