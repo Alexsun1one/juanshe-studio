@@ -121,9 +121,10 @@
   /* —— 像素体(Zpix「最像素」自托管):仅用于刻意像素点缀(品牌字标 .brand-name / .font-pixel / .pixel-badge);
      正文 / UI / 标题 / 数字 / 导航一律用清晰 sans(点阵体放大即糊,不再全局铺开)。见 design.css 的 .app 字体策略。 —— */
   --font-pixel: 'Zpix', var(--font-sans-ui);
-  /* —— UI 像素体(缝合像素 12px 简体,比 Zpix 更清晰易读):用于导航/卡标题/徽章/标签等 UI 短文本,
-     增加可爱温暖感又看得清。正文长文仍用宋体。在 12/24px 原生尺寸最锐。 —— */
-  --font-pixel-ui: 'Fusion Pixel 12px Proportional SC', var(--font-sans-ui); /* pixel-ui */
+  /* —— UI 像素体(上游=缝合像素 12px 简体,比 Zpix 更清晰易读):用于导航/卡标题/徽章/标签等 UI 短文本,
+     增加可爱温暖感又看得清。正文长文仍用宋体。在 12/24px 原生尺寸最锐。
+     family 名:切片版按 OFL RFN 要求改名(见 fonts/fusion-pixel/index.css 头注释),须与其逐字一致。 —— */
+  --font-pixel-ui: 'Juanshe Pixel 12px SC', var(--font-sans-ui); /* pixel-ui */
 
   /* —— 侧边栏 —— */
   --sidebar: #FBF7EF;

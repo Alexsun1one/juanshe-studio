@@ -25,13 +25,15 @@ const FONT_STYLESHEETS = [
   "/fonts/pixel/index.css",
 ] as const
 
-// 缝合像素是全站 UI 默认字体(design.css .app),但它是 602KB 单体 woff2、未按
-// unicode-range 切片:不 preload 就得等 CSS 下载解析后才排队,首访整页先 PingFang
-// 再翻转像素。preload 让它与样式表并行下载,压缩 swap 跳变窗口。
-// URL 必须与 fusion-pixel/index.css 的 src 逐字一致,否则缓存 key 不同会白下载两份;
+// 像素体是全站 UI 默认字体(design.css .app),已按 unicode-range 切两片
+// (scripts/subset-pixel-font.py 生成;family 因 OFL RFN 改名 'Juanshe Pixel 12px SC'):
+// slice1 ≈ 128KB = ASCII + 标点/⌘ 符号 + GB2312 一级高频字,首屏 UI 基本全命中,
+// 只 preload 这一片让它与样式表并行下载,压缩 swap 跳变窗口;
+// slice2(二级/生僻字)由浏览器按 unicode-range 按需懒加载,不预载。
+// URL 必须与 fusion-pixel/index.css 的 slice1 src 逐字一致,否则缓存 key 不同会白下载两份;
 // crossOrigin 必填——字体一律按 CORS 匿名模式拉取,缺了 preload 不会被复用。
 const PIXEL_FONT_PRELOAD_HREF =
-  "/fonts/fusion-pixel/files/fusion-pixel-12px-proportional-sc-latin-400-normal.woff2"
+  "/fonts/fusion-pixel/files/juanshe-pixel-12px-sc-slice1-400-normal.woff2"
 
 const enableVercelAnalytics =
   process.env.NODE_ENV === "production" &&
