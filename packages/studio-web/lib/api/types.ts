@@ -129,6 +129,9 @@ export type BookUpdateInput = {
   targetChapters?: number
 }
 
+/** 全本导出格式(与后端 GET /export 白名单子集对齐):txt=纯文本 / md=带章题 / epub=电子书(二进制) */
+export type BookExportFormat = "txt" | "md" | "epub"
+
 export type BookCreateStatus = {
   status: "creating" | "created" | "needs-foundation" | "error" | "stalled" | string
   bookId: string
@@ -881,7 +884,7 @@ export const ENDPOINTS = {
     `/api/v1/books/${id}/foundation/validate`,
   bookAgentEvents: (id: string, limit = 80) =>
     `/api/v1/books/${id}/agent-events?limit=${encodeURIComponent(String(limit))}`,
-  bookExport: (id: string, format = "txt") =>
+  bookExport: (id: string, format: BookExportFormat = "txt") =>
     `/api/v1/books/${id}/export?format=${encodeURIComponent(format)}`,
   bookDescription: (id: string) => `/api/v1/books/${id}/description`,
   bookDetectChapter: (id: string, chapter: number) =>

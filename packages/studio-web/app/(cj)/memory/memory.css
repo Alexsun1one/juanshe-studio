@@ -81,6 +81,13 @@
 .cj-memory .lane-toggle .chip .num { color: var(--ink-400); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 .cj-memory .lane-toggle .chip.active .num { color: var(--brand-600); }
 
+/* 整页空态(未选书)的页头动作区:与 books 的 bk-head-cta 同位同构 */
+.cj-memory .mem-head-cta {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+}
+
 /* 一行 KPI:密集而不乱,横向铺满 */
 .cj-memory .mem-kpis {
   margin-top: 11px;
@@ -222,6 +229,21 @@
   max-width: 40ch;
   color: var(--ink-500);
   line-height: 1.7;
+}
+
+/* ── 整页空态(未选书)主体:像素剧场撑满可用宽高,核掉两侧/下方死白 ──
+   三个类并写是为了在特异性上稳压 design.css 的 `.app .cj-screen-body`(grid),改走 flex 居中。 */
+.cj-memory .cj-screen-body.mem-vacant-body {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 18px 24px 24px;
+}
+.cj-memory .mem-vacant-stage {
+  width: min(100%, 1040px);
+  flex: 1 0 auto;
+  margin: 0 auto;
+  justify-content: center;
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -368,6 +390,7 @@
   .cj-memory .mem-headline { flex-wrap: wrap; gap: 12px; }
   .cj-memory .mem-headline-text .page-sub { white-space: normal; }
   .cj-memory .mem-head-toggle { margin-left: 0; flex-wrap: wrap; }
+  .cj-memory .mem-head-cta { margin-left: 0; }
 }
 @media (max-width: 760px) {
   .cj-memory .mem-head { padding: 12px 14px; }
@@ -376,4 +399,5 @@
   .cj-memory .mem-mainpane-hint { display: none; }
   .cj-memory .scroll-canvas .mem-empty-dock { inset: 18px 12px 18px 150px; }
   .cj-memory .mem-empty-art { width: min(280px, 86%); height: 180px; }
+  .cj-memory .cj-screen-body.mem-vacant-body { padding: 14px; }
 }

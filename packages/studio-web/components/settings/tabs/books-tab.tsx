@@ -22,6 +22,7 @@ import {
   updateBook,
   waitForBookCreateStatus,
 } from "@/lib/api/client"
+import type { BookExportFormat } from "@/lib/api/types"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -140,8 +141,8 @@ export function BooksTab() {
     }
   }
 
-  // 与作品库页同一约定:TXT=纯文本(粘发布后台),MD=保留章题层级;清洗在后端 buildExportArtifact
-  function handleExport(book: (typeof books)[number], format: "txt" | "md") {
+  // 与作品库页同一约定:TXT=纯文本(粘发布后台),MD=保留章题层级,EPUB=电子书二进制;清洗在后端 buildExportArtifact
+  function handleExport(book: (typeof books)[number], format: BookExportFormat) {
     window.open(bookExportUrl(book.id, format), "_blank", "noopener,noreferrer")
   }
 
@@ -421,6 +422,9 @@ export function BooksTab() {
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => handleExport(b, "md")}>
                       {lang === "en" ? "Markdown" : "Markdown · 带章节标记"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleExport(b, "epub")}>
+                      {lang === "en" ? "EPUB (e-book)" : "EPUB · 电子书"}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

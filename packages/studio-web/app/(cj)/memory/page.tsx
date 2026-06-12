@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import useSWR from "swr"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   Globe2,
@@ -17,7 +18,7 @@ import {
 import { fetchMemory, fetchOutline, fetchPlotProgress } from "@/lib/api/client"
 import type { MemoryItem } from "@/lib/studio-data"
 import { useWorkspace } from "@/lib/workspace-context"
-import { CjPlaceholder, EmptyArt, MiniEmpty } from "@/components/design/cj-placeholder"
+import { EmptyArt, MiniEmpty } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
@@ -67,8 +68,49 @@ export default function MemoryPage() {
   // x 为 0–1 的水平比例(SVG 用 preserveAspectRatio=none 拉伸,按比例定位才不会错位)。
   const [spark, setSpark] = React.useState<{ x: number; title: string; sub: string } | null>(null)
 
+  // 整页空态(未选书):页头工作条与有数据态同构(像素徽章 + 标题 + 副标题 + KPI + 动作区),
+  // 主体沿用整页像素剧场,但撑满可用宽高 —— 不再是「一行小字 + 漂在死白里的空态卡」。
   if (!booksLoading && !bookId) {
-    return <CjPlaceholder title="记忆长卷" sub="本地工作区还没有作品,创建后这里会出现按章铺开的记忆泳道。" />
+    return (
+      <div className="cj-screen cj-memory">
+        <header className="cj-workhead mem-head">
+          <div className="mem-headline">
+            <PixelBadge kind="memory" size={44} className="mem-hero-pixel" ariaLabel="记忆长卷" />
+            <div className="mem-headline-text">
+              <div className="page-title-row">
+                <h1 className="page-title">记忆长卷</h1>
+              </div>
+              <div className="page-sub">
+                本地工作区还没有作品 —— 创建后,世界观锚点、长期记忆与当前焦点会按章铺成长卷。
+              </div>
+            </div>
+            <Link href="/books" className="btn primary mem-head-cta">
+              <span aria-hidden>+</span> 去创建第一部作品
+            </Link>
+          </div>
+          <div className="mem-kpis" role="group" aria-label="记忆概览">
+            <KpiChip label="记忆总数" value={0} unit="条" tone="neutral" hint="开笔后记忆会按章沉淀" />
+            <KpiChip label="长期记忆" value={0} unit="条" tone="neutral" />
+            <KpiChip label="世界观锚点" value={0} unit="条" tone="neutral" />
+            <KpiChip label="当前焦点" value={0} unit="条" tone="neutral" />
+            <KpiChip label="覆盖章数" value="—" tone="neutral" hint="创建作品后开始铺卷" />
+          </div>
+        </header>
+        <div className="cj-screen-body solo mem-vacant-body">
+          <div className="empty empty-lg editorial-empty mem-vacant-stage" data-empty-variant="memory">
+            <div className="empty-art">
+              <EmptyArt variant="memory" />
+            </div>
+            <div className="empty-title">记忆长卷还没铺开</div>
+            <div className="empty-desc">本地工作区还没有作品,创建后这里会出现按章铺开的记忆泳道。</div>
+            <div className="empty-actions">
+              <Link href="/books" className="btn primary">去创建第一部作品</Link>
+              <Link href="/" className="btn">返回工作台</Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // 加载骨架

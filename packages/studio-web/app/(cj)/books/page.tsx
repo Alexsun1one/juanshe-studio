@@ -40,7 +40,7 @@ import {
   validateBookFoundation,
   waitForBookCreateStatus,
 } from "@/lib/api/client"
-import type { BookSummary } from "@/lib/api/types"
+import type { BookExportFormat, BookSummary } from "@/lib/api/types"
 import { ENDPOINTS } from "@/lib/api/types"
 import { blockerLabels } from "@/lib/blocker-labels"
 import { useWorkspace } from "@/lib/workspace-context"
@@ -928,7 +928,7 @@ function RowActions({
   onFoundation: () => void
   onStop: () => void
   onRename: () => void
-  onExport: (format: "txt" | "md") => void
+  onExport: (format: BookExportFormat) => void
   onDelete: () => void
 }) {
   switch (meta.state) {
@@ -1006,7 +1006,8 @@ function RowActions({
             <Pencil size={14} />
           </IconAct>
           {/* 导出走后端 buildExportArtifact 清洗流(统一章题/剥 markdown/规整空行):
-              TXT=纯文本可直接粘发布后台,MD=保留「# 书名 + ## 章题」层级留档 */}
+              TXT=纯文本可直接粘发布后台,MD=保留「# 书名 + ## 章题」层级留档,
+              EPUB=电子书(二进制,Content-Disposition 直下载,链路与文本格式一致) */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -1025,6 +1026,9 @@ function RowActions({
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => onExport("md")}>
                 Markdown · 带章节标记
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onExport("epub")}>
+                EPUB · 电子书
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

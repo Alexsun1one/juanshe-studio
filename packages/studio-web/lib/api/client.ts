@@ -13,6 +13,7 @@ import type {
   BookCreateResult,
   BookCreateStatus,
   BookDescriptionResult,
+  BookExportFormat,
   BookFoundationValidateResult,
   BookRepairQualityBatchInput,
   BookRepairQualityBatchResult,
@@ -328,7 +329,7 @@ export function updateBook(
   return patchJSON<Book>(ENDPOINTS.bookDetail(bookId), input)
 }
 
-export function bookExportUrl(bookId: string, format = "txt") {
+export function bookExportUrl(bookId: string, format: BookExportFormat = "txt") {
   return ENDPOINTS.bookExport(bookId, format)
 }
 

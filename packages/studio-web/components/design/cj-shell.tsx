@@ -335,7 +335,9 @@ function CjSidebar() {
   const settingsActive = SETTINGS_ITEMS.some((s) => isActive(s.href))
 
   return (
-    <aside className="sidebar scroll-thin">
+    <aside className="sidebar">
+      {/* 导航区独立滚动:footer 必须留在滚动域外,否则「设置」右侧飞出菜单会被 overflow 整个裁掉 */}
+      <div className="sidebar-nav scroll-thin">
       <div className="brand">
         <span className="brand-mark">
           <CjLogo size={28} />
@@ -393,6 +395,7 @@ function CjSidebar() {
         </React.Fragment>
         )
       })}
+      </div>
 
       {/* ── 底部固定区:在建/在写常驻状态 + 总设置 + 收起 ───────── */}
       <div className="sidebar-footer" ref={settingsRef}>
