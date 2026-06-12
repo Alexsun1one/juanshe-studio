@@ -13,6 +13,7 @@ import { z } from "zod"
 import type { QualityScore } from "../models/index.js"
 import { CN_BANNED_PATTERNS } from "../agents/anti-slop.js"
 import { detectSlop, slopPenalty, type SlopSignals } from "./pregate.js"
+import { detectOpeningHook, detectEndingHook } from "./hooks.js"
 import type { LlmClient } from "../llm/client.js"
 import type { AbortLike } from "../orchestration/pipeline.js"
 
@@ -170,9 +171,27 @@ export async function judgeChapter(text: string, llm: LlmClient, ctx: JudgeConte
   // ① L0 确定性机检(零成本)
   const l0 = detectSlop(text)
   const pen = slopPenalty(l0) // 0–100,越高越 AI
+  // 追读钩子机检(hooks.ts,保守口径:启发式拿不准一律 ok=true):
+  //  - 开篇平开 + 章末平收同时成立 = 强负信号 → 进红旗措辞(判官必须采信),autoFix 另有定点必修;
+  //  - 仅单侧疑似 = 弱信号 → 只给判官一行提示,采不采信由 L1 按 rubric 硬判据裁量。
+  const openingHook = detectOpeningHook(text)
+  const endingHook = detectEndingHook(text)
+  const flatOpenClose = !openingHook.ok && !endingHook.ok
   // 红旗 + warning 档一并交给 L1:红旗压 deAiTell 硬上限;warning(对白内/单处禁用句式等)
   // 不打回但供判官定位采信——L0 的禁用句式明细(句式名+次数+原句片段)就从这里进判官视野。
   const l0Lines = [...l0.redFlags, ...(l0.warnings ?? []).map((w) => `(警告档)${w}`)]
+  if (flatOpenClose) {
+    l0Lines.push(
+      `追读钩子机检:开篇平开(${openingHook.evidence.join("；")})且章末平收(${endingHook.evidence.join("；")})——pacing 依硬判据不得高于 70`,
+    )
+  }
+  const hookHints: string[] = []
+  if (!flatOpenClose && !openingHook.ok) {
+    hookHints.push(`【追读提示】开篇 300 字疑似平开:${openingHook.evidence.join("；")}——请按 pacing 硬判据从严核查`)
+  }
+  if (!flatOpenClose && !endingHook.ok) {
+    hookHints.push(`【追读提示】章末疑似平收:${endingHook.evidence.join("；")}——请按 pacing 硬判据从严核查`)
+  }
   const redFlags = l0Lines.length
     ? `【L0 确定性检测发现的 AI 味信号,务必采信、不得无视】\n- ${l0Lines.join("\n- ")}`
     : "【L0 未发现明显机械 AI 味,但仍需你独立判断】"
@@ -184,6 +203,7 @@ export async function judgeChapter(text: string, llm: LlmClient, ctx: JudgeConte
     ctx.chapterGoal ? `本章应完成:${ctx.chapterGoal}` : "",
     ctx.priorContext ? `前情提要:${ctx.priorContext}` : "",
     redFlags,
+    ...hookHints,
     `\n===== 待评章节正文 =====\n${text}`,
   ].filter(Boolean).join("\n")
 
@@ -248,6 +268,13 @@ export async function judgeChapter(text: string, llm: LlmClient, ctx: JudgeConte
     const redAt = CN_BANNED_PATTERNS.find((p) => p.name === d.name)?.redAt ?? 1
     if (d.weighted < redAt) continue
     autoFix.push(`命中禁用句式「${d.name}」${d.count} 处${d.sample ? `(如:${d.sample})` : ""}:逐处改写成此情此景的具体写法`)
+  }
+  // 追读钩子:只有"平开+平收"双双坐实(教科书式,hooks.ts 保守口径)才算铁证进必修;
+  // 单侧疑似已作为弱提示进判官上下文,由 L1 裁量,不直接驱动 reviser。
+  if (flatOpenClose) {
+    autoFix.push(
+      `开篇与章末双平(机检铁证):开头「${openingHook.sample ?? "起句"}」属时间/环境白描平开,300 字内必须给出一个具体失衡(动作、对白或反常事件);结尾「${endingHook.sample ?? "末句"}」属收束式平收,改为断在动作已发、结果未现的定格上`,
+    )
   }
   const mustFix = dedupe([...data.mustFix, ...autoFix])
   const rationale =

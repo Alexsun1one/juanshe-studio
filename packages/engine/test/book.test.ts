@@ -3,7 +3,7 @@
  * 锁:有界并发(≤concurrency)、失败隔离(单章 halt 不拖垮整本)、拓扑分波、有界并发原语。
  */
 import { describe, it, expect } from "vitest"
-import { runBook, BookBrief, BookPlan, topoWaves, mapWithConcurrency, type BookDeps, type BookBudget } from "../src/index.js"
+import { runBook, BookBrief, BookPlan, topoWaves, mapWithConcurrency, collectStyleSamples, type BookDeps, type BookBudget } from "../src/index.js"
 
 const G = (b: string) => ({ bookId: b, entities: [], relations: [], foreshadows: [], timeline: [], chapterDeps: {} })
 const chapters = [1, 2, 3, 4, 5].map((n) => ({ number: n, title: `第${n}章`, goal: `写第${n}章`, targetWordCount: 1000, dependsOn: [], plantForeshadowIds: [], payoffForeshadowIds: [], entityIds: [] }))
@@ -55,6 +55,44 @@ describe("runBook · 书级编排", () => {
     const out = await runBook(BookBrief.parse({ bookId: "b", title: { zh: "X" } }), bad, budget)
     expect(out.status).toBe("failed")
     expect(out.results).toHaveLength(0)
+  })
+})
+
+describe("runBook · 风格样本接线(流 S2)", () => {
+  it("collectStyleSamples:只取当前章之前、已签发且有成稿的章,旧→新、容量截断", () => {
+    const mkR = (n: number, status: string, content?: string) =>
+      ({ chapterNumber: n, status, reason: "", finalState: {} as any, chapter: content !== undefined ? { content } : undefined, overall: 90 }) as any
+    const results = new Map<number, any>([
+      [1, mkR(1, "completed", "第一章正文")],
+      [2, mkR(2, "halted", "第二章正文")], // 非 completed(未签发)不取
+      [3, mkR(3, "completed")], // 无成稿正文不取
+      [4, mkR(4, "completed", "第四章正文")],
+      [5, mkR(5, "completed", "第五章正文")], // 当前章自身不取
+      [6, mkR(6, "completed", "第六章正文")], // 章号在后不取(reconcile 重跑的因果确定性)
+    ])
+    expect(collectStyleSamples(results, 5)).toEqual(["第一章正文", "第四章正文"])
+    expect(collectStyleSamples(results, 5, 1)).toEqual(["第四章正文"]) // 容量截断保最近
+  })
+
+  it("fanout:buildContextPack 未带样本时,把已签发章正文注入 RunInput.styleSamples(wavefront 串链)", async () => {
+    const base = mkDeps({ max: 0 })
+    const chained = chapters.map((c) => ({ ...c, dependsOn: c.number > 1 ? [c.number - 1] : [] }))
+    const got = new Map<number, string[] | undefined>()
+    const deps: BookDeps = {
+      ...base,
+      planner: async (b) => BookPlan.parse({ bookId: b, title: { zh: "测试书" }, chapters: chained, graph: G(b) }),
+      runChapter: async (i) => {
+        got.set(i.chapterNumber, i.input.styleSamples)
+        const n = i.chapterNumber
+        return {
+          state: { ...i, stage: "publishing", artifacts: { publishing: { chapter: { number: n, content: `第${n}章成稿正文`, quality: { overall: 90 } } } }, scoreHistory: [90] },
+          status: "completed", reason: "ok",
+        } as any
+      },
+    }
+    await runBook(BookBrief.parse({ bookId: "b", title: { zh: "测试书" } }), deps, { ...budget, waveMode: "wavefront" })
+    expect(got.get(1) ?? []).toEqual([]) // 首章无样本,保持现状
+    expect(got.get(4)).toEqual(["第1章成稿正文", "第2章成稿正文", "第3章成稿正文"]) // 旧→新带进 RunInput
   })
 })
 

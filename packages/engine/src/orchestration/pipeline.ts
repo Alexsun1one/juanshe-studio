@@ -67,6 +67,8 @@ export const RunInput = z.object({
   chapterGoal: z.string().optional(), // 本章在大纲里的目标/节拍
   priorContext: z.string().optional(), // 前情提要(上一章摘要 / 记忆)
   bookBible: z.string().optional(), // 设定集(人物/世界/风格基线)
+  /** 最近成稿正文(已签发章,旧→新;书级编排注入,仅供风格指纹提炼——writing 在 ≥3 篇时启用)*/
+  styleSamples: z.array(z.string()).optional(),
   targetWordCount: z.number().int().positive().default(3000),
   lang: z.enum(["zh", "en"]).default("zh"),
 })

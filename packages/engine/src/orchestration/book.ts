@@ -184,6 +184,19 @@ export function chapterToRunState(spec: ChapterSpec, pack: FrozenChapterInput, b
   })
 }
 
+/** 风格指纹样本(软接线):取已签发(completed)且章号小于当前章的成稿正文,
+ *  旧→新排序、只留最近 ≤max 章——配合 mergeStyle 的 EMA,指纹收敛偏向最新的作者声音。
+ *  只看章号在前的章是为了因果确定性:reconcile 重跑某章时,不让它"学"自己或后续章的文风。*/
+export function collectStyleSamples(results: ReadonlyMap<number, ChapterResult>, beforeChapter: number, max = 5): string[] {
+  return [...results.values()]
+    .filter((r) => r.status === "completed" && r.chapterNumber < beforeChapter)
+    .map((r) => ({ n: r.chapterNumber, text: (r.chapter as { content?: unknown } | undefined)?.content }))
+    .filter((x): x is { n: number; text: string } => typeof x.text === "string" && x.text.trim().length > 0)
+    .sort((a, b) => a.n - b.n)
+    .slice(-max)
+    .map((x) => x.text)
+}
+
 // ── 内部归一/聚合 ─────────────────────────────────────────
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 const unique = (xs: number[]): number[] => [...new Set(xs)]
@@ -242,7 +255,11 @@ async function fanout(
         let cr: ChapterResult
         try {
           const pack = deps.buildContextPack(plan, spec, results)
-          const initial = chapterToRunState(spec, pack, plan.bookId, deps.now)
+          // 风格指纹软接线:buildContextPack 未自带样本时,把已签发章正文带进 RunInput
+          // (writing 在 ≥3 篇时才提炼指纹,前几章天然保持现状)。
+          const styleSamples = pack.input.styleSamples?.length ? pack.input.styleSamples : collectStyleSamples(results, spec.number)
+          const packed = styleSamples.length ? { ...pack, input: { ...pack.input, styleSamples } } : pack
+          const initial = chapterToRunState(spec, packed, plan.bookId, deps.now)
           const outcome = await runChapter(initial, deps.pipelineDepsFor(spec), { signal: opts.signal })
           cr = toChapterResult(spec.number, outcome)
         } catch (e) {
