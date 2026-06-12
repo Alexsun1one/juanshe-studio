@@ -1,7 +1,7 @@
 /**
  * 卷舍 · 经验沉淀(recordOutcome:写完判分后,把高分手法/低分反模式沉淀入库 + bandit 奖励回填)
  */
-import { detectSlop } from "../quality/pregate.js"
+import { detectSlop, SLOP_DENSITY_RED, FILLER_PER1K_RED } from "../quality/pregate.js"
 import { sentenceLengths, mean } from "../quality/text-metrics.js"
 import { similarity, decayFactor, banditScore } from "./bandit.js"
 import { bucketKey, type LearningDeps } from "./store.js"
@@ -14,6 +14,7 @@ function rhythmOf(text: string): RhythmFingerprint {
     uniformSentences: s.uniformSentences,
     slopDensity: round2(s.slopDensity),
     fillerHits: s.fillerHits,
+    fillerPer1k: s.fillerPer1k,
     repetitionRatio: round2(s.repetitionRatio),
     avgSentenceLen: round2(mean(sentenceLengths(text))),
   }
@@ -57,8 +58,9 @@ export function extractPatterns(input: RecordInput, sig: RhythmFingerprint, newI
   } else {
     const issues: string[] = []
     if (sig.uniformSentences) issues.push("句长过于均匀")
-    if (sig.slopDensity > 0.4) issues.push("空洞美文词过密")
-    if (sig.fillerHits >= 4) issues.push("套话/机械连接词过多")
+    // 与 pregate 红线同口径(slopDensity 现为加权命中/句、filler 按千字密度;旧绝对值阈值在新口径下永不触发)
+    if (sig.slopDensity > SLOP_DENSITY_RED) issues.push("空洞美文词过密")
+    if (sig.fillerPer1k != null ? sig.fillerPer1k >= FILLER_PER1K_RED : sig.fillerHits >= 4) issues.push("套话/机械连接词过多")
     if (sig.repetitionRatio > 0.06) issues.push("重复片段偏多")
     if (!issues.length) issues.push("整体偏离达标线")
     out.push(mkLearning(input, "antipattern", "本题材低分反模式", `避免:${issues.join("、")}`, sig, newId, now))

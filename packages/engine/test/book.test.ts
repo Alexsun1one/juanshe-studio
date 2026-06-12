@@ -33,6 +33,22 @@ describe("runBook · 书级编排", () => {
     expect(out.results.find((r) => r.chapterNumber === 3)?.status).toBe("halted")
     expect(out.results.filter((r) => r.chapterNumber !== 3).every((r) => r.status === "completed")).toBe(true)
   })
+  it("wavefront + dependsOn 链:buildContextPack 取第 n 章时第 n-1 章结果必已落定(章间前情注入依赖此契约)", async () => {
+    const base = mkDeps({ max: 0 })
+    const chained = chapters.map((c) => ({ ...c, dependsOn: c.number > 1 ? [c.number - 1] : [] }))
+    const seen: Array<{ chapter: number; prevDone: boolean }> = []
+    const deps: BookDeps = {
+      ...base,
+      planner: async (b) => BookPlan.parse({ bookId: b, title: { zh: "测试书" }, chapters: chained, graph: G(b) }),
+      buildContextPack: (p, s, done) => {
+        seen.push({ chapter: s.number, prevDone: done.has(s.number - 1) })
+        return base.buildContextPack(p, s, done)
+      },
+    }
+    const out = await runBook(BookBrief.parse({ bookId: "b", title: { zh: "测试书" } }), deps, { ...budget, waveMode: "wavefront" })
+    expect(out.results).toHaveLength(5)
+    expect(seen.filter((x) => x.chapter > 1).map((x) => x.prevDone)).toEqual([true, true, true, true]) // halted 的 ch3 也算落定,ch4 不被卡
+  })
   it("plan 失败 → status=failed,不抛", async () => {
     const deps = mkDeps({ max: 0 })
     const bad: BookDeps = { ...deps, planner: async () => { throw new Error("建书炸了") } }

@@ -30,10 +30,10 @@ export interface AssembleContext {
 
 // 哪些角色要追加去AI味组件(直接产出/改动正文的)
 const ANTI_SLOP_ROLES = new Set(["architect", "writer", "reviser", "polisher", "length-governor"])
-// 哪些角色要题材知识(写作/规划/审稿/读者视角)
-const GENRE_ROLES = new Set(["architect", "planner", "writer", "reviser", "reader-critic", "continuity-reviewer", "market-radar"])
+// 哪些角色要题材知识(写作/规划/审稿/读者视角;planner-pipeline 是 planner 的引擎管线形态,同权)
+const GENRE_ROLES = new Set(["architect", "planner", "planner-pipeline", "writer", "reviser", "reader-critic", "continuity-reviewer", "market-radar"])
 // 哪些角色要平台知识(适配/排版/选题)
-const PLATFORM_ROLES = new Set(["architect", "planner", "writer", "polisher", "market-radar"])
+const PLATFORM_ROLES = new Set(["architect", "planner", "planner-pipeline", "writer", "polisher", "market-radar"])
 // 哪些角色注入文风指纹(架构 + 直接产出/改动正文的)
 const STYLE_ROLES = new Set(["architect", "writer", "reviser", "polisher"])
 // 哪些角色注入账号经验规则
@@ -96,7 +96,7 @@ export function buildSystemPrompt(role: string, ctx: AssembleContext = {}): stri
   }
   if (ctx.styleProfile && STYLE_ROLES.has(role)) parts.push(renderStyleProfile(ctx.styleProfile))
   if (ctx.accountRules?.length && ACCOUNT_ROLES.has(role)) parts.push(renderAccountRules(ctx.accountRules, ctx.lang ?? "zh"))
-  if (ctx.learnings && role === "planner") parts.push(ctx.learnings)
+  if (ctx.learnings && (role === "planner" || role === "planner-pipeline")) parts.push(ctx.learnings)
 
   return parts.filter(Boolean).join("\n\n")
 }

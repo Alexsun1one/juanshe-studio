@@ -17,6 +17,8 @@ export const RhythmFingerprint = z.object({
   uniformSentences: z.boolean().default(false),
   slopDensity: z.number().default(0),
   fillerHits: z.number().default(0),
+  /** 套话加权密度(命中/千字),与 pregate 新口径同源;旧库记录无此字段,消费方需兜底 */
+  fillerPer1k: z.number().optional(),
   repetitionRatio: z.number().default(0),
   avgSentenceLen: z.number().default(0),
 })
