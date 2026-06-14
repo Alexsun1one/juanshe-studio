@@ -101,7 +101,7 @@ export function StreakCard({
         </div>
         {hasActivity ? (
           <div className="skc-heat" title={encourage}>
-            <WritingHeatmap calendar={calendar} weeks={30} cell={7} gap={2} />
+            <WritingHeatmap calendar={calendar} weeks={24} cell={7} gap={2} showLabels={false} />
           </div>
         ) : (
           <span className="skc-empty" title="写下第一章就能点亮第一格">写下第一章，点亮第一格 🌱</span>
