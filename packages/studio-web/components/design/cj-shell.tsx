@@ -36,6 +36,7 @@ import {
   Search,
   Send,
   ShieldCheck,
+  ShieldHalf,
   SlidersHorizontal,
   Sparkles,
   Sun,
@@ -156,6 +157,7 @@ const ROUTE_SECTION_LABELS: Record<string, string> = {
   publish: "发布与运营",
   system: "系统与智能体",
   settings: "设置",
+  admin: "管理后台",
 }
 
 function routeSectionOf(pathname: string | null): string {
@@ -165,6 +167,7 @@ function routeSectionOf(pathname: string | null): string {
   if (/^\/(library|platform-export|publish|insights|detect)/.test(pathname)) return "publish"
   if (/^\/(runs|system|agents|capabilities)/.test(pathname)) return "system"
   if (/^\/(llm|preferences|shortcuts|settings)/.test(pathname)) return "settings"
+  if (/^\/admin/.test(pathname)) return "admin"
   return "workbench"
 }
 
@@ -281,6 +284,18 @@ function CjSidebar() {
   const { collapsed, toggle } = React.useContext(CollapseCtx)
   const { books } = useWorkspace()
   const runningCount = books.filter((b) => b.autoRunning).length
+
+  // 管理后台入口:只对 SaaS 模式下 role==='admin' 渲染——普通用户/桌面单机完全看不见。
+  // /auth/me 在桌面模式返回 user:null,在 SaaS 非 admin 返回非 admin role,两端都不显示。
+  const [isAdmin, setIsAdmin] = React.useState(false)
+  React.useEffect(() => {
+    let cancelled = false
+    fetch("/api/v1/auth/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((me) => { if (!cancelled) setIsAdmin(Boolean(me?.saas) && me?.user?.role === "admin") })
+      .catch(() => { /* 不可达时保持隐藏,绝不误显管理入口 */ })
+    return () => { cancelled = true }
+  }, [])
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname?.startsWith(href)
@@ -404,6 +419,18 @@ function CjSidebar() {
         <WechatFollow collapsed={collapsed} />
         {/* 常驻"在建/在写"指示器:轮询 create-states,关弹窗/刷新也看得到、点得回去 */}
         <BuildStatusIndicator collapsed={collapsed} />
+        {/* 管理后台入口:仅 SaaS + role==='admin' 渲染,普通用户/桌面单机完全不可见、不可达 */}
+        {isAdmin && (
+          <Link
+            href="/admin"
+            className={`sidebar-foot-btn admin-foot-btn${isActive("/admin") ? " active" : ""}`}
+            title="管理后台"
+            onMouseEnter={() => hoverPrefetch("/admin")}
+          >
+            <ShieldHalf size={16} className="sidebar-foot-admin-ico" />
+            {!collapsed && <span className="sidebar-foot-label">管理后台</span>}
+          </Link>
+        )}
         <button
           type="button"
           className={`sidebar-foot-btn${settingsActive ? " active" : ""}${settingsOpen ? " open" : ""}`}

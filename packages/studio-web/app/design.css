@@ -851,6 +851,11 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
 .sidebar-collapse-btn:hover { background: var(--bg-hover); color: var(--ink-900); }
 .sidebar-foot-btn.active { color: var(--brand-600); font-weight: 700; }
 .sidebar-foot-btn.open { background: var(--bg-hover); }
+/* 管理后台入口(admin-only):盾形图标对齐像素图标的视觉重量,默认走品牌紫一点点强调 */
+.admin-foot-btn { text-decoration: none; }
+.admin-foot-btn .sidebar-foot-admin-ico { width: 22px; flex: 0 0 22px; color: var(--brand-500); }
+.admin-foot-btn:hover .sidebar-foot-admin-ico { color: var(--brand-600); }
+.admin-foot-btn.active .sidebar-foot-admin-ico { color: var(--brand-600); }
 .sidebar-foot-label { flex: 1; text-align: left; }
 .sidebar-foot-caret { color: var(--ink-400); transition: transform var(--motion-fast) var(--ease-soft); }
 .sidebar-foot-btn.open .sidebar-foot-caret { transform: rotate(90deg); }

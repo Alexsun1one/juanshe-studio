@@ -1,0 +1,382 @@
+/* ════════════════════════════════════════════════════════════════
+   管理后台 · 页面样式
+   暖纸柔紫(随主题切换暗色深堇紫)+ 像素徽章 + 复用 KpiChip / Dialog。
+   纯内部工具气质:密、稳、可读,不糊。全部走 design.css 既有 token,零新依赖。
+   ════════════════════════════════════════════════════════════════ */
+
+.admin-page {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-hero-pixel {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.admin-role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  box-shadow: 0 2px 8px -3px color-mix(in oklab, var(--brand-500) 55%, transparent);
+}
+.admin-role-chip svg { opacity: 0.9; }
+
+/* ── 门禁过渡态 ──────────────────────────────────────────────── */
+.admin-guard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  min-height: 320px;
+  color: var(--ink-500);
+  font-size: 13px;
+}
+.admin-spin { animation: cj-spin 0.8s linear infinite; color: var(--brand-500); }
+
+/* ── 区块 ────────────────────────────────────────────────────── */
+.admin-section {
+  margin-top: 22px;
+}
+.admin-section-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+.admin-section-ico { color: var(--brand-500); flex: 0 0 auto; }
+.admin-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin: 0;
+}
+.admin-section-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-500);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+}
+
+/* 用户区搜索框靠右 */
+.admin-search {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 0 10px;
+  height: 30px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+}
+.admin-search:focus-within { border-color: var(--brand-400, var(--brand-500)); box-shadow: var(--ring); }
+.admin-search svg { color: var(--ink-400); flex: 0 0 auto; }
+.admin-search input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 12.5px;
+  color: var(--ink-800);
+  width: 150px;
+}
+.admin-search input::placeholder { color: var(--ink-400); }
+.admin-search .btn { height: 24px; }
+
+/* ── KPI 行 ──────────────────────────────────────────────────── */
+.admin-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 10px;
+}
+
+/* ── 表格 ────────────────────────────────────────────────────── */
+.admin-tablewrap {
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  background: var(--bg-card);
+  overflow: auto;
+  max-height: 520px;
+}
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.admin-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-500);
+  background: var(--bg-sunken);
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line-1);
+  white-space: nowrap;
+}
+.admin-table th.num, .admin-table td.num { text-align: right; }
+.admin-table tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line-1);
+  color: var(--ink-800);
+  vertical-align: middle;
+}
+.admin-table tbody tr:last-child td { border-bottom: none; }
+.admin-table tbody tr:hover td { background: var(--bg-hover); }
+.admin-table tbody tr.is-dim td { opacity: 0.55; }
+
+.admin-table-state {
+  text-align: center !important;
+  color: var(--ink-500);
+  padding: 28px 14px !important;
+}
+.admin-table-state .admin-spin { display: inline-block; vertical-align: -3px; margin-right: 6px; }
+
+.admin-email { min-width: 0; }
+.admin-email-main {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--ink-900);
+}
+.admin-mini-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 7px;
+  padding: 0 6px;
+  height: 16px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--brand-700, var(--brand-600));
+  background: var(--brand-50);
+  border-radius: var(--r-pill);
+  vertical-align: 1px;
+}
+.admin-muted { color: var(--ink-500); white-space: nowrap; }
+
+.admin-col-act {
+  white-space: nowrap;
+  text-align: right;
+}
+.admin-col-act .btn + .btn { margin-left: 6px; }
+
+/* tier 标签(对齐全站 tier-badge 配色:Pro 紫渐变 / Ultra 金渐变) */
+.admin-tier-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-700);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-2);
+}
+.admin-tier-tag.tier-pro {
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  border-color: transparent;
+}
+.admin-tier-tag.tier-ultra {
+  color: #fff;
+  background: linear-gradient(135deg, #F6BE48, #E5862F);
+  border-color: transparent;
+}
+.admin-tier-exp {
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--warn-600, var(--warn-500));
+}
+
+/* 码状态 chip */
+.admin-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 9px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 600;
+}
+.admin-status::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.admin-status.status-valid   { color: var(--ok-600, var(--ok-500));  background: var(--ok-50); }
+.admin-status.status-used    { color: var(--brand-600);              background: var(--brand-50); }
+.admin-status.status-expired { color: var(--warn-600, var(--warn-500)); background: var(--warn-50); }
+.admin-status.status-revoked { color: var(--err-500);                background: var(--err-50); }
+.admin-status.status-unknown { color: var(--ink-500);                background: var(--bg-sunken); }
+
+/* 码单元格:点击复制 */
+.admin-code-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  color: inherit;
+}
+.admin-code-cell:hover .admin-code-copy { color: var(--brand-500); }
+.admin-code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-900);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+  padding: 2px 9px;
+  border-radius: var(--r-sm);
+}
+.admin-code.sm { font-size: 11.5px; padding: 1px 7px; }
+.admin-code-copy { color: var(--ink-400); transition: color var(--motion-fast, 0.15s); }
+
+/* 分页 */
+.admin-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.admin-pager-info { font-size: 12px; color: var(--ink-500); }
+
+/* ── 发码区 ──────────────────────────────────────────────────── */
+.admin-mint {
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  background: color-mix(in oklab, var(--brand-500) 4%, var(--bg-card));
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.admin-mint-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 18px;
+}
+.admin-mint-field { display: flex; flex-direction: column; gap: 6px; }
+.admin-mint-go { margin-left: auto; height: 38px; align-self: flex-end; }
+.admin-mint-note {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-500);
+}
+
+.admin-minted {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--ok-50);
+  border: 1px solid color-mix(in oklab, var(--ok-500) 28%, transparent);
+}
+.admin-minted-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ok-600, var(--ok-500));
+}
+.admin-minted .admin-code { background: var(--bg-card); }
+
+/* 分段选择器(tier / 有效期) */
+.admin-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+}
+.admin-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--ink-600);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: calc(var(--r-md) - 2px);
+  cursor: pointer;
+  transition: background var(--motion-fast, 0.15s), color var(--motion-fast, 0.15s);
+}
+.admin-seg-btn:hover { color: var(--ink-900); }
+.admin-seg-btn.active {
+  background: var(--bg-card);
+  color: var(--brand-600);
+  box-shadow: 0 1px 3px -1px rgba(0, 0, 0, 0.12);
+}
+
+/* ── 弹窗内表单 ──────────────────────────────────────────────── */
+.admin-dialog { max-width: 440px; }
+.admin-form { display: flex; flex-direction: column; gap: 14px; margin: 6px 0 2px; }
+.admin-field { display: flex; flex-direction: column; gap: 6px; }
+.admin-field-label { font-size: 12px; font-weight: 600; color: var(--ink-700); }
+.admin-field-hint { font-size: 11.5px; color: var(--ink-500); }
+.admin-input {
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--bg-card);
+  color: var(--ink-900);
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--motion-fast, 0.15s), box-shadow var(--motion-fast, 0.15s);
+  width: 100%;
+}
+.admin-input:focus { border-color: var(--brand-400, var(--brand-500)); box-shadow: var(--ring); }
+
+.admin-delta { display: flex; align-items: center; gap: 8px; }
+.admin-delta .admin-input { text-align: center; }
+.admin-delta-btn {
+  width: 34px; height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--bg-card);
+  color: var(--ink-700);
+  cursor: pointer;
+  transition: background var(--motion-fast, 0.15s), border-color var(--motion-fast, 0.15s);
+}
+.admin-delta-btn:hover { background: var(--bg-hover); border-color: var(--line-3); }
+
+/* ── 错误 ────────────────────────────────────────────────────── */
+.admin-error {
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--err-50);
+  border: 1px solid color-mix(in oklab, var(--err-500) 28%, transparent);
+  color: var(--err-500);
+  font-size: 12.5px;
+}
+.admin-error.sm { padding: 8px 11px; font-size: 12px; margin-top: 4px; }
+
+/* 窄屏 */
+@media (max-width: 760px) {
+  .admin-search { margin-left: 0; width: 100%; }
+  .admin-search input { width: 100%; flex: 1; }
+  .admin-mint-go { margin-left: 0; width: 100%; }
+  .admin-kpis { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}

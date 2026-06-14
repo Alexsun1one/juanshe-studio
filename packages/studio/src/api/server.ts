@@ -756,19 +756,38 @@ function saasDataDir(root) {
 function saasStoreFile(root) {
     return join(saasDataDir(root), "saas.json");
 }
+// 限时码:发码注册表(.saas/codes.json)与 activate 共用。结构在 loadCodesStore 处定义。
+function saasCodesFile(root) {
+    return join(saasDataDir(root), "codes.json");
+}
 function normalizeEmail(email) {
     return String(email ?? "").trim().toLowerCase();
+}
+// ── tier 过期回落 ──────────────────────────────────────────────────────────
+// 限时码挂 tier 时同时写 user.tierExpiresAt(ISO)。到期后该 user 的有效 tier 一律视为 normal
+// (不改写存储里的 tier 字段,只在"读取有效 tier"处判定),因此免扣 / 限档 / publicUser 全部回落普通会员。
+// tierExpiresAt 缺失 = 永久 tier(老用户 / HMAC 码 / 管理员手改),行为不变。
+function effectiveTier(user) {
+    const raw = String(user?.tier ?? "normal");
+    const exp = user?.tierExpiresAt ? Date.parse(user.tierExpiresAt) : NaN;
+    if (Number.isFinite(exp) && exp < Date.now())
+        return "normal";
+    return raw || "normal";
 }
 function publicUser(user) {
     if (!user)
         return null;
+    const tier = effectiveTier(user);
+    const expired = Boolean(user.tierExpiresAt) && tier === "normal" && (user.tier ?? "normal") !== "normal";
     return {
         id: user.id,
         email: user.email,
         role: user.role,
         tenantId: user.tenantId,
         credits: Number(user.credits ?? 0),
-        tier: user.tier ?? "normal",
+        tier,
+        tierExpiresAt: user.tierExpiresAt ?? null,
+        tierExpired: expired,
         createdAt: user.createdAt,
     };
 }
@@ -844,6 +863,74 @@ async function saveSaasStore(root, store) {
     await mkdir(saasDataDir(root), { recursive: true });
     // 原子写:saas.json 含全部用户/会话/额度/账本,崩溃/磁盘满直写会整文件截断损坏。
     await atomicWriteFile(saasStoreFile(root), JSON.stringify(store, null, 2));
+}
+// ── 发码注册表(.saas/codes.json)──────────────────────────────────────────
+// 管理后台发码 + 限时领码共用一份注册表。每条:
+//   { code, tier, expiresAt|null, revoked, issuedTo|null, issuedAt, source }
+// activate 验码先查这里(命中且 !revoked 且未过期 → 用其 tier),未命中再回落本地 HMAC(兼容老码/测试码)。
+async function loadCodesStore(root) {
+    const dir = saasDataDir(root);
+    const file = saasCodesFile(root);
+    await mkdir(dir, { recursive: true });
+    try {
+        const parsed = JSON.parse(await readFile(file, "utf-8"));
+        return {
+            version: parsed.version ?? 1,
+            codes: Array.isArray(parsed.codes) ? parsed.codes : [],
+        };
+    }
+    catch {
+        const fresh = { version: 1, codes: [] };
+        await atomicWriteFile(file, JSON.stringify(fresh, null, 2));
+        return fresh;
+    }
+}
+async function saveCodesStore(root, store) {
+    await mkdir(saasDataDir(root), { recursive: true });
+    await atomicWriteFile(saasCodesFile(root), JSON.stringify(store, null, 2));
+}
+function normalizeCodeKey(code) {
+    return normalizeActivationCode(code);
+}
+function codeStatus(entry, now = Date.now()) {
+    if (!entry)
+        return "unknown";
+    if (entry.revoked)
+        return "revoked";
+    if (entry.expiresAt && Date.parse(entry.expiresAt) < now)
+        return "expired";
+    if (entry.issuedTo)
+        return "used";
+    return "valid";
+}
+// 入参 tier(normal/pro/ultra)+ 可选 expiresInDays → 铸一个签名码(走既有 HMAC 铸码,
+// 这样即使注册表被绕过、码本身也带 tier 签名),写注册表,返回完整 entry(含明文 code)。
+// 供管理后台 mint 与未来「限时领码」端点共用。
+async function issueCode(root, { tier, expiresInDays, source, issuedTo } = {}) {
+    const normalizedTier = String(tier ?? "normal").toLowerCase();
+    const safeTier = ["normal", "pro", "ultra"].includes(normalizedTier) ? normalizedTier : "normal";
+    const secret = process.env.HARDWRITE_ACTIVATION_SECRET || "";
+    const plainCode = tieredActivationCode(safeTier, secret);
+    const code = normalizeCodeKey(plainCode);
+    const days = Number(expiresInDays);
+    const expiresAt = Number.isFinite(days) && days > 0
+        ? new Date(Date.now() + Math.min(3650, days) * 24 * 60 * 60 * 1000).toISOString()
+        : null;
+    const entry = {
+        id: newId("code"),
+        code,
+        codeFormatted: plainCode,
+        tier: safeTier,
+        expiresAt,
+        revoked: false,
+        issuedTo: issuedTo ?? null,
+        issuedAt: new Date().toISOString(),
+        source: String(source ?? "admin"),
+    };
+    const store = await loadCodesStore(root);
+    store.codes.push(entry);
+    await saveCodesStore(root, store);
+    return entry;
 }
 async function ensureTenantWorkspace(root, tenantId) {
     const tenantRoot = join(saasDataDir(root), "tenants", tenantId);
@@ -9249,7 +9336,7 @@ export function createStudioServer(initialConfig, root) {
         const premium = findPremiumCost(c.req.method, path);
         // Pro/Ultra 免扣:按当前 user.tier 决定扣费倍率(pro/ultra=0 免扣,normal=1 全额)。
         // 倍率为 0 时,该请求等价于"非 premium":跑 handler、不查余额、不扣 credits。
-        const debitMultiplier = premium ? saasDebitMultiplierForTier(auth.user.tier) : 1;
+        const debitMultiplier = premium ? saasDebitMultiplierForTier(effectiveTier(auth.user)) : 1;
         const effectiveCost = premium ? Math.round(premium.credits * debitMultiplier) : 0;
         // 后续整段(余额检查 + next + 扣费)都跑在租户 ALS 上下文里。
         // 早退响应(余额不足 402)通过 paymentRequired 标志带出去再 c.json,避免在嵌套闭包里丢掉返回值。
@@ -9325,6 +9412,256 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ error: { code: "BOOK_NOT_FOUND", message: "作品不存在或无权访问。" }, bookId }, 404);
         }
         await next();
+    });
+    // ── 管理后台门禁(严格 admin)────────────────────────────────────────────
+    // 桌面单机模式:/api/v1/admin/* 整段不存在 → 404(不挂载语义,绝不向单机用户暴露)。
+    // SaaS 模式:必须有有效会话 + role==='admin',否则 401/403。普通租户绝对够不到。
+    async function requireAdminSession(c) {
+        if (!isSaasModeEnabled())
+            return { kind: "notfound" };
+        const auth = await resolveSaasSession(root, c);
+        if (!auth)
+            return { kind: "unauth" };
+        if (auth.user.role !== "admin")
+            return { kind: "forbidden" };
+        return { kind: "ok", auth };
+    }
+    app.use("/api/v1/admin/*", async (c, next) => {
+        if (c.req.method === "OPTIONS") {
+            await next();
+            return;
+        }
+        const gate = await requireAdminSession(c);
+        if (gate.kind === "notfound") {
+            return c.json({ error: { code: "NOT_FOUND", message: "Not found." } }, 404);
+        }
+        if (gate.kind === "unauth") {
+            return c.json({ error: { code: "AUTH_REQUIRED", message: "请先登录账号。" } }, 401);
+        }
+        if (gate.kind === "forbidden") {
+            return c.json({ error: { code: "FORBIDDEN", message: "需要管理员权限。" } }, 403);
+        }
+        c.set("adminUser", gate.auth.user);
+        await next();
+    });
+    // 概览:全平台真数据(遍历 .saas + tenants/* books/)。
+    app.get("/api/v1/admin/overview", async (c) => {
+        const store = await loadSaasStore(root);
+        const now = Date.now();
+        const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+        const tierDistribution = { normal: 0, pro: 0, ultra: 0 };
+        let recentSignups = 0;
+        for (const user of store.users) {
+            const tier = effectiveTier(user);
+            tierDistribution[tier] = (tierDistribution[tier] ?? 0) + 1;
+            if (user.createdAt && Date.parse(user.createdAt) >= sevenDaysAgo)
+                recentSignups += 1;
+        }
+        // credits 发放/消耗(从 ledger 聚合;正=发放,负=消耗)。
+        let creditsGranted = 0;
+        let creditsConsumed = 0;
+        for (const entry of store.ledger) {
+            const delta = Number(entry.credits ?? 0);
+            if (delta > 0)
+                creditsGranted += delta;
+            else
+                creditsConsumed += Math.abs(delta);
+        }
+        // 总书数:遍历每个租户的物理 books/ 目录(含 book.json 的子目录)。
+        let totalBooks = 0;
+        const tenantsDir = join(saasDataDir(root), "tenants");
+        const tenantIds = await readdir(tenantsDir).catch(() => []);
+        for (const tid of tenantIds) {
+            const booksDir = join(tenantsDir, tid, "books");
+            const bookEntries = await readdir(booksDir).catch(() => []);
+            for (const bookId of bookEntries) {
+                const ok = await access(join(booksDir, bookId, "book.json")).then(() => true).catch(() => false);
+                if (ok)
+                    totalBooks += 1;
+            }
+        }
+        // 当前活跃写作任务数:内存态 activeWriteJobs(全租户)。
+        const activeWritingJobs = activeWriteJobs.size;
+        const activeSessions = store.sessions.filter((s) => Number(s.expiresAt ?? 0) > now).length;
+        return c.json({
+            totalUsers: store.users.length,
+            tierDistribution,
+            totalBooks,
+            recentSignups,
+            creditsGranted,
+            creditsConsumed,
+            activeWritingJobs,
+            activeSessions,
+        });
+    });
+    // 用户管理:分页列表(email/tier/credits/createdAt/书数/最近活跃)。
+    app.get("/api/v1/admin/users", async (c) => {
+        const store = await loadSaasStore(root);
+        const page = Math.max(1, Number(c.req.query("page")) || 1);
+        const pageSize = Math.max(1, Math.min(200, Number(c.req.query("pageSize")) || 50));
+        const search = normalizeEmail(c.req.query("search") ?? "");
+        // 每用户最近活跃 = 该用户最新有效会话的 createdAt(没有则 null)。
+        const lastActiveByUser = new Map();
+        for (const session of store.sessions) {
+            const prev = lastActiveByUser.get(session.userId);
+            if (!prev || String(session.createdAt ?? "") > String(prev))
+                lastActiveByUser.set(session.userId, session.createdAt ?? null);
+        }
+        const tenantsDir = join(saasDataDir(root), "tenants");
+        let filtered = store.users;
+        if (search)
+            filtered = filtered.filter((u) => String(u.email ?? "").includes(search));
+        const sorted = [...filtered].sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")));
+        const total = sorted.length;
+        const start = (page - 1) * pageSize;
+        const slice = sorted.slice(start, start + pageSize);
+        const users = await Promise.all(slice.map(async (u) => {
+            const tid = u.tenantId || tenantIdForEmail(u.email);
+            const booksDir = join(tenantsDir, tid, "books");
+            const bookEntries = await readdir(booksDir).catch(() => []);
+            let bookCount = 0;
+            for (const bookId of bookEntries) {
+                const ok = await access(join(booksDir, bookId, "book.json")).then(() => true).catch(() => false);
+                if (ok)
+                    bookCount += 1;
+            }
+            return {
+                ...publicUser(u),
+                bookCount,
+                lastActiveAt: lastActiveByUser.get(u.id) ?? null,
+            };
+        }));
+        return c.json({ users, total, page, pageSize });
+    });
+    // 调软配额:复用 withBillingLock + ledger 记一笔 reason=admin-adjust。delta 可正可负。
+    app.post("/api/v1/admin/users/:id/credits", async (c) => {
+        const userId = c.req.param("id");
+        const body = await c.req.json().catch(() => ({}));
+        const delta = Math.trunc(Number(body.delta));
+        if (!Number.isFinite(delta) || delta === 0) {
+            return c.json({ error: { code: "INVALID_DELTA", message: "delta 必须是非零整数。" } }, 400);
+        }
+        const reason = String(body.reason ?? "admin-adjust").slice(0, 200) || "admin-adjust";
+        let updated = null;
+        let notFound = false;
+        await withBillingLock(userId, async () => {
+            const store = await loadSaasStore(root);
+            const user = store.users.find((item) => item.id === userId);
+            if (!user) {
+                notFound = true;
+                return;
+            }
+            const next = Math.max(0, Number(user.credits ?? 0) + delta);
+            const applied = next - Number(user.credits ?? 0);
+            user.credits = next;
+            store.ledger.push({
+                id: newId("ledger"),
+                userId: user.id,
+                type: applied >= 0 ? "credit" : "debit",
+                credits: applied,
+                reason: "admin-adjust",
+                note: reason === "admin-adjust" ? undefined : reason,
+                createdAt: new Date().toISOString(),
+            });
+            await saveSaasStore(root, store);
+            updated = user;
+        });
+        if (notFound)
+            return c.json({ error: { code: "USER_NOT_FOUND", message: "用户不存在。" } }, 404);
+        if (!updated)
+            return c.json({ error: { code: "USER_NOT_FOUND", message: "用户不存在。" } }, 404);
+        return c.json({ ok: true, user: publicUser(updated) });
+    });
+    // 改 tier:normal/pro/ultra。管理员手改 = 永久 tier(清掉限时到期标记)。
+    app.post("/api/v1/admin/users/:id/tier", async (c) => {
+        const userId = c.req.param("id");
+        const body = await c.req.json().catch(() => ({}));
+        const tier = String(body.tier ?? "").toLowerCase();
+        if (!["normal", "pro", "ultra"].includes(tier)) {
+            return c.json({ error: { code: "INVALID_TIER", message: "tier 必须是 normal/pro/ultra。" } }, 400);
+        }
+        let updated = null;
+        await withBillingLock(userId, async () => {
+            const store = await loadSaasStore(root);
+            const user = store.users.find((item) => item.id === userId);
+            if (!user)
+                return;
+            user.tier = tier;
+            delete user.tierExpiresAt; // 管理员手改 = 永久,清限时标记。
+            user.activationUpdatedAt = new Date().toISOString();
+            await saveSaasStore(root, store);
+            updated = user;
+        });
+        if (!updated)
+            return c.json({ error: { code: "USER_NOT_FOUND", message: "用户不存在。" } }, 404);
+        return c.json({ ok: true, user: publicUser(updated) });
+    });
+    // 发码:mint 一个码(tier + 可选 expiresInDays → expiresAt),写注册表,返回明文码。
+    app.post("/api/v1/admin/codes", async (c) => {
+        const body = await c.req.json().catch(() => ({}));
+        const tier = String(body.tier ?? "").toLowerCase();
+        if (!["normal", "pro", "ultra"].includes(tier)) {
+            return c.json({ error: { code: "INVALID_TIER", message: "tier 必须是 normal/pro/ultra。" } }, 400);
+        }
+        const expiresInDays = body.expiresInDays === undefined || body.expiresInDays === null
+            ? undefined
+            : Number(body.expiresInDays);
+        if (expiresInDays !== undefined && (!Number.isFinite(expiresInDays) || expiresInDays <= 0)) {
+            return c.json({ error: { code: "INVALID_EXPIRY", message: "expiresInDays 必须是正数或省略。" } }, 400);
+        }
+        const admin = c.get("adminUser");
+        const entry = await issueCode(root, {
+            tier,
+            expiresInDays,
+            source: "admin",
+            issuedTo: body.issuedTo ? normalizeEmail(body.issuedTo) : null,
+        });
+        return c.json({
+            ok: true,
+            code: entry.codeFormatted,
+            id: entry.id,
+            tier: entry.tier,
+            expiresAt: entry.expiresAt,
+            status: codeStatus(entry),
+            issuedBy: admin?.email ?? null,
+        });
+    });
+    // 列已发码:admin 全显明文 + 状态(valid/used/expired/revoked)。
+    app.get("/api/v1/admin/codes", async (c) => {
+        const store = await loadCodesStore(root);
+        const now = Date.now();
+        const codes = [...store.codes]
+            .sort((a, b) => String(b.issuedAt ?? "").localeCompare(String(a.issuedAt ?? "")))
+            .map((entry) => ({
+                id: entry.id,
+                code: entry.codeFormatted ?? entry.code,
+                tier: entry.tier,
+                expiresAt: entry.expiresAt ?? null,
+                revoked: Boolean(entry.revoked),
+                issuedTo: entry.issuedTo ?? null,
+                issuedAt: entry.issuedAt ?? null,
+                redeemedAt: entry.redeemedAt ?? null,
+                source: entry.source ?? "admin",
+                status: codeStatus(entry, now),
+            }));
+        return c.json({ codes });
+    });
+    // 吊销一个码(按规范化后的明文码匹配)。
+    app.post("/api/v1/admin/codes/:code/revoke", async (c) => {
+        const normalized = normalizeCodeKey(c.req.param("code"));
+        const store = await loadCodesStore(root);
+        const entry = store.codes.find((item) => item.code === normalized);
+        if (!entry) {
+            return c.json({ error: { code: "CODE_NOT_FOUND", message: "激活码不存在。" } }, 404);
+        }
+        entry.revoked = true;
+        entry.revokedAt = new Date().toISOString();
+        await saveCodesStore(root, store);
+        return c.json({
+            ok: true,
+            code: entry.codeFormatted ?? entry.code,
+            status: codeStatus(entry),
+        });
     });
     app.get("/api/v1/auth/me", async (c) => {
         if (!isSaasModeEnabled()) {
@@ -9439,12 +9776,35 @@ export function createStudioServer(initialConfig, root) {
         const authorName = String(body.authorName ?? "").trim().slice(0, 24);
         const deviceId = String(body.deviceId ?? "").slice(0, 128) || undefined;
         const email = normalizeEmail(body.email);
-        const result = await validateActivationCode(rawCode, deviceId);
+        const normalized = normalizeActivationCode(rawCode);
+        const now = new Date().toISOString();
+        // ── 验码优先级:发码注册表(codes.json)→ 命中按其 tier/expiry/revoke;未命中再回落本地 HMAC ──
+        // 注册表带运维语义(限时/吊销),HMAC 兜底兼容老码、测试码、env 名单、远程 verify。
+        const codesStore = await loadCodesStore(root);
+        const registryEntry = codesStore.codes.find((entry) => entry.code === normalized);
+        let result;
+        let codeTierExpiresAt = null;
+        if (registryEntry) {
+            const status = codeStatus(registryEntry);
+            if (status === "revoked") {
+                return c.json({ error: { code: "ACTIVATION_REVOKED", message: "该激活码已被吊销。" } }, 403);
+            }
+            if (status === "expired") {
+                return c.json({ error: { code: "ACTIVATION_EXPIRED", message: "该激活码已过期。" } }, 403);
+            }
+            if (status === "used") {
+                // 单次发放:已被某账号领过的注册表码,绝不再升级第二个账号(防一码白嫖)。
+                return c.json({ error: { code: "ACTIVATION_ALREADY_USED", message: "该激活码已被使用。" } }, 403);
+            }
+            result = { ok: true, plan: "registry", tier: registryEntry.tier, expiresAt: registryEntry.expiresAt ?? null };
+            codeTierExpiresAt = registryEntry.expiresAt ?? null;
+        }
+        else {
+            result = await validateActivationCode(rawCode, deviceId);
+        }
         if (!result.ok) {
             return c.json({ error: { code: "ACTIVATION_INVALID", message: result.message || "激活码无效。" } }, 403);
         }
-        const normalized = normalizeActivationCode(rawCode);
-        const now = new Date().toISOString();
         const tier = result.tier ?? activationTierFromCode(normalized, process.env.HARDWRITE_ACTIVATION_SECRET || "");
         // ── SaaS 模式:有登录会话 → 把 tier 挂到当前 user + 按 tier 一次性补差额赠 credits ──
         // (本路由在 /auth/* 公开段,auth 中间件未 populate ALS → 手动解析会话。)
@@ -9454,6 +9814,27 @@ export function createStudioServer(initialConfig, root) {
             if (!session) {
                 return c.json({ error: { code: "AUTH_REQUIRED", message: "请先登录账号再激活。" } }, 401);
             }
+            // 注册表码单次发放:在 per-code 锁里原子认领(并发兜底),认领成功才往下挂 tier;
+            // 一张码只升一个账号,杜绝跨账号无限复用(领码场景一码泄露=人人白嫖的致命点)。
+            if (registryEntry) {
+                let claimErr = null;
+                await withBillingLock("code:" + normalized, async () => {
+                    const cs = await loadCodesStore(root);
+                    const live = cs.codes.find((entry) => entry.code === normalized);
+                    if (!live) { claimErr = "invalid"; return; }
+                    const st = codeStatus(live);
+                    if (st === "revoked") { claimErr = "revoked"; return; }
+                    if (st === "expired") { claimErr = "expired"; return; }
+                    if (st === "used") { claimErr = "used"; return; }
+                    live.issuedTo = session.user.email;
+                    live.redeemedAt = now;
+                    await saveCodesStore(root, cs);
+                });
+                if (claimErr === "revoked") return c.json({ error: { code: "ACTIVATION_REVOKED", message: "该激活码已被吊销。" } }, 403);
+                if (claimErr === "expired") return c.json({ error: { code: "ACTIVATION_EXPIRED", message: "该激活码已过期。" } }, 403);
+                if (claimErr === "used") return c.json({ error: { code: "ACTIVATION_ALREADY_USED", message: "该激活码已被使用。" } }, 403);
+                if (claimErr) return c.json({ error: { code: "ACTIVATION_INVALID", message: "激活码无效。" } }, 403);
+            }
             // 在 per-userId 串行锁里读改写,杜绝并发激活把赠额重复入账。
             let updatedUser = null;
             let grantedDelta = 0;
@@ -9462,12 +9843,18 @@ export function createStudioServer(initialConfig, root) {
                 const user = store.users.find((item) => item.id === session.user.id);
                 if (!user)
                     return;
-                const prevTier = user.tier ?? "normal";
+                // 升级判定基于「有效 tier」(过期 pro/ultra 视为 normal),这样限时码到期后用新码可重新升级 + 重领赠额。
+                const prevTier = effectiveTier(user);
                 const prevGranted = Number(user.tierGrantedCredits ?? 0);
                 // 只在升级到「更高 tier」时补差额(同档或降档不再赠;normal 不赠)。
                 const targetGrant = SAAS_TIER_GRANT_CREDITS[String(tier).toLowerCase()] ?? 0;
                 if (saasTierRank(tier) > saasTierRank(prevTier)) {
                     user.tier = tier;
+                    // 限时码:挂到期时间(到期回落 normal,见 effectiveTier);永久码清掉旧到期标记。
+                    if (codeTierExpiresAt)
+                        user.tierExpiresAt = codeTierExpiresAt;
+                    else
+                        delete user.tierExpiresAt;
                 }
                 else if (!user.tier) {
                     user.tier = prevTier;
