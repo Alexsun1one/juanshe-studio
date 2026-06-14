@@ -8,13 +8,17 @@ import {
   FileDown,
   FileText,
   FlaskConical,
+  FolderDown,
+  HardDrive,
   HeartPulse,
   Import,
+  Moon,
   Network,
   PenLine,
   Radar,
   Route,
   ScanSearch,
+  Send,
   SlidersHorizontal,
   Tags,
   Wand2,
@@ -34,6 +38,7 @@ const capabilityGroups: Array<{
   kind: PixelBadgeKind
   summary: string
   items: { label: string; href: string; icon: LucideIcon }[]
+  isDesktopOnly?: boolean
 }> = [
   {
     title: "创作与作品",
@@ -78,6 +83,18 @@ const capabilityGroups: Array<{
       { label: "模型路由", href: "/llm", icon: Route },
       { label: "偏好设置", href: "/preferences", icon: SlidersHorizontal },
     ],
+  },
+  {
+    title: "桌面版专属",
+    kind: "platform",
+    summary: "下载桌面版解锁:本机模型、一键发草稿、整夜挂机、工作区落本机硬盘。",
+    items: [
+      { label: "连本机 Ollama / 本地模型", href: "/guide#desktop-vs-web", icon: HardDrive },
+      { label: "一键发各平台草稿", href: "/guide#desktop-vs-web", icon: Send },
+      { label: "无人值守整夜续写", href: "/guide#desktop-vs-web", icon: Moon },
+      { label: "工作区落本机硬盘", href: "/guide#desktop-vs-web", icon: FolderDown },
+    ],
+    isDesktopOnly: true,
   },
 ]
 
@@ -172,7 +189,10 @@ export default function CapabilitiesPage() {
               </h2>
               <div className="cap-groups">
                 {capabilityGroups.map((group) => (
-                  <article key={group.title} className="cap-group">
+                  <article
+                    key={group.title}
+                    className={`cap-group${group.isDesktopOnly ? " is-desktop-only" : ""}`}
+                  >
                     <header className="cap-group-head">
                       <PixelBadge
                         kind={group.kind}

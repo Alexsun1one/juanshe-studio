@@ -3,6 +3,7 @@
 import * as React from "react"
 import { toast } from "sonner"
 import { X, ShieldCheck, ExternalLink } from "lucide-react"
+import { PlatformHint } from "@/components/design/platform-hint"
 
 /* 平台连接状态(账号级,本地记录;AutoW 不代持平台密钥) */
 export type ChannelState = { connected: boolean; handle: string }
@@ -80,6 +81,8 @@ export function ChannelAuthModal({ onClose, onSaved }: { onClose: () => void; on
         <div className="ca-banner">
           AutoW <b>不代持平台密钥</b>。这里仅记录你在各平台的连接状态与账号;实际发布在对应平台完成 —— 成品可在「多平台创作」生成后复制粘贴。
         </div>
+
+        <PlatformHint type="channel-auth" variant="quiet" />
 
         <div className="cp-body ca-body">
           {PUBLISH_PLATFORMS.map((p) => {

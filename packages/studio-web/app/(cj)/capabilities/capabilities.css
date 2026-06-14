@@ -285,3 +285,14 @@
     margin-left: 0;
   }
 }
+
+/* ── 桌面版专属:灰态软提示(装桌面版才解锁,非缺陷)── */
+.cj-cap .cap-group.is-desktop-only {
+  opacity: 0.72;
+}
+.cj-cap .cap-group.is-desktop-only .cap-group-title::after {
+  content: " · 桌面版";
+  font-size: 11px;
+  color: var(--accent-warm-deep);
+  font-weight: 400;
+}

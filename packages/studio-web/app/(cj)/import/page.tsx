@@ -17,6 +17,7 @@ import { PixelBadge } from "@/components/design/pixel-badge"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { KpiChip } from "@/components/design/kit"
 import { CapabilityWorkbench } from "@/components/capabilities/capability-workbench"
+import { PlatformHint } from "@/components/design/platform-hint"
 import { useWorkspace, type BookSummary } from "@/lib/workspace-context"
 import "./import.css"
 
@@ -78,6 +79,7 @@ export default function ImportPage() {
             <div className="page-sub">
               把外部素材、URL、文风样本和风格指纹从 Web 直接喂进 Studio，沉淀成可复用的创作资产——让已有作品接着在编辑部里写下去、适配平台变现。
             </div>
+            <PlatformHint type="import-method" variant="quiet" />
           </div>
           <span className="imp-head-meta">
             <Wand2 className="imp-head-meta-ico" /> 走通 Studio API

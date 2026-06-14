@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useWorkspace } from "@/lib/workspace-context"
 import { PixelBadge } from "@/components/design/pixel-badge"
+import { PlatformHint } from "@/components/design/platform-hint"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
 import { WechatTemplatePicker, type WechatTpl } from "@/components/studio/wechat-template-picker"
 import "./platform-export.css"
@@ -338,6 +339,7 @@ export default function PlatformExportPage() {
             </div>
           </div>
 
+          <PlatformHint type="browser-download" variant="quiet" />
           <div className="pe-export-group">
             <button
               type="button"

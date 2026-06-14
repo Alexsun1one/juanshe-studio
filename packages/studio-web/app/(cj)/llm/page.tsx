@@ -48,6 +48,7 @@ import {
 import type { LLMProvider } from "@/lib/api/types"
 import { providerKindLabel } from "@/lib/labels"
 import { PixelBadge } from "@/components/design/pixel-badge"
+import { PlatformHint } from "@/components/design/platform-hint"
 import { KpiChip, FoldCard } from "@/components/design/kit"
 import "./llm.css"
 
@@ -293,6 +294,7 @@ export default function LLMConfigPage() {
             <div className="page-sub">
               接入任意 OpenAI 兼容大模型。选服务商 → 只填一个 API Key → 一键测试连通即可开始创作。
             </div>
+            <PlatformHint type="local-llm" variant="info" />
           </div>
         </div>
         <div className="llm-kpis" role="group" aria-label="模型接入概览">

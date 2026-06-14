@@ -28,6 +28,7 @@ import { CjPlaceholder } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { KpiChip, StatLine, Meter, FoldCard } from "@/components/design/kit"
+import { PlatformHint } from "@/components/design/platform-hint"
 import { EarnPath } from "@/components/workbench/earn-path"
 import { ChapterPublishModal } from "./chapter-publish-modal"
 import {
@@ -263,6 +264,7 @@ export default function PublishPage() {
                 <b>「取最新成稿 → 按平台格式复制 → 到平台粘贴」</b>;小红书/知乎需改写体裁,由「多平台创作」生成。
               </span>
             </p>
+            <PlatformHint type="auto-publish" variant="info" />
           </div>
         </div>
 

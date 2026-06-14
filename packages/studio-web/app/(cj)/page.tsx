@@ -50,6 +50,7 @@ import { showWriteBlockToast } from "@/lib/write-block-toast"
 import { blockerLabels } from "@/lib/blocker-labels"
 import { Meter } from "@/components/design/kit"
 import { AgentPixel } from "@/components/design/agent-pixel"
+import { PlatformHint } from "@/components/design/platform-hint"
 import { CjTour } from "@/components/shell/cj-tour"
 import { PixelCat } from "@/components/design/pixel-cat"
 import { renderProse, useEntityDict } from "@/lib/prose-highlight"
@@ -896,6 +897,7 @@ export default function CjDashboard() {
                   {!preparing && <kbd className="kbd">⌘⇧↵</kbd>}
                 </button>
               </div>
+              <PlatformHint type="batch-limits" variant="quiet" />
             </div>
           </section>
 

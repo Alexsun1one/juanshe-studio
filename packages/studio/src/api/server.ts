@@ -5,7 +5,7 @@ import { streamSSE } from "hono/streaming";
 import { serve } from "@hono/node-server";
 import archiver from "archiver";
 import { StateManager, PipelineRunner, ConsolidatorAgent, MemoryDB, createLLMClient, createLogger, createInteractionToolsFromDeps, computeAnalytics, loadProjectConfig, loadProjectSession, processProjectInteractionRequest, resolveSessionActiveBook, listBookSessions, loadBookSession, appendManualSessionMessages, createAndPersistBookSession, renameBookSession, deleteBookSession, migrateBookSession, SessionAlreadyMigratedError, runAgentSession, buildAgentSystemPrompt, resolveServicePreset, resolveServiceProviderFamily, resolveServiceModelsBaseUrl, resolveServiceModel, loadSecrets, saveSecrets, listModelsForService, isApiKeyOptionalForEndpoint, getAllEndpoints, probeModelsFromUpstream, fetchWithProxy, chatCompletion, buildExportArtifact, GLOBAL_ENV_PATH, markdownToContentDocument, renderForPlatform, getContentTypeProfile, assembleContentType, buildWritingSystemPrompt, mountSkills, buildCriticSystemPrompt, buildReviserSystemPrompt, parseCritiqueReport, critiqueWantsRevision, critiquePasses, buildResearchQueries, buildResearchContext, emptyAccountStyle, evolveStyleProfile, buildAccountVoicePrompt, parseCharacterMatrix, parseRoleFile, parseEmotionalArcs, groupArcsByCharacter, tensionByChapter, parsePendingHooks, parseSubplotBoard, hooksByStartChapter, parseVolumeMap, parseChapterSummaries, appearanceCounts, parseStoryFrame, buildGovernanceRecommendation, analyzeStyle, EDITOR_IN_CHIEF_SYSTEM_PROMPT, buildEditorInChiefUserMessage, parseEditorialVerdict, listWechatTemplates, DEFAULT_WECHAT_TEMPLATE, analyzeAITells, aiToneScore, DEFAULT_AI_TONE_FLOOR, } from "@juanshe/core";
-import { access, appendFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, appendFile, chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createHash, createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -849,13 +849,15 @@ async function loadSaasStore(root) {
         const parsed = JSON.parse(await readFile(file, "utf-8"));
         return {
             version: parsed.version ?? SAAS_STORE_VERSION,
+            // initialized:首次有用户注册后置 true,用于无 admin 白名单时关闭"首个用户自动提权"窗口。
+            initialized: Boolean(parsed.initialized),
             users: Array.isArray(parsed.users) ? parsed.users : [],
             sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
             ledger: Array.isArray(parsed.ledger) ? parsed.ledger : [],
         };
     }
     catch {
-        const fresh = { version: SAAS_STORE_VERSION, users: [], sessions: [], ledger: [] };
+        const fresh = { version: SAAS_STORE_VERSION, initialized: false, users: [], sessions: [], ledger: [] };
         await writeFile(file, JSON.stringify(fresh, null, 2), "utf-8");
         return fresh;
     }
@@ -864,6 +866,8 @@ async function saveSaasStore(root, store) {
     await mkdir(saasDataDir(root), { recursive: true });
     // 原子写:saas.json 含全部用户/会话/额度/账本,崩溃/磁盘满直写会整文件截断损坏。
     await atomicWriteFile(saasStoreFile(root), JSON.stringify(store, null, 2));
+    // 仅属主可读写:saas.json 含密码哈希,world-readable 时备份/快照/容器逃逸泄露即可离线爆破。
+    await chmod(saasStoreFile(root), 0o600).catch(() => {});
 }
 // ── 发码注册表(.saas/codes.json)──────────────────────────────────────────
 // 管理后台发码 + 限时领码共用一份注册表。每条:
@@ -8574,6 +8578,9 @@ function publicConnectivityTarget(target) {
 export function createStudioServer(initialConfig, root) {
     activityLogRoot = root;
     globalServerRoot = root;
+    // 限流桶按"服务器实例"隔离:生产只建一次(清空空表无副作用);测试每次新建 app 都重置,
+    // 避免模块级 __rateBuckets 跨实例累加把多个测试的注册/登录请求误判为超频。
+    __rateBuckets.clear();
     const app = new Hono();
     // 全局 StateManager:桌面单机 = 唯一实例;SaaS = 平台级回落(ALS 未 populate 时用)。
     const globalState = new StateManager(root);
@@ -9435,7 +9442,11 @@ export function createStudioServer(initialConfig, root) {
         activeStateRepairJobs.set(repairLockKey, job);
         return job;
     }
-    app.use("/*", cors());
+    // CORS:配了 HARDWRITE_CORS_ORIGINS(逗号分隔)就只放行白名单 origin + 携带凭据;没配则维持默认(桌面/本地开发)。
+    // 生产应设为 https://write.nextapi.top —— 浏览器对认证响应只放给可信站点读,挡跨站偷读。
+    const corsAllowList = String(process.env.HARDWRITE_CORS_ORIGINS ?? "")
+        .split(",").map((s) => s.trim()).filter(Boolean);
+    app.use("/*", corsAllowList.length ? cors({ origin: corsAllowList, credentials: true }) : cors());
     // ── 激活强制门(后端强制,不再只靠前端 localStorage)──────────────────────
     // 仅在显式 HARDWRITE_ACTIVATION_REQUIRED=1 时生效(特殊分发场景的整站硬卡);
     // 常规商业包/自部署 = 免码直通进站写书(普通会员轻档),激活码只解锁 Pro/Ultra。
@@ -9922,6 +9933,10 @@ export function createStudioServer(initialConfig, root) {
         if (!isSaasModeEnabled()) {
             return c.json({ error: { code: "SAAS_DISABLED", message: "SaaS mode is not enabled." } }, 400);
         }
+        // 限流:挡脚本批量注册撑爆 saas.json / 磁盘(每 IP 每分钟最多 5 次,容错重试)。
+        if (rateLimited(clientKey(c, "register"), 5, 60000)) {
+            return c.json({ error: { code: "RATE_LIMITED", message: "注册过于频繁,请稍后再试。" } }, 429);
+        }
         const body = await c.req.json().catch(() => ({}));
         const email = normalizeEmail(body.email);
         const password = String(body.password ?? "");
@@ -9931,37 +9946,54 @@ export function createStudioServer(initialConfig, root) {
         if (password.length < 8) {
             return c.json({ error: { code: "WEAK_PASSWORD", message: "密码至少 8 位。" } }, 400);
         }
-        const store = await loadSaasStore(root);
-        if (store.users.some((user) => user.email === email)) {
+        // 谁是 admin:优先服务端白名单 HARDWRITE_ADMIN_EMAILS(逗号分隔)。配了就只认名单——
+        // 彻底拆掉"saas.json 被清空/损坏后,下一个注册者自动变 admin"的提权地雷。
+        // 没配则回退到"首个用户 + 未初始化过"(桌面/本地开发用),initialized 标志关掉后续窗口。
+        const adminAllowlist = String(process.env.HARDWRITE_ADMIN_EMAILS ?? "")
+            .split(",").map((e) => normalizeEmail(e.trim())).filter(Boolean);
+        let payload = null;
+        // 全局 saas-store 锁串行化账户库读-改-写:杜绝并发注册 TOCTOU(重复账户 / 多 admin / 写覆盖丢账户)。
+        await withBillingLock("saas-store", async () => {
+            const store = await loadSaasStore(root);
+            if (store.users.some((user) => user.email === email)) {
+                payload = { conflict: true };
+                return;
+            }
+            const now = new Date().toISOString();
+            const isAdmin = adminAllowlist.length > 0
+                ? adminAllowlist.includes(email)
+                : (store.users.length === 0 && !store.initialized);
+            const tenantId = tenantIdForEmail(email);
+            const user = {
+                id: newId("user"),
+                email,
+                passwordHash: hashPassword(password),
+                role: isAdmin ? "admin" : "user",
+                tenantId,
+                credits: Number(process.env.HARDWRITE_SIGNUP_CREDITS ?? (isAdmin ? 200 : 0)),
+                createdAt: now,
+            };
+            store.users.push(user);
+            store.initialized = true; // 标记已初始化:无白名单时此后不再自动提权首个用户
+            store.ledger.push({
+                id: newId("ledger"),
+                userId: user.id,
+                type: "credit",
+                credits: user.credits,
+                reason: isAdmin ? "首个管理员初始额度" : "注册初始额度",
+                createdAt: now,
+            });
+            const sid = newId("sess");
+            store.sessions.push({ id: sid, userId: user.id, createdAt: now, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+            await saveSaasStore(root, store);
+            payload = { user, sid };
+        });
+        if (payload?.conflict) {
             return c.json({ error: { code: "EMAIL_EXISTS", message: "该邮箱已经注册。" } }, 409);
         }
-        const now = new Date().toISOString();
-        const firstUser = store.users.length === 0;
-        const tenantId = tenantIdForEmail(email);
-        const user = {
-            id: newId("user"),
-            email,
-            passwordHash: hashPassword(password),
-            role: firstUser ? "admin" : "user",
-            tenantId,
-            credits: Number(process.env.HARDWRITE_SIGNUP_CREDITS ?? (firstUser ? 200 : 0)),
-            createdAt: now,
-        };
-        store.users.push(user);
-        store.ledger.push({
-            id: newId("ledger"),
-            userId: user.id,
-            type: "credit",
-            credits: user.credits,
-            reason: firstUser ? "首个管理员初始额度" : "注册初始额度",
-            createdAt: now,
-        });
-        const sid = newId("sess");
-        store.sessions.push({ id: sid, userId: user.id, createdAt: now, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
-        await ensureTenantWorkspace(root, tenantId);
-        await saveSaasStore(root, store);
-        setSaasCookie(c, sid);
-        return c.json({ ok: true, user: publicUser(user) });
+        await ensureTenantWorkspace(root, payload.user.tenantId);
+        setSaasCookie(c, payload.sid);
+        return c.json({ ok: true, user: publicUser(payload.user) });
     });
     app.post("/api/v1/auth/login", async (c) => {
         if (rateLimited(clientKey(c, "login"), 10, 60000)) {
@@ -9973,27 +10005,38 @@ export function createStudioServer(initialConfig, root) {
         const body = await c.req.json().catch(() => ({}));
         const email = normalizeEmail(body.email);
         const password = String(body.password ?? "");
-        const store = await loadSaasStore(root);
-        const user = store.users.find((item) => item.email === email);
-        if (!user || !verifyPassword(password, user.passwordHash)) {
+        let payload = null;
+        // 全局 saas-store 锁:登录写 session 与并发注册/登出串行,避免整份 saas.json 后写覆盖丢账户/会话。
+        await withBillingLock("saas-store", async () => {
+            const store = await loadSaasStore(root);
+            const user = store.users.find((item) => item.email === email);
+            if (!user || !verifyPassword(password, user.passwordHash)) {
+                payload = { invalid: true };
+                return;
+            }
+            const sid = newId("sess");
+            const now = new Date().toISOString();
+            store.sessions = store.sessions.filter((session) => Number(session.expiresAt ?? 0) > Date.now());
+            store.sessions.push({ id: sid, userId: user.id, createdAt: now, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+            await saveSaasStore(root, store);
+            payload = { user, sid };
+        });
+        if (payload?.invalid) {
             return c.json({ error: { code: "INVALID_LOGIN", message: "邮箱或密码错误。" } }, 401);
         }
-        const sid = newId("sess");
-        const now = new Date().toISOString();
-        store.sessions = store.sessions.filter((session) => Number(session.expiresAt ?? 0) > Date.now());
-        store.sessions.push({ id: sid, userId: user.id, createdAt: now, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
-        await saveSaasStore(root, store);
-        setSaasCookie(c, sid);
-        return c.json({ ok: true, user: publicUser(user) });
+        setSaasCookie(c, payload.sid);
+        return c.json({ ok: true, user: publicUser(payload.user) });
     });
     app.post("/api/v1/auth/logout", async (c) => {
         if (isSaasModeEnabled()) {
             const cookies = parseCookies(c.req.header("cookie"));
             const sid = cookies[SAAS_SESSION_COOKIE];
             if (sid) {
-                const store = await loadSaasStore(root);
-                store.sessions = store.sessions.filter((session) => session.id !== sid);
-                await saveSaasStore(root, store);
+                await withBillingLock("saas-store", async () => {
+                    const store = await loadSaasStore(root);
+                    store.sessions = store.sessions.filter((session) => session.id !== sid);
+                    await saveSaasStore(root, store);
+                });
             }
         }
         clearSaasCookie(c);
@@ -10486,32 +10529,53 @@ export function createStudioServer(initialConfig, root) {
         if (!isSaasModeEnabled()) {
             return c.json({ error: { code: "SAAS_DISABLED", message: "SaaS mode is not enabled." } }, 400);
         }
+        // 限流:挡住对 x-admin-key 的暴力/时序探测,以及对充值端点的滥用。
+        if (rateLimited(clientKey(c, "topup"), 12, 60000)) {
+            return c.json({ error: { code: "RATE_LIMITED", message: "操作过于频繁,请稍后再试。" } }, 429);
+        }
         const auth = await resolveSaasSession(root, c);
-        const adminKey = process.env.HARDWRITE_ADMIN_KEY;
-        const headerKey = c.req.header("x-admin-key");
-        const canAdmin = auth?.user?.role === "admin" || (adminKey && headerKey === adminKey);
+        // 两段式:有会话 → 必须 role==='admin'(普通登录用户带任意 x-admin-key 也提不了权,堵死旁路提权);
+        // 无会话 → 才看 x-admin-key 备用因子,且等长 + 常数时间比较(timingSafeEqual)杜绝时序逐字符推导。
+        // 注:全局认证中间件通常已对无会话请求先 401,这里是纵深防御。
+        let canAdmin;
+        if (auth) {
+            canAdmin = auth.user.role === "admin";
+        }
+        else {
+            const adminKey = process.env.HARDWRITE_ADMIN_KEY;
+            const headerKey = c.req.header("x-admin-key");
+            canAdmin = !!(adminKey && headerKey
+                && Buffer.byteLength(headerKey) === Buffer.byteLength(adminKey)
+                && timingSafeEqual(Buffer.from(headerKey), Buffer.from(adminKey)));
+        }
         if (!canAdmin) {
             return c.json({ error: { code: "FORBIDDEN", message: "只有管理员可以充值。" } }, 403);
         }
         const body = await c.req.json().catch(() => ({}));
         const email = normalizeEmail(body.email);
         const credits = Math.max(1, Math.min(1000000, Number(body.credits) || 0));
-        const store = await loadSaasStore(root);
-        const user = store.users.find((item) => item.email === email);
-        if (!user) {
+        let result = null;
+        // 串行化账户库的读-改-写,避免与并发计费互相覆盖。
+        await withBillingLock("saas-store", async () => {
+            const store = await loadSaasStore(root);
+            const user = store.users.find((item) => item.email === email);
+            if (!user) { result = { notFound: true }; return; }
+            user.credits = Number(user.credits ?? 0) + credits;
+            store.ledger.push({
+                id: newId("ledger"),
+                userId: user.id,
+                type: "credit",
+                credits,
+                reason: String(body.reason ?? "管理员充值").slice(0, 200),
+                createdAt: new Date().toISOString(),
+            });
+            await saveSaasStore(root, store);
+            result = { user: publicUser(user) };
+        });
+        if (result?.notFound) {
             return c.json({ error: { code: "USER_NOT_FOUND", message: "用户不存在。" } }, 404);
         }
-        user.credits = Number(user.credits ?? 0) + credits;
-        store.ledger.push({
-            id: newId("ledger"),
-            userId: user.id,
-            type: "credit",
-            credits,
-            reason: String(body.reason ?? "管理员充值").slice(0, 200),
-            createdAt: new Date().toISOString(),
-        });
-        await saveSaasStore(root, store);
-        return c.json({ ok: true, user: publicUser(user) });
+        return c.json({ ok: true, user: result.user });
     });
     // Structured error handler — ApiError returns typed JSON, others return 500
     app.onError((error, c) => {
@@ -14218,6 +14282,10 @@ export function createStudioServer(initialConfig, root) {
     });
     app.post("/api/v1/books/:id/write-batch", async (c) => {
         const id = c.req.param("id");
+        // 限流:挡快速 start/cancel 刷批量任务(配合下方"同租户活跃任务墙"双重防资源滥用)。
+        if (isSaasModeEnabled() && rateLimited(clientKey(c, "write-batch"), 20, 60000)) {
+            return c.json({ error: { code: "RATE_LIMITED", message: "操作过于频繁,请稍后再试。" } }, 429);
+        }
         const body = await c.req.json().catch(() => ({ wordCount: undefined, chapters: 1 }));
         const origin = new URL(c.req.url).origin;
         // SaaS:批量写作是跑数小时的 fire-and-forget,捕获租户 store + cookie 带进任务闭包。

@@ -1,0 +1,101 @@
+/* PlatformHint —— 桌面版能力软提示条。暖纸柔紫 + 像素 12px UI 字体,亮暗自适应。
+   底色由 --bg-card 派生一点暖橙(color-mix),所以暗色自动落到深堇紫纸而非冷黑;
+   描边走暖橙、强调走墨色、链接走柔紫。绝不冷蓝 / 近黑 / 告警红。 */
+.platform-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: var(--r-lg, 12px);
+  background: color-mix(in srgb, var(--accent-warm) 7%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--accent-warm) 30%, transparent);
+  font-family: var(--font-pixel-ui), system-ui, sans-serif;
+}
+
+.ph-badge {
+  flex: none;
+  margin-top: 1px;
+}
+
+/* quiet 变体:左侧一个暖橙像素方点替代徽标,整体更收敛 */
+.ph-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: var(--accent-warm-deep);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-warm) 18%, transparent);
+}
+
+.ph-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.ph-eyebrow {
+  display: inline-block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--accent-warm-deep);
+}
+
+.ph-body {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  letter-spacing: 0.01em;
+  color: var(--ink-700);
+}
+
+.ph-body b {
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.ph-more {
+  flex: none;
+  align-self: center;
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--brand-600);
+  text-decoration: none;
+}
+
+.ph-more:hover {
+  text-decoration: underline;
+}
+
+.ph-more:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* quiet:更小留白、隐眉标、文字降一档,用于不该喧宾夺主的页面 */
+.ph-quiet {
+  gap: 8px;
+  padding: 8px 11px;
+  background: color-mix(in srgb, var(--accent-warm) 5%, var(--bg-card));
+}
+
+.ph-quiet .ph-body {
+  font-size: 11.5px;
+  color: var(--ink-500);
+}
+
+.ph-quiet .ph-body b {
+  color: var(--ink-700);
+}
+
+/* 窄屏:链接落到下一行,不挤压正文 */
+@media (max-width: 560px) {
+  .platform-hint {
+    flex-wrap: wrap;
+  }
+
+  .ph-more {
+    margin-left: 16px;
+  }
+}
