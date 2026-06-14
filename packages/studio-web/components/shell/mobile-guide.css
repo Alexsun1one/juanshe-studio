@@ -1,0 +1,158 @@
+/* 移动端引导页 —— 桌面零成本(display:none),仅 ≤768px 全屏覆盖。暖纸柔紫 + 像素体,与登录页同语言。 */
+.mobile-guide {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-guide {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 99999; /* 盖住登录页与工作台一切 */
+    align-items: center;
+    justify-content: center;
+    padding: 22px;
+    background:
+      radial-gradient(120% 80% at 50% 0%, color-mix(in oklab, var(--brand-500) 9%, var(--bg-app)) 0%, var(--bg-app) 60%);
+    overflow-y: auto;
+    font-family: var(--font-pixel-ui);
+  }
+  .mobile-guide .mg-card {
+    width: 100%;
+    max-width: 360px;
+    background: var(--bg-card);
+    border: 1px solid var(--line-1);
+    border-radius: 18px;
+    box-shadow: var(--sh-pop, 0 12px 32px rgba(43, 38, 32, 0.14));
+    padding: 22px 20px 20px;
+    text-align: center;
+  }
+  .mobile-guide .mg-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    margin-bottom: 16px;
+  }
+  .mobile-guide .mg-mk {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: var(--brand-50);
+    color: var(--brand-600);
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--line-1);
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .mobile-guide .mg-nm {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: var(--ink-800);
+  }
+  .mobile-guide .mg-art {
+    border-radius: 13px;
+    overflow: hidden;
+    border: 1px solid var(--line-2);
+    margin-bottom: 16px;
+    line-height: 0;
+  }
+  .mobile-guide .mg-art img {
+    width: 100%;
+    height: auto;
+    display: block;
+    filter: var(--brand-asset-filter, saturate(1)); /* 暗色轻提亮;插画不随主题转色 */
+  }
+  .mobile-guide .mg-title {
+    font-size: 21px;
+    line-height: 1.35;
+    font-weight: 800;
+    color: var(--ink-900);
+    margin: 0 0 10px;
+    letter-spacing: 0.01em;
+  }
+  .mobile-guide .mg-desc {
+    font-size: 12.5px;
+    line-height: 1.75;
+    color: var(--ink-600);
+    margin: 0 0 18px;
+    font-family: var(--font-sans-ui); /* 长说明走 sans 更好读 */
+  }
+  .mobile-guide .mg-desc b {
+    color: var(--brand-600);
+    font-weight: 700;
+  }
+  .mobile-guide .mg-url {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 8px 8px 13px;
+    background: var(--bg-canvas);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-lg, 12px);
+    margin-bottom: 16px;
+  }
+  .mobile-guide .mg-url-text {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    font-family: var(--font-mono-num, monospace);
+    font-size: 13px;
+    color: var(--ink-800);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mobile-guide .mg-copy {
+    flex: 0 0 auto;
+    height: 34px;
+    padding: 0 14px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(180deg, var(--brand-500), var(--brand-600));
+    border: none;
+    border-radius: var(--r-md, 9px);
+    cursor: pointer;
+  }
+  .mobile-guide .mg-copy:active {
+    transform: scale(0.97);
+  }
+  .mobile-guide .mg-wechat {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: color-mix(in oklab, var(--brand-500) 5%, var(--bg-canvas));
+    border: 1px solid color-mix(in oklab, var(--brand-500) 16%, var(--line-1));
+    border-radius: var(--r-lg, 12px);
+    text-align: left;
+  }
+  .mobile-guide .mg-qr {
+    flex: 0 0 auto;
+    width: 64px;
+    height: 64px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid var(--line-2);
+  }
+  .mobile-guide .mg-wechat-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .mobile-guide .mg-wechat-text b {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--ink-800);
+  }
+  .mobile-guide .mg-wechat-text span {
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--ink-500);
+    font-family: var(--font-sans-ui);
+  }
+}

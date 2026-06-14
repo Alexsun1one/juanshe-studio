@@ -6,6 +6,7 @@ import { LocaleProvider } from "@/lib/i18n"
 import { WorkspaceProvider } from "@/lib/workspace-context"
 import { SwrProvider } from "@/components/providers/swr-provider"
 import { Toaster } from "@/components/ui/sonner"
+import { MobileGuide } from "@/components/shell/mobile-guide"
 import "./globals.css"
 import "./design.css"
 import "./themes.css"
@@ -88,6 +89,8 @@ export default function RootLayout({
               <WorkspaceProvider>
                 {children}
                 <Toaster />
+                {/* 移动端引导:桌面零成本(CSS display:none),≤768px 全屏提示用电脑打开 */}
+                <MobileGuide />
               </WorkspaceProvider>
             </SwrProvider>
           </LocaleProvider>
