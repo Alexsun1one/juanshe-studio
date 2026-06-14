@@ -80,6 +80,28 @@ describe("secrets", () => {
       expect(key).toBeNull();
     });
 
+    it("SaaS mode disables env key fallback (no cross-tenant operator key leak)", async () => {
+      vi.stubEnv("MOONSHOT_API_KEY", "sk-operator-global");
+      vi.stubEnv("HARDWRITE_SAAS_MODE", "1");
+      // 租户没自己的 secrets.json → SaaS 模式下不得回退到运维的全局 env key。
+      const key = await getServiceApiKey(root, "moonshot");
+      expect(key).toBeNull();
+      vi.unstubAllEnvs();
+    });
+
+    it("SaaS mode still honors the tenant's own secrets.json", async () => {
+      await mkdir(join(root, ".autow"), { recursive: true });
+      await writeFile(
+        join(root, ".autow", "secrets.json"),
+        JSON.stringify({ services: { moonshot: { apiKey: "sk-tenant-own" } } }),
+      );
+      vi.stubEnv("MOONSHOT_API_KEY", "sk-operator-global");
+      vi.stubEnv("HARDWRITE_SAAS_MODE", "1");
+      const key = await getServiceApiKey(root, "moonshot");
+      expect(key).toBe("sk-tenant-own");
+      vi.unstubAllEnvs();
+    });
+
     it("handles custom service with colon key format", async () => {
       await mkdir(join(root, ".autow"), { recursive: true });
       await writeFile(

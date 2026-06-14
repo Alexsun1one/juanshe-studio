@@ -61,18 +61,26 @@ export async function saveSecrets(
   );
 }
 
+function isSaasModeEnabled(): boolean {
+  return process.env.HARDWRITE_SAAS_MODE === "1" || process.env.HARDWRITE_SAAS_MODE === "true";
+}
+
 export async function getServiceApiKey(
   projectRoot: string,
   service: string,
 ): Promise<string | null> {
-  // 1. secrets.json
+  // 1. secrets.json(SaaS:这是按租户根读取的 .saas/tenants/{tid}/.autow/secrets.json,租户隔离)
   const secrets = await loadSecrets(projectRoot);
   const entry = secrets.services[service];
   if (entry?.apiKey) return entry.apiKey;
 
   // 2. Environment variable: MOONSHOT_API_KEY, DEEPSEEK_API_KEY, etc.
-  const envKey = `${service.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase()}_API_KEY`;
-  if (process.env[envKey]) return process.env[envKey]!;
+  //    SaaS 多租户模式下**禁用** env key 回退:否则运维的全局 OPENAI_API_KEY 会被所有租户共用、
+  //    污染计费与隔离边界。桌面单机(BYOK)模式行为不变,仍支持环境变量。
+  if (!isSaasModeEnabled()) {
+    const envKey = `${service.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase()}_API_KEY`;
+    if (process.env[envKey]) return process.env[envKey]!;
+  }
 
   return null;
 }

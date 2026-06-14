@@ -7,6 +7,43 @@ import { StateManager, PipelineRunner, ConsolidatorAgent, MemoryDB, createLLMCli
 import { access, appendFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createHash, createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
+// ── SaaS 多租户上下文(ALS)──────────────────────────────────────────────
+// 托管多租户模式下,每个 HTTP 请求在自己的 AsyncLocalStorage store 里跑,store 携带
+// { tenantId, root: tenantRoot, state: tenantState }。桌面单机模式永不 populate,
+// 所有访问器回落到全局 root / 全局 StateManager,行为字节级不变。
+// store 在 SaaS 认证中间件里用 requestContext.run(...) 注入;长跑后台写作任务必须在
+// 任务创建处显式捕获并用 requestContext.run 重新带进 IIFE(ALS 不会自动撑过 fire-and-forget)。
+const requestContext = new AsyncLocalStorage();
+// 全局根 / 全局 StateManager:工厂启动时(桌面或 SaaS 平台级)写入,供 ALS 未 populate 时回落。
+let globalServerRoot = null;
+let globalServerState = null;
+function currentTenantStore() {
+    return requestContext.getStore() ?? null;
+}
+// 当前请求应当落盘的 root:租户 root(SaaS 已 populate)→ 否则显式传入的 root → 否则全局 root。
+// 注意:tenantRootOr(root) 给"模块级、接收显式 root 的 helper"用,使其在 ALS 激活时自动租户化、
+// 桌面/平台级(ALS 空)回落到传入的 root,零调用点改动。
+function tenantRootOr(root) {
+    return currentTenantStore()?.root ?? root;
+}
+// 把一段长跑后台任务(write-batch / write-next / create-book 的 fire-and-forget IIFE)
+// 显式跑在捕获到的租户 store 上。ALS 不会自动撑过 fire-and-forget,所以必须在任务创建处
+// const jobStore = currentTenantStore() 捕获、再用本函数把它带进 IIFE,否则任务执行时
+// ALS 已为空 → 所有 ALS-aware helper 回落全局 root = 串户。store 为空(桌面)时直接执行。
+function runInTenantContext(store, fn) {
+    return store ? requestContext.run(store, fn) : fn();
+}
+// 内存态(SSE 订阅过滤、live-draft 快照)按 bookId 建 key,但 bookId=书名slug 跨租户会撞,
+// 不隔离会把 A 正在写的章节正文串流给看同名书的 B。SaaS 模式下用 tenantId 前缀隔离;
+// 桌面/ALS 空时返回裸 bookId(行为不变)。注:写作锁 Map(activeWriteJobs 等)另有迭代点,
+// 不走本 helper,单独在 P0-2 处理。
+function tenantScopedKey(bookId) {
+    if (!isSaasModeEnabled())
+        return bookId;
+    const tid = currentTenantStore()?.tenantId;
+    return tid ? `${tid}::${bookId}` : bookId;
+}
 // 卷舍写作引擎(@juanshe/engine)接线:Step 3 经验库 learnings(LLM-free 记录/检索)
 import { RecordInput } from "@juanshe/engine";
 import { recordChapterLearning, retrieveChapterLearnings, loadLearningLibrary, writeChapterViaEngine, runBookViaEngine, cleanChapterText } from "./engine-bridge.js";
@@ -52,6 +89,7 @@ async function runWebResearch(queries) {
 }
 // 账号风格画像持久化(长期定义 + 自我进化):存于 <root>/.autow/account-styles/<id>.json(运行时数据)。
 async function loadAccountStyle(root, id) {
+    root = tenantRootOr(root);
     if (!/^[A-Za-z0-9_-]+$/.test(String(id))) return emptyAccountStyle(String(id));
     try {
         const raw = await readFile(join(root, ".autow", "account-styles", `${id}.json`), "utf-8");
@@ -63,6 +101,7 @@ async function loadAccountStyle(root, id) {
     }
 }
 async function saveAccountStyle(root, id, profile) {
+    root = tenantRootOr(root);
     if (!/^[A-Za-z0-9_-]+$/.test(String(id))) return;
     const dir = join(root, ".autow", "account-styles");
     await mkdir(dir, { recursive: true });
@@ -209,10 +248,10 @@ const WORKFLOW_EVENT_TO_STAGE = [
     [/complete|approve|publish|export/i, "publish"],
 ];
 function workflowRuntimeFile(root, bookId) {
-    return join(root, ".hardwrite", "workflow-state", `${bookId}.json`);
+    return join(tenantRootOr(root), ".hardwrite", "workflow-state", `${bookId}.json`);
 }
 function promptInjectionFile(root, bookId) {
-    return join(root, ".hardwrite", "prompt-injections", `${bookId}.json`);
+    return join(tenantRootOr(root), ".hardwrite", "prompt-injections", `${bookId}.json`);
 }
 async function readWorkflowRuntimeState(root, bookId) {
     if (!isSafeBookId(bookId))
@@ -787,7 +826,11 @@ async function ensureTenantWorkspace(root, tenantId) {
         await access(join(tenantRoot, "hardwrite.json"));
     }
     catch {
-        const base = await loadRawConfig(root).catch(() => ({ name: "tenant-workspace" }));
+        // 平台基线配置必须直读全局 root 的 hardwrite.json —— 绝不能走 ALS-aware 的 loadRawConfig,
+        // 否则若本函数被(将来)在某个已激活的租户上下文里调用,会拿别的租户配置去种这个租户,串户。
+        const base = await readFile(join(root, "hardwrite.json"), "utf-8")
+            .then((raw) => JSON.parse(raw))
+            .catch(() => ({ name: "tenant-workspace" }));
         await writeFile(join(tenantRoot, "hardwrite.json"), JSON.stringify({
             ...base,
             name: tenantId,
@@ -1174,6 +1217,8 @@ subscribers.add((event, data) => {
         const bookId = data?.bookId;
         if (!bookId || typeof bookId !== "string")
             return;
+        // 租户隔离:live-draft 快照 key 加 tenant 前缀,防同名书跨租户串正文(桌面回落裸 bookId)
+        const draftKey = tenantScopedKey(bookId);
         if (event === "llm:delta") {
             const text = typeof data.text === "string" ? data.text : "";
             if (!text)
@@ -1181,10 +1226,10 @@ subscribers.add((event, data) => {
             const agent = String(data.agent || "model");
             const chapter = Number(data.chapter || data.chapterNumber || 0) || undefined;
             const now = Date.now();
-            let entry = liveDraftByBook.get(bookId);
+            let entry = liveDraftByBook.get(draftKey);
             if (!entry || now - entry.updatedAt > LIVE_DRAFT_MAX_AGE_MS) {
                 entry = { chapter: undefined, byAgent: new Map(), lastAgent: "", updatedAt: now, completed: false };
-                liveDraftByBook.set(bookId, entry);
+                liveDraftByBook.set(draftKey, entry);
             }
             if (chapter && entry.chapter && chapter !== entry.chapter) {
                 // 换章 → 重新累计(与前端 useLiveRun 同语义)
@@ -1204,20 +1249,20 @@ subscribers.add((event, data) => {
             entry.updatedAt = now;
             if (liveDraftByBook.size > LIVE_DRAFT_MAX_BOOKS) {
                 const oldest = [...liveDraftByBook.entries()].sort((a, b) => a[1].updatedAt - b[1].updatedAt)[0];
-                if (oldest && oldest[0] !== bookId)
+                if (oldest && oldest[0] !== draftKey)
                     liveDraftByBook.delete(oldest[0]);
             }
             return;
         }
         if (event === "llm:progress" && data?.status === "done") {
-            const entry = liveDraftByBook.get(bookId);
+            const entry = liveDraftByBook.get(draftKey);
             if (entry)
                 entry.completed = true;
             return;
         }
         if (event === "write:complete" || event === "workflow:stopped") {
             // 章节已落库 / 工作流已停 → 快照失去恢复价值,立即释放
-            liveDraftByBook.delete(bookId);
+            liveDraftByBook.delete(draftKey);
         }
     }
     catch {
@@ -1301,7 +1346,7 @@ const VAULT_SECTION_DIRS = [
     "90-系统索引",
 ];
 function vaultPath(root) {
-    return join(root, WRITING_VAULT_DIR);
+    return join(tenantRootOr(root), WRITING_VAULT_DIR);
 }
 function sanitizeVaultName(value, fallback = "未命名") {
     const normalized = String(value ?? "")
@@ -1348,6 +1393,7 @@ function markdownLinkPath(relativePath) {
     return relativePath.split("/").map((part) => encodeURIComponent(part)).join("/");
 }
 async function ensureWritingVault(root) {
+    root = tenantRootOr(root);
     const vault = vaultPath(root);
     try {
         await access(vault);
@@ -1597,6 +1643,7 @@ function radarMarkdown(result) {
     return lines.join("\n");
 }
 async function persistRadarArtifacts(root, result) {
+    root = tenantRootOr(root);
     await mkdir(join(root, ".hardwrite"), { recursive: true });
     await writeFile(join(root, ".hardwrite", "radar-latest.json"), JSON.stringify(result, null, 2), "utf-8");
     const label = `雷达扫描-${vaultStamp(new Date(result?.timestamp ?? Date.now()))}`;
@@ -1690,6 +1737,7 @@ function styleProfileMarkdown(profile, input) {
     ].join("\n");
 }
 async function persistStyleAnalysis(root, profile, input) {
+    root = tenantRootOr(root);
     const title = sanitizeVaultName(input?.title || input?.sourceName || profile?.sourceName || "风格分析");
     const relativePath = `40-风格样本/${vaultStamp()}-${title}.md`;
     const content = styleProfileMarkdown(profile, { ...input, title });
@@ -2861,7 +2909,7 @@ function normalizeAgentService(value, fallback = "") {
     return /[\x00-\x1f<>/\\]/.test(service) ? fallback : service;
 }
 async function hydrateAgentOverrideRuntimeConfig(root, config) {
-    const secrets = await loadSecrets(root).catch(() => ({ services: {} }));
+    const secrets = await loadSecrets(tenantRootOr(root)).catch(() => ({ services: {} }));
     const services = normalizeServiceConfig(config.llm?.services);
     const profiles = config.agentProfiles ?? {};
     const next = { ...(config.modelOverrides ?? {}) };
@@ -3574,6 +3622,7 @@ async function walkFiles(base, predicate = () => true) {
     return walk(base);
 }
 async function readActivityEntries(root, limit = 200) {
+    root = tenantRootOr(root);
     const paths = [join(root, ".hardwrite", "activity.log"), join(root, "hardwrite.log")];
     const entries = [];
     for (const logPath of paths) {
@@ -3749,6 +3798,7 @@ function enrichActivityEntry(entry) {
     };
 }
 async function recoverLatestDraftFromActivityLog(root, bookId) {
+    root = tenantRootOr(root);
     const raw = await readOptionalText(join(root, ".hardwrite", "activity.log"));
     if (!raw.trim())
         return "";
@@ -4544,6 +4594,7 @@ function parseRevisionSnapshot(raw, filename) {
     return { kind: rawKind, kindLabel: kindMap[rawKind] || rawKind, timestamp, before, after, notes, filename };
 }
 async function latestChapterRevisionText(root, bookId, chapterNumber) {
+    root = tenantRootOr(root);
     const revisionsDir = join(root, ".hardwrite", "revisions", bookId);
     try {
         const entries = await readdir(revisionsDir, { withFileTypes: true });
@@ -6235,6 +6286,7 @@ function scrubActivityData(data) {
     return json;
 }
 async function appendActivityLog(root, event, data = {}) {
+    root = tenantRootOr(root);
     try {
         await mkdir(join(root, ".hardwrite"), { recursive: true });
         const base = {
@@ -6260,7 +6312,7 @@ async function appendActivityLog(root, event, data = {}) {
     }
 }
 function bookAssetDir(root, bookId) {
-    return join(root, "books", bookId, "story", "agent_assets");
+    return join(tenantRootOr(root), "books", bookId, "story", "agent_assets");
 }
 async function appendBookAgentEvent(root, bookId, event, data = {}) {
     if (!bookId || !isSafeBookId(bookId))
@@ -6335,12 +6387,18 @@ function broadcast(event, data) {
     if (activityLogRoot && !isHighVolumeDeltaEvent(event)) {
         void appendActivityLog(activityLogRoot, event, data);
     }
+    // 租户隔离:SaaS 模式下事件只 fan-out 给同租户的 SSE 订阅者,防 A 的写作流式正文串给看同名书的 B。
+    // 起源租户 = 广播发生时的 ALS 上下文(写作请求/后台任务都跑在各自租户 store 里)。
+    // 内部常驻订阅者(handler.__tid 未设,如 live-draft 累计器)__tid 为 undefined → 收全部、各自按 tenantScopedKey 入账。
+    const originTid = isSaasModeEnabled() ? (currentTenantStore()?.tenantId ?? null) : null;
     for (const handler of subscribers) {
+        if (originTid !== null && handler.__tid != null && handler.__tid !== originTid)
+            continue;
         handler(event, data);
     }
 }
 function taskRunsFile(root) {
-    return join(root, ".hardwrite", "task_runs.json");
+    return join(tenantRootOr(root), ".hardwrite", "task_runs.json");
 }
 const SERVER_INSTANCE_ID = `studio-${process.pid}-${Date.now().toString(36)}`;
 const SERVER_STARTED_AT = new Date().toISOString();
@@ -7896,11 +7954,13 @@ function mergeServiceConfig(existing, updates) {
     return [...merged.values()];
 }
 async function loadRawConfig(root) {
+    root = tenantRootOr(root);
     const configPath = join(root, "hardwrite.json");
     const raw = await readFile(configPath, "utf-8");
     return JSON.parse(raw);
 }
 async function saveRawConfig(root, config) {
+    root = tenantRootOr(root);
     // 原子写:hardwrite.json 写撕裂会让几乎所有端点读配置失败而 500(项目被砖)。
     await atomicWriteFile(join(root, "hardwrite.json"), JSON.stringify(config, null, 2));
 }
@@ -8250,8 +8310,45 @@ function publicConnectivityTarget(target) {
 // --- Server factory ---
 export function createStudioServer(initialConfig, root) {
     activityLogRoot = root;
+    globalServerRoot = root;
     const app = new Hono();
-    const state = new StateManager(root);
+    // 全局 StateManager:桌面单机 = 唯一实例;SaaS = 平台级回落(ALS 未 populate 时用)。
+    const globalState = new StateManager(root);
+    globalServerState = globalState;
+    // 每租户 StateManager 缓存:避免每请求重建(StateManager 只持有 projectRoot,可安全复用)。
+    const tenantStateCache = new Map();
+    function getTenantState(tenantId, tenantRoot) {
+        let mgr = tenantStateCache.get(tenantId);
+        if (!mgr) {
+            mgr = new StateManager(tenantRoot);
+            tenantStateCache.set(tenantId, mgr);
+        }
+        return mgr;
+    }
+    // 扣费原子性:check(余额)→ next() → debit 是 check-then-act,并发会把余额扣成负。
+    // 按 userId 串行锁(链式 await 同一 Promise)把 check→debit 包进同一临界区。单进程 MVP 足够。
+    const billingLocks = new Map();
+    function withBillingLock(userId, fn) {
+        const prev = billingLocks.get(userId) ?? Promise.resolve();
+        const next = prev.catch(() => { }).then(fn);
+        // 锁链只串行,不传播错误;清理时仅在自己是链尾时删除,避免误删后来者。
+        const guarded = next.catch(() => { }).finally(() => {
+            if (billingLocks.get(userId) === guarded)
+                billingLocks.delete(userId);
+        });
+        billingLocks.set(userId, guarded);
+        return next;
+    }
+    // 透明 state 代理:170+ 处 state.xxx() 零改动 —— get 陷阱解析到"当前请求的租户 StateManager"
+    // (ALS 已 populate)否则 globalState。方法 bind 到真实实例返回,保证 this 正确;属性透传。
+    // 桌面模式 ALS 永不 populate → 始终命中 globalState,行为字节级不变。
+    const state = new Proxy(globalState, {
+        get(target, prop, receiver) {
+            const active = currentTenantStore()?.state ?? target;
+            const value = Reflect.get(active, prop, active);
+            return typeof value === "function" ? value.bind(active) : value;
+        },
+    });
     const activeWriteJobs = new Map();
     const activeStateRepairJobs = new Map();
     const progressPersistAt = new Map();
@@ -8879,7 +8976,9 @@ export function createStudioServer(initialConfig, root) {
     async function runEmbeddedQualityRepair(origin, bookId, chapterNumber, targetScore, context = {}) {
         const res = await fetch(new URL(`/api/v1/books/${encodeURIComponent(bookId)}/chapters/${chapterNumber}/repair-low-score`, origin), {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            // SaaS:内部跨路由 fetch 会重新经过认证中间件 → 必须带上发起请求的会话 cookie,
+            // 否则嵌入式复修会被 401 拒掉。桌面模式 context.cookie 为空,header 不变。
+            headers: { "Content-Type": "application/json", ...(context.cookie ? { cookie: context.cookie } : {}) },
             signal: context.abortSignal,
             body: JSON.stringify({
                 apply: true,
@@ -9048,35 +9147,85 @@ export function createStudioServer(initialConfig, root) {
         }
         c.set("saasUser", publicUser(auth.user));
         c.set("saasStore", auth.store);
+        // 租户上下文:解析 tenantId → 确保租户工作区 → 取/缓存 per-tenant StateManager → populate ALS。
+        const tenantId = auth.user.tenantId || tenantIdForEmail(auth.user.email);
+        const tenantRoot = await ensureTenantWorkspace(root, tenantId);
+        const tenantState = getTenantState(tenantId, tenantRoot);
+        const tenantStore = { tenantId, root: tenantRoot, state: tenantState };
         const premium = findPremiumCost(c.req.method, path);
-        if (premium && Number(auth.user.credits ?? 0) < premium.credits) {
+        // 后续整段(余额检查 + next + 扣费)都跑在租户 ALS 上下文里。
+        // 早退响应(余额不足 402)通过 paymentRequired 标志带出去再 c.json,避免在嵌套闭包里丢掉返回值。
+        let paymentRequired = null;
+        await requestContext.run(tenantStore, async () => {
+            if (!premium) {
+                await next();
+                return;
+            }
+            // 扣费路径:check→next→debit 整体进 per-userId 串行锁,杜绝并发把余额扣成负。
+            await withBillingLock(auth.user.id, async () => {
+                // 锁内重读最新余额(可能有并发请求刚扣过),不能信中间件入口时的快照。
+                const preStore = await loadSaasStore(root);
+                const preUser = preStore.users.find((item) => item.id === auth.user.id);
+                const liveCredits = Number(preUser?.credits ?? 0);
+                if (liveCredits < premium.credits) {
+                    paymentRequired = { credits: liveCredits, requiredCredits: premium.credits, reason: premium.reason };
+                    return;
+                }
+                await next();
+                if (c.res.status >= 200 && c.res.status < 400) {
+                    const store = await loadSaasStore(root);
+                    const user = store.users.find((item) => item.id === auth.user.id);
+                    if (user) {
+                        user.credits = Math.max(0, Number(user.credits ?? 0) - premium.credits);
+                        store.ledger.push({
+                            id: newId("ledger"),
+                            userId: user.id,
+                            type: "debit",
+                            credits: -premium.credits,
+                            reason: premium.reason,
+                            path,
+                            createdAt: new Date().toISOString(),
+                        });
+                        await saveSaasStore(root, store);
+                    }
+                }
+            });
+        });
+        if (paymentRequired) {
             return c.json({
                 error: {
                     code: "PAYMENT_REQUIRED",
-                    message: `余额不足：${premium.reason} 需要 ${premium.credits} 点，请充值后再试。`,
+                    message: `余额不足：${paymentRequired.reason} 需要 ${paymentRequired.requiredCredits} 点，请充值后再试。`,
                 },
-                credits: Number(auth.user.credits ?? 0),
-                requiredCredits: premium.credits,
+                credits: paymentRequired.credits,
+                requiredCredits: paymentRequired.requiredCredits,
             }, 402);
         }
-        await next();
-        if (premium && c.res.status >= 200 && c.res.status < 400) {
-            const store = await loadSaasStore(root);
-            const user = store.users.find((item) => item.id === auth.user.id);
-            if (user) {
-                user.credits = Math.max(0, Number(user.credits ?? 0) - premium.credits);
-                store.ledger.push({
-                    id: newId("ledger"),
-                    userId: user.id,
-                    type: "debit",
-                    credits: -premium.credits,
-                    reason: premium.reason,
-                    path,
-                    createdAt: new Date().toISOString(),
-                });
-                await saveSaasStore(root, store);
-            }
+    });
+    // requireBookAccess(薄):SaaS 模式下,per-book 路由因 state 已租户化,请求别租户的 bookId
+    // 会在"我的根下找不到"→ 自然 404。这里再加显式 bookDir 存在性检查,给干净 404、并拦掉
+    // 未认证/未 populate 的请求。桌面模式直通(行为不变)。运行在 auth 中间件的 ALS 上下文内。
+    app.use("/api/v1/books/:id/*", async (c, next) => {
+        if (!isSaasModeEnabled() || c.req.method === "OPTIONS") {
+            await next();
+            return;
         }
+        const tenantStore = currentTenantStore();
+        if (!tenantStore) {
+            // ALS 未 populate(理论上 auth 中间件已 401,这里是兜底):拒绝,绝不落到全局根。
+            return c.json({ error: { code: "AUTH_REQUIRED", message: "请先登录账号。" } }, 401);
+        }
+        const bookId = c.req.param("id");
+        if (!bookId || !isSafeBookId(bookId)) {
+            return c.json({ error: { code: "BOOK_NOT_FOUND", message: "作品不存在或无权访问。" }, bookId }, 404);
+        }
+        // 用当前请求的(租户)state 解析 bookDir 并检查存在性 —— 别租户的 bookId 在我的根下不存在 → 404。
+        const bookDir = state.bookDir(bookId);
+        const exists = await access(join(bookDir, "book.json")).then(() => true).catch(() => false);
+        if (!exists) {
+            return c.json({ error: { code: "BOOK_NOT_FOUND", message: "作品不存在或无权访问。" }, bookId }, 404);
+        }
+        await next();
     });
     app.get("/api/v1/auth/me", async (c) => {
         if (!isSaasModeEnabled()) {
@@ -9265,8 +9414,8 @@ export function createStudioServer(initialConfig, root) {
         const k = Math.min(12, Math.max(1, Number(c.req.query("k") ?? 4) || 4));
         try {
             const [lib, retrieved] = await Promise.all([
-                loadLearningLibrary(root),
-                retrieveChapterLearnings(root, { genreId, platformId, k }),
+                loadLearningLibrary(tenantRootOr(root)),
+                retrieveChapterLearnings(tenantRootOr(root), { genreId, platformId, k }),
             ]);
             const active = lib.learnings.filter((l) => l.status === "active");
             return c.json({
@@ -9306,7 +9455,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ error: { code: "INVALID_RECORD", message: "记录入参不合法(需 genreId/platformId/bookId/chapterNumber/chapterText/score)。", issues: parsed.error.issues.slice(0, 6) } }, 400);
         }
         try {
-            const result = await recordChapterLearning(root, parsed.data);
+            const result = await recordChapterLearning(tenantRootOr(root), parsed.data);
             return c.json({
                 ok: true,
                 created: result.created.map((l) => ({ id: l.id, kind: l.kind, title: l.title, instruction: l.instruction })),
@@ -9617,13 +9766,15 @@ export function createStudioServer(initialConfig, root) {
         },
     };
     async function loadCurrentProjectConfig(options) {
-        const freshConfig = await loadProjectConfig(root, { ...options, consumer: "studio" });
-        const rawProjectConfig = await loadRawConfig(root).catch(() => ({}));
+        // SaaS:配置/密钥/Agent 覆盖按租户根读取(ALS 未 populate 时回落全局 root)。
+        const effectiveRoot = tenantRootOr(root);
+        const freshConfig = await loadProjectConfig(effectiveRoot, { ...options, consumer: "studio" });
+        const rawProjectConfig = await loadRawConfig(effectiveRoot).catch(() => ({}));
         freshConfig.agentProfiles = normalizeAgentProfiles(rawProjectConfig.agentProfiles ?? freshConfig.agentProfiles ?? {}, rawProjectConfig.modelOverrides ?? freshConfig.modelOverrides ?? {}, freshConfig.llm?.model || freshConfig.llm?.defaultModel || "", freshConfig.llm?.service || "");
         if (freshConfig?.llm?.service === "deepseek" && String(freshConfig.llm.baseUrl || "").replace(/\/+$/, "") === "https://api.deepseek.com") {
             freshConfig.llm.baseUrl = "https://api.deepseek.com/v1";
         }
-        await hydrateAgentOverrideRuntimeConfig(root, freshConfig);
+        await hydrateAgentOverrideRuntimeConfig(effectiveRoot, freshConfig);
         cachedConfig = freshConfig;
         return freshConfig;
     }
@@ -9724,8 +9875,12 @@ export function createStudioServer(initialConfig, root) {
         }
     }
     async function buildPipelineConfig(overrides) {
+        // SaaS:projectRoot 必须钉死成"构建本配置时"的租户根 —— 它会被 PipelineRunner 在
+        // fire-and-forget 任务里跨小时复用,绝不能跟随后续请求的 ALS 漂移。在构建时(请求线程,
+        // ALS 已 populate)解析一次并按值捕获。桌面/ALS 空时即全局 root,行为不变。
+        const pipelineRoot = tenantRootOr(root);
         const currentConfig = overrides?.currentConfig ?? await loadCurrentProjectConfig();
-        const rawProjectConfig = await loadRawConfig(root).catch(() => ({}));
+        const rawProjectConfig = await loadRawConfig(pipelineRoot).catch(() => ({}));
         let latestPipelineStage = "";
         const scopedSseSink = overrides?.sessionIdForSSE
             ? {
@@ -9766,7 +9921,7 @@ export function createStudioServer(initialConfig, root) {
         return {
             client: overrides?.client ?? createLLMClient(currentConfig.llm),
             model: overrides?.model ?? currentConfig.llm.model,
-            projectRoot: root,
+            projectRoot: pipelineRoot,
             defaultLLMConfig: currentConfig.llm,
             foundationReviewRetries: currentConfig.foundation?.reviewRetries ?? 2,
             writingReviewRetries: currentConfig.writing?.reviewRetries ?? 3,
@@ -10493,10 +10648,10 @@ export function createStudioServer(initialConfig, root) {
     // --- Genres ---
     app.get("/api/v1/genres", async (c) => {
         const { listAvailableGenres, readGenreProfile } = await import("@juanshe/core");
-        const rawGenres = await listAvailableGenres(root);
+        const rawGenres = await listAvailableGenres(tenantRootOr(root));
         const genres = await Promise.all(rawGenres.map(async (g) => {
             try {
-                const { profile } = await readGenreProfile(root, g.id);
+                const { profile } = await readGenreProfile(tenantRootOr(root), g.id);
                 return { ...g, language: profile.language ?? "zh" };
             }
             catch {
@@ -10522,6 +10677,8 @@ export function createStudioServer(initialConfig, root) {
     // --- Book Create ---
     app.post("/api/v1/books/create", async (c) => {
         const body = await c.req.json().catch(() => ({}));
+        // SaaS:建书是 fire-and-forget,捕获租户 store 带进任务闭包(processProjectInteractionRequest 等用租户根)。
+        const jobStore = currentTenantStore();
         const title = typeof body.title === "string" ? body.title.trim() : "";
         if (!title) {
             return c.json({ error: "Title is required" }, 400);
@@ -10561,10 +10718,10 @@ export function createStudioServer(initialConfig, root) {
                 }
             }
             else {
-                const archiveRoot = join(root, ".hardwrite", "archived-books");
+                const archiveRoot = join(tenantRootOr(root), ".hardwrite", "archived-books");
                 const archivedBookDir = await archivePathIfExists(bookDir, archiveRoot, bookId);
-                const revisionsDir = join(root, ".hardwrite", "revisions", bookId);
-                const archivedRevisionsDir = await archivePathIfExists(revisionsDir, join(root, ".hardwrite", "archived-revisions"), bookId);
+                const revisionsDir = join(tenantRootOr(root), ".hardwrite", "revisions", bookId);
+                const archivedRevisionsDir = await archivePathIfExists(revisionsDir, join(tenantRootOr(root), ".hardwrite", "archived-revisions"), bookId);
                 await appendActivityLog(root, "book:archived-existing-name", {
                     bookId,
                     title,
@@ -10627,7 +10784,7 @@ export function createStudioServer(initialConfig, root) {
         const tools = createInteractionToolsFromDeps(pipeline, state);
         const referenceFiles = Array.isArray(body.referenceFiles) ? body.referenceFiles : [];
         const referenceTotalChars = referenceFiles.reduce((s, f) => s + (f && typeof f.content === "string" ? f.content.length : 0), 0);
-        (async () => {
+        runInTenantContext(jobStore, () => (async () => {
             // 上传的参考资料先"摘要化"再起稿:大文件不整段塞进架构师 LLM(否则上下文溢出/超时 → 建书崩)。
             // 小文件直接内联,**不碰 LLM/不 loadConfig**(避免给常见小上传路径引入额外阻塞点)。
             let referenceDigest = "";
@@ -10652,7 +10809,7 @@ export function createStudioServer(initialConfig, root) {
             }
             const finalBrief = [body.brief, referenceDigest, platformPrompt, openingAssetInstruction].filter(Boolean).join("\n\n");
             return processProjectInteractionRequest({
-                projectRoot: root,
+                projectRoot: tenantRootOr(root),
                 request: {
                     intent: "create_book",
                     title: body.title,
@@ -10806,7 +10963,7 @@ export function createStudioServer(initialConfig, root) {
 		                broadcast("book:error", { bookId, runId: run.id, error: combined, failureReason });
 		                return;
 		            }
-		        });
+		        }));
         return c.json({ status: "creating", bookId, runId: run.id, run });
     });
     app.get("/api/v1/books/:id/create-status", async (c) => {
@@ -11254,7 +11411,7 @@ export function createStudioServer(initialConfig, root) {
     // 并把已归档卷的逐章明细移出 chapter_summaries.md(转 summaries_archive/)。批量写作收尾调用(无并发,无竞态)。
     const consolidateBookMemory = async (bookId, runId) => {
         const cfg = await loadCurrentProjectConfig();
-        const consolidator = new ConsolidatorAgent({ client: createLLMClient(cfg.llm), model: cfg.llm.model, projectRoot: root });
+        const consolidator = new ConsolidatorAgent({ client: createLLMClient(cfg.llm), model: cfg.llm.model, projectRoot: tenantRootOr(root) });
         const result = await consolidator.consolidate(state.bookDir(bookId));
         if (result.archivedVolumes > 0) {
             const payload = { bookId, runId, agent: "consolidator", agentLabel: "记忆归并官", archivedVolumes: result.archivedVolumes, retainedChapters: result.retainedChapters, stage: `已把 ${result.archivedVolumes} 个完成卷压成卷级摘要(防长程漂移),保留最近 ${result.retainedChapters} 章逐章明细` };
@@ -11318,7 +11475,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ error: "Invalid book id" }, 400);
         if (!Number.isInteger(num) || num <= 0)
             return c.json({ error: "Invalid chapter number" }, 400);
-        const revisionsDir = join(root, ".hardwrite", "revisions", id);
+        const revisionsDir = join(tenantRootOr(root), ".hardwrite", "revisions", id);
         const prefix = `chapter-${String(num).padStart(4, "0")}-`;
         const passes = [];
         try {
@@ -11771,7 +11928,7 @@ export function createStudioServer(initialConfig, root) {
             }
             if (apply) {
                 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-                const backupDir = join(root, ".hardwrite", "revisions", id);
+                const backupDir = join(tenantRootOr(root), ".hardwrite", "revisions", id);
                 await mkdir(backupDir, { recursive: true });
                 await writeFile(join(backupDir, `chapter-${String(num).padStart(4, "0")}-enhance-${stamp}.md`), [
                     `# 章节 ${num} 一键增强记录`,
@@ -12189,7 +12346,7 @@ export function createStudioServer(initialConfig, root) {
             const didApply = Boolean(apply && revised !== latest);
             if (apply && revised !== latest) {
 	                const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-	                const backupDir = join(root, ".hardwrite", "revisions", id);
+	                const backupDir = join(tenantRootOr(root), ".hardwrite", "revisions", id);
 	                await mkdir(backupDir, { recursive: true });
 	                const originalHash = createHash("sha256").update(latest).digest("hex").slice(0, 16);
 	                const revisedHash = createHash("sha256").update(revised).digest("hex").slice(0, 16);
@@ -12282,7 +12439,8 @@ export function createStudioServer(initialConfig, root) {
                 await assertRepairNotCancelled();
                 const retryRes = await fetch(new URL(`/api/v1/books/${encodeURIComponent(id)}/chapters/${num}/repair-low-score`, new URL(c.req.url).origin), {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    // SaaS:自适应复修自调 repair-low-score,内部 fetch 会重过认证中间件 → 必须带会话 cookie。
+                    headers: { "Content-Type": "application/json", ...(c.req.header("cookie") ? { cookie: c.req.header("cookie") } : {}) },
                     signal: abortController.signal,
                     body: JSON.stringify({
                         apply: true,
@@ -12419,7 +12577,7 @@ export function createStudioServer(initialConfig, root) {
                     return c.json({ error: "revised text is required" }, 400);
                 }
                 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-                const backupDir = join(root, ".hardwrite", "revisions", id);
+                const backupDir = join(tenantRootOr(root), ".hardwrite", "revisions", id);
                 await mkdir(backupDir, { recursive: true });
                 await writeFile(join(backupDir, `chapter-${String(num).padStart(4, "0")}-selection-${stamp}.md`), [
                     `# 章节 ${num} 选区润色记录`,
@@ -12826,6 +12984,7 @@ export function createStudioServer(initialConfig, root) {
                     return;
                 stream.writeSSE({ event, data: JSON.stringify(agentEventFromActivity({ timestamp: new Date().toISOString(), event, data })) });
             };
+            handler.__tid = isSaasModeEnabled() ? (currentTenantStore()?.tenantId ?? null) : null;
             subscribers.add(handler);
             while (!stream.aborted) {
                 await stream.sleep(15000);
@@ -12859,6 +13018,7 @@ export function createStudioServer(initialConfig, root) {
                     return;
                 stream.writeSSE({ event, data: JSON.stringify(agentEventFromActivity({ timestamp: new Date().toISOString(), event, data })) });
             };
+            handler.__tid = isSaasModeEnabled() ? (currentTenantStore()?.tenantId ?? null) : null;
             subscribers.add(handler);
             while (!stream.aborted) {
                 await stream.sleep(15000);
@@ -12875,7 +13035,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ error: "Invalid book id" }, 400);
         if (!(await bookExists(id)))
             return c.json({ error: `Book "${id}" not found` }, 404);
-        const entry = liveDraftByBook.get(id);
+        const entry = liveDraftByBook.get(tenantScopedKey(id));
         const text = entry?.lastAgent ? (entry.byAgent.get(entry.lastAgent) ?? "") : "";
         return c.json({
             bookId: id,
@@ -13102,6 +13262,7 @@ export function createStudioServer(initialConfig, root) {
     app.post("/api/v1/books/:id/repair-state", async (c) => {
         const id = c.req.param("id");
         const body = await c.req.json().catch(() => ({}));
+        const jobStore = currentTenantStore(); // SaaS:状态自愈后台任务也带租户上下文
         const latest = await latestStateDegradedChapter(id).catch(() => null);
         if (!latest) {
             return c.json({ ok: true, status: "clean", bookId: id, message: "最新章节状态可信，无需修复。" });
@@ -13114,7 +13275,7 @@ export function createStudioServer(initialConfig, root) {
         const abortController = new AbortController();
         setWriteSlot(id, run.id, { abortController });
         const stopHeartbeat = startTaskHeartbeat(run.id, "state-validator", `第 ${chapterNumber} 章状态自愈运行中`, { chapterNumber });
-        (async () => {
+        runInTenantContext(jobStore, () => (async () => {
             try {
                 const result = await repairLatestStateIfNeeded(id, run, "用户点击检查并继续触发状态自愈");
                 await updateTaskRun(root, run.id, { status: "done", completed: 1, currentAgent: "state-validator", currentStage: `第 ${chapterNumber} 章状态自愈完成`, results: [{ chapterNumber, status: "repaired", result }] }, { kind: "state-repair:complete", stage: `第 ${chapterNumber} 章状态自愈完成`, agent: "state-validator" });
@@ -13126,13 +13287,16 @@ export function createStudioServer(initialConfig, root) {
                 stopHeartbeat();
                 releaseWriteSlot(id, run.id);
             }
-        })();
+        })());
         return c.json({ status: "repairing", bookId: id, runId: run.id, run, chapterNumber });
     });
     app.post("/api/v1/books/:id/write-next", async (c) => {
         const id = c.req.param("id");
         const body = await c.req.json().catch(() => ({ wordCount: undefined }));
         const origin = new URL(c.req.url).origin;
+        // SaaS:捕获本请求的租户 store + 会话 cookie,带进 fire-and-forget 写作任务(见 runInTenantContext)。
+        const jobStore = currentTenantStore();
+        const jobCookie = c.req.header("cookie") ?? "";
         const book = await state.loadBookConfig(id).catch(() => null);
         if (!book) {
             return c.json({ error: { code: "BOOK_NOT_FOUND", message: `Book not found: ${id}` }, bookId: id }, 404);
@@ -13185,7 +13349,7 @@ export function createStudioServer(initialConfig, root) {
             void updateTaskRun(root, run.id, { status: "error", error: e instanceof Error ? e.message : String(e) }, { kind: "write:error", stage: "启动失败", agent: "planner" });
             throw e;
         }
-        (async () => {
+        runInTenantContext(jobStore, () => (async () => {
             if (await taskRunIsCancelled(run.id))
                 return { __cancelled: true };
             await repairLatestStateIfNeeded(id, run, "单章续写前自动修复状态链");
@@ -13213,6 +13377,7 @@ export function createStudioServer(initialConfig, root) {
                             previousScoreAfter: gate.score,
                             previousFailureReason: gate.failureReason,
                             targetWordCount: requestedWordCount,
+                            cookie: jobCookie,
                             instruction: `单章写作质量门禁：第 ${result.chapterNumber} 章写完后评分 ${gate.score ?? "--"}，必须修到 ${targetScore}+ 才能完成本轮。修复时保持既定事实、人物状态和下一章伏笔连续。`,
                         });
                     }
@@ -13253,13 +13418,16 @@ export function createStudioServer(initialConfig, root) {
         }).finally(() => {
             stopHeartbeat();
             releaseWriteSlot(id, run.id);
-        });
+        }));
         return c.json({ status: "writing", bookId: id, runId: run.id, run });
     });
     app.post("/api/v1/books/:id/write-batch", async (c) => {
         const id = c.req.param("id");
         const body = await c.req.json().catch(() => ({ wordCount: undefined, chapters: 1 }));
         const origin = new URL(c.req.url).origin;
+        // SaaS:批量写作是跑数小时的 fire-and-forget,捕获租户 store + cookie 带进任务闭包。
+        const jobStore = currentTenantStore();
+        const jobCookie = c.req.header("cookie") ?? "";
         const book = await state.loadBookConfig(id).catch(() => null);
         if (!book) {
             return c.json({ error: { code: "BOOK_NOT_FOUND", message: `Book not found: ${id}` }, bookId: id }, 404);
@@ -13305,7 +13473,7 @@ export function createStudioServer(initialConfig, root) {
         const stopHeartbeat = startTaskHeartbeat(run.id, "planner", `批量写作工作流运行中：${total}章`);
         void appendBookAgentEvent(root, id, "batch:start", { runId: run.id, total, fromChapter, toChapter, wordCount, targetScore, targetQuality: targetScore, maxRewritesPerChapter, autoRepair });
         broadcast("batch:start", { bookId: id, runId: run.id, total, fromChapter, toChapter, wordCount, targetScore, targetQuality: targetScore, maxRewritesPerChapter, autoRepair });
-        (async () => {
+        runInTenantContext(jobStore, () => (async () => {
             const results = [];
             let consecutiveErrors = 0; // 直播模式:连续瞬时错误计数,达上限才真放弃
             const platformContext = await bookPlatformExternalContext(id);
@@ -13350,6 +13518,7 @@ export function createStudioServer(initialConfig, root) {
                                 previousScoreAfter: gate.score,
                                 previousFailureReason: gate.failureReason,
                                 targetWordCount: wordCount,
+                                cookie: jobCookie,
                                 maxAutoRounds: maxRewritesPerChapter,
                                 instruction: `批量写作质量门禁：第 ${result.chapterNumber} 章评分 ${gate.score ?? "--"}，必须修到 ${targetScore}+ 才允许继续第 ${i + 2}/${total} 章。修复后要保持前后章节事实、人物状态、伏笔和下一章衔接。`,
                             });
@@ -13467,13 +13636,16 @@ export function createStudioServer(initialConfig, root) {
         }).finally(() => {
             stopHeartbeat();
             releaseWriteSlot(id, run.id);
-        });
+        }));
         return c.json({ status: "batch-writing", bookId: id, runId: run.id, run: enrichTaskRunForClient(run), total, fromChapter, toChapter, wordCount, targetQuality: targetScore, maxRewritesPerChapter });
     });
     app.post("/api/v1/books/:id/repair-quality-batch", async (c) => {
         const id = c.req.param("id");
         const body = await c.req.json().catch(() => ({}));
         const origin = new URL(c.req.url).origin;
+        // SaaS:质量流水线(复修+续写)是 fire-and-forget,捕获租户 store + cookie。
+        const jobStore = currentTenantStore();
+        const jobCookie = c.req.header("cookie") ?? "";
         const _batchRepairBook = await state.loadBookConfig(id).catch(() => null);
         const _batchRepairScore = Number(_batchRepairBook?.targetScore || _batchRepairBook?.writing?.targetScore) || 0;
         const targetScore = Math.max(70, Math.min(98, Number(body.targetScore) || _batchRepairScore || 80));
@@ -13531,7 +13703,7 @@ export function createStudioServer(initialConfig, root) {
         const stopHeartbeat = startTaskHeartbeat(run.id, "auditor", `质量流水线运行中：复修 ${chapters.length} 章，续写 ${continueChapters} 章，目标 ${targetScore}+`);
         broadcast("quality-batch:start", { bookId: id, runId: run.id, total: chapters.length + continueChapters, repairTotal: chapters.length, continueChapters, fromChapter, toChapter: Number.isFinite(toChapter) ? toChapter : undefined, targetScore });
         void appendBookAgentEvent(root, id, "quality-batch:start", { runId: run.id, total: chapters.length, continueChapters, fromChapter, toChapter: Number.isFinite(toChapter) ? toChapter : undefined, targetScore });
-        (async () => {
+        runInTenantContext(jobStore, () => (async () => {
             const results = [];
             let completed = 0;
             for (const chapterNumber of chapters) {
@@ -13558,6 +13730,7 @@ export function createStudioServer(initialConfig, root) {
                         abortSignal: abortController.signal,
                         previousScoreAfter: beforeScore,
                         previousFailureReason: before?.quality?.reasons?.join("；") || "",
+                        cookie: jobCookie,
                         instruction: `批量质量复核：前序章节可能已被修订，请把第 ${chapterNumber} 章修到 ${targetScore}+，同时保持与前文修订后的事实、人物状态、伏笔和语气连续。`,
                     });
                 }
@@ -13696,6 +13869,7 @@ export function createStudioServer(initialConfig, root) {
                                 previousScoreAfter: gate.score,
                                 previousFailureReason: gate.failureReason,
                                 targetWordCount: wordCount,
+                                cookie: jobCookie,
                                 instruction: `质量流水线后续写作：第 ${result.chapterNumber} 章首稿评分 ${gate.score ?? "--"}，请吸收前面复修经验，修到 ${targetScore}+ 后才允许继续。`,
                             });
                         }
@@ -13738,7 +13912,7 @@ export function createStudioServer(initialConfig, root) {
         }).finally(() => {
             stopHeartbeat();
             releaseWriteSlot(id, run.id);
-        });
+        }));
         return c.json({ status: "quality-batch-repairing", bookId: id, runId: run.id, run, total: chapters.length + continueChapters, repairTotal: chapters.length, continueChapters, targetScore });
     });
     app.post("/api/v1/books/:id/draft", async (c) => {
@@ -13830,6 +14004,7 @@ export function createStudioServer(initialConfig, root) {
             const handler = (event, data) => {
                 stream.writeSSE({ event, data: JSON.stringify(data) });
             };
+            handler.__tid = isSaasModeEnabled() ? (currentTenantStore()?.tenantId ?? null) : null;
             subscribers.add(handler);
             await stream.writeSSE({ event: "ping", data: "" });
             // Keep alive
@@ -13846,7 +14021,7 @@ export function createStudioServer(initialConfig, root) {
     });
     // --- Model discovery ---
     app.get("/api/v1/services", async (c) => {
-        const secrets = await loadSecrets(root);
+        const secrets = await loadSecrets(tenantRootOr(root));
         const endpoints = getAllEndpoints().filter((ep) => ep.id !== "custom");
         // Fast: only check connection status from secrets, no external API calls.
         const services = endpoints.map((ep) => ({
@@ -13929,7 +14104,7 @@ export function createStudioServer(initialConfig, root) {
     app.post("/api/v1/services/:service/test", async (c) => {
         const service = c.req.param("service");
         const { apiKey, baseUrl, apiFormat, stream } = await c.req.json();
-        const savedSecrets = await loadSecrets(root).catch(() => ({ services: {} }));
+        const savedSecrets = await loadSecrets(tenantRootOr(root)).catch(() => ({ services: {} }));
         const effectiveApiKey = apiKey?.trim() || savedSecrets.services?.[service]?.apiKey || "";
         const resolvedBaseUrl = await resolveConfiguredServiceBaseUrl(root, service, baseUrl);
         if (!resolvedBaseUrl) {
@@ -13987,21 +14162,21 @@ export function createStudioServer(initialConfig, root) {
     app.put("/api/v1/services/:service/secret", async (c) => {
         const service = c.req.param("service");
         const { apiKey } = await c.req.json();
-        const secrets = await loadSecrets(root);
+        const secrets = await loadSecrets(tenantRootOr(root));
         if (apiKey?.trim()) {
             secrets.services[service] = { apiKey: apiKey.trim() };
         }
         else {
             delete secrets.services[service];
         }
-        await saveSecrets(root, secrets);
+        await saveSecrets(tenantRootOr(root), secrets);
         return c.json({ ok: true });
     });
     app.get("/api/v1/services/:service/secret", async (c) => {
         // 安全:apiKey 一律 write-only,GET 绝不回明文(否则任意网页/同网机可跨域 GET 窃取 BYOK 密钥)。
         // 只回"是否已配置 + 末4位掩码",供前端做"已配置"指示与回填占位。写入仍走 PUT。
         const service = c.req.param("service");
-        const secrets = await loadSecrets(root);
+        const secrets = await loadSecrets(tenantRootOr(root));
         const key = secrets.services[service]?.apiKey ?? "";
         return c.json({
             hasKey: Boolean(key),
@@ -14009,7 +14184,7 @@ export function createStudioServer(initialConfig, root) {
         });
     });
     app.get("/api/v1/services/models", async (c) => {
-        const secrets = await loadSecrets(root);
+        const secrets = await loadSecrets(tenantRootOr(root));
         const endpoints = getAllEndpoints()
             .filter((ep) => ep.id !== "custom" && Boolean(secrets.services[ep.id]?.apiKey));
         const groups = endpoints.map((ep) => ({
@@ -14028,7 +14203,7 @@ export function createStudioServer(initialConfig, root) {
         return c.json({ groups });
     });
     app.get("/api/v1/services/models/custom", async (c) => {
-        const secrets = await loadSecrets(root);
+        const secrets = await loadSecrets(tenantRootOr(root));
         let config = {};
         try {
             config = await loadRawConfig(root);
@@ -14054,7 +14229,7 @@ export function createStudioServer(initialConfig, root) {
         return c.json({ groups });
     });
     app.get("/api/v1/models", async (c) => {
-        const secrets = await loadSecrets(root);
+        const secrets = await loadSecrets(tenantRootOr(root));
         const configured = normalizeServiceConfig((await loadRawConfig(root).catch(() => ({}))).llm?.services);
         const presetGroups = getAllEndpoints()
             .filter((ep) => ep.id !== "custom")
@@ -14088,7 +14263,7 @@ export function createStudioServer(initialConfig, root) {
         return c.json({ groups: [...presetGroups, ...customGroups] });
     });
     const buildLLMProvidersPayload = async () => {
-        const secrets = await loadSecrets(root);
+        const secrets = await loadSecrets(tenantRootOr(root));
         const raw = await loadRawConfig(root).catch(() => ({}));
         const llm = raw.llm ?? {};
         const configured = normalizeServiceConfig(llm.services);
@@ -14184,9 +14359,9 @@ export function createStudioServer(initialConfig, root) {
         }
         await saveRawConfig(root, config);
         if (typeof body.apiKey === "string" && body.apiKey.trim()) {
-            const secrets = await loadSecrets(root);
+            const secrets = await loadSecrets(tenantRootOr(root));
             secrets.services[id] = { apiKey: body.apiKey.trim() };
-            await saveSecrets(root, secrets);
+            await saveSecrets(tenantRootOr(root), secrets);
         }
         const provider = (await buildLLMProvidersPayload()).find((item) => item.id === id);
         return c.json(provider ?? {
@@ -14204,7 +14379,7 @@ export function createStudioServer(initialConfig, root) {
         const service = c.req.param("id");
         const startedAt = Date.now();
         const body = await c.req.json().catch(() => ({}));
-        const savedSecrets = await loadSecrets(root).catch(() => ({ services: {} }));
+        const savedSecrets = await loadSecrets(tenantRootOr(root)).catch(() => ({ services: {} }));
         const effectiveApiKey = typeof body?.apiKey === "string" && body.apiKey.trim()
             ? body.apiKey.trim()
             : savedSecrets.services?.[service]?.apiKey || "";
@@ -14253,14 +14428,14 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ error: "invalid body" }, 400);
         }
         if (typeof body.apiKey === "string") {
-            const secrets = await loadSecrets(root);
+            const secrets = await loadSecrets(tenantRootOr(root));
             if (body.apiKey.trim()) {
                 secrets.services[id] = { apiKey: body.apiKey.trim() };
             }
             else {
                 delete secrets.services[id];
             }
-            await saveSecrets(root, secrets);
+            await saveSecrets(tenantRootOr(root), secrets);
         }
         const config = await loadRawConfig(root);
         config.llm = config.llm ?? {};
@@ -14335,7 +14510,7 @@ export function createStudioServer(initialConfig, root) {
     app.get("/api/v1/services/:service/models", async (c) => {
         const service = c.req.param("service");
         const refresh = c.req.query("refresh") === "1";
-        const secrets = await loadSecrets(root);
+        const secrets = await loadSecrets(tenantRootOr(root));
         // 安全:API Key 改从请求头读,不再走 query string —— query 会进访问日志/浏览器历史/代理,等于把密钥写在 URL 上泄露。
         // 主路径仍是后端已存的密钥(secrets);仅"保存前先拉模型列表"这种临时密钥用 header 传。
         const apiKey = c.req.header("x-llm-api-key") || secrets.services[service]?.apiKey || "";
@@ -14374,7 +14549,7 @@ export function createStudioServer(initialConfig, root) {
     app.get("/api/v1/project", async (c) => {
         const currentConfig = await loadCurrentProjectConfig({ requireApiKey: false });
         // Check if language was explicitly set in hardwrite.json (not just the schema default)
-        const raw = JSON.parse(await readFile(join(root, "hardwrite.json"), "utf-8"));
+        const raw = JSON.parse(await readFile(join(tenantRootOr(root), "hardwrite.json"), "utf-8"));
         const languageExplicit = "language" in raw && raw.language !== "";
         return c.json({
             name: currentConfig.name,
@@ -14457,7 +14632,7 @@ export function createStudioServer(initialConfig, root) {
         const [project, raw, secrets] = await Promise.all([
             loadCurrentProjectConfig({ requireApiKey: false }),
             loadRawConfig(root).catch(() => ({})),
-            loadSecrets(root).catch(() => ({ services: {} })),
+            loadSecrets(tenantRootOr(root)).catch(() => ({ services: {} })),
         ]);
         const llm = raw.llm ?? {};
         return c.json({
@@ -14488,7 +14663,7 @@ export function createStudioServer(initialConfig, root) {
     // --- Config editing ---
     app.put("/api/v1/project", async (c) => {
         const updates = await c.req.json();
-        const configPath = join(root, "hardwrite.json");
+        const configPath = join(tenantRootOr(root), "hardwrite.json");
         try {
             const raw = await readFile(configPath, "utf-8");
             const existing = JSON.parse(raw);
@@ -14819,7 +14994,7 @@ export function createStudioServer(initialConfig, root) {
             }
             if (!resolvedModel) {
                 // 3. Try first connected service from secrets
-                const secrets = await loadSecrets(root);
+                const secrets = await loadSecrets(tenantRootOr(root));
                 for (const [svcName, svcData] of Object.entries(secrets.services)) {
                     if (svcData?.apiKey) {
                         try {
@@ -14920,7 +15095,7 @@ export function createStudioServer(initialConfig, root) {
                 model,
                 apiKey: agentApiKey,
                 pipeline: agentSessionPipeline,
-                projectRoot: root,
+                projectRoot: tenantRootOr(root),
                 bookId: agentBookId,
                 sessionId: bookSession.sessionId,
                 language: config.language ?? "zh",
@@ -15202,7 +15377,7 @@ export function createStudioServer(initialConfig, root) {
     // --- Language setup ---
     app.post("/api/v1/project/language", async (c) => {
         const { language } = await c.req.json();
-        const configPath = join(root, "hardwrite.json");
+        const configPath = join(tenantRootOr(root), "hardwrite.json");
         try {
             const raw = await readFile(configPath, "utf-8");
             const existing = JSON.parse(raw);
@@ -15235,7 +15410,7 @@ export function createStudioServer(initialConfig, root) {
             const auditor = new ContinuityAuditor({
                 client: createLLMClient(currentConfig.llm),
                 model: currentConfig.llm.model,
-                projectRoot: root,
+                projectRoot: tenantRootOr(root),
                 bookId: id,
             });
             const result = await auditor.auditChapter(bookDir, content, chapterNum, book.genre);
@@ -15317,7 +15492,7 @@ export function createStudioServer(initialConfig, root) {
             const bookDir = state.bookDir(id);
             const outputPath = join(bookDir, `${id}.${fmt === "epub" ? "epub" : fmt}`);
             const result = await processProjectInteractionRequest({
-                projectRoot: root,
+                projectRoot: tenantRootOr(root),
                 request: {
                     intent: "export_book",
                     bookId: id,
@@ -15346,7 +15521,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ error: `Invalid genre ID: "${genreId}"` }, 400);
         try {
             const { readGenreProfile } = await import("@juanshe/core");
-            const { profile, body } = await readGenreProfile(root, genreId);
+            const { profile, body } = await readGenreProfile(tenantRootOr(root), genreId);
             return c.json({ profile, body });
         }
         catch (e) {
@@ -15362,7 +15537,7 @@ export function createStudioServer(initialConfig, root) {
             const { getBuiltinGenresDir } = await import("@juanshe/core");
             const { mkdir: mkdirFs, copyFile } = await import("node:fs/promises");
             const builtinDir = getBuiltinGenresDir();
-            const projectGenresDir = join(root, "genres");
+            const projectGenresDir = join(tenantRootOr(root), "genres");
             await mkdirFs(projectGenresDir, { recursive: true });
             await copyFile(join(builtinDir, `${genreId}.md`), join(projectGenresDir, `${genreId}.md`));
             return c.json({ ok: true, path: `genres/${genreId}.md` });
@@ -15373,12 +15548,12 @@ export function createStudioServer(initialConfig, root) {
     });
     // --- Model overrides ---
     app.get("/api/v1/project/model-overrides", async (c) => {
-        const raw = JSON.parse(await readFile(join(root, "hardwrite.json"), "utf-8"));
+        const raw = JSON.parse(await readFile(join(tenantRootOr(root), "hardwrite.json"), "utf-8"));
         return c.json({ overrides: raw.modelOverrides ?? {} });
     });
     app.put("/api/v1/project/model-overrides", async (c) => {
         const { overrides } = await c.req.json();
-        const configPath = join(root, "hardwrite.json");
+        const configPath = join(tenantRootOr(root), "hardwrite.json");
         const raw = JSON.parse(await readFile(configPath, "utf-8"));
         raw.modelOverrides = overrides;
         const { writeFile: writeFileFs } = await import("node:fs/promises");
@@ -15387,12 +15562,12 @@ export function createStudioServer(initialConfig, root) {
     });
     // --- Notify channels ---
     app.get("/api/v1/project/notify", async (c) => {
-        const raw = JSON.parse(await readFile(join(root, "hardwrite.json"), "utf-8"));
+        const raw = JSON.parse(await readFile(join(tenantRootOr(root), "hardwrite.json"), "utf-8"));
         return c.json({ channels: raw.notify ?? [] });
     });
     app.put("/api/v1/project/notify", async (c) => {
         const { channels } = await c.req.json();
-        const configPath = join(root, "hardwrite.json");
+        const configPath = join(tenantRootOr(root), "hardwrite.json");
         const raw = JSON.parse(await readFile(configPath, "utf-8"));
         raw.notify = channels;
         const { writeFile: writeFileFs } = await import("node:fs/promises");
@@ -15612,7 +15787,7 @@ export function createStudioServer(initialConfig, root) {
             throw new ApiError(400, "INVALID_GENRE_ID", `Invalid genre ID: "${body.id}"`);
         }
         const { writeFile: writeFileFs, mkdir: mkdirFs } = await import("node:fs/promises");
-        const genresDir = join(root, "genres");
+        const genresDir = join(tenantRootOr(root), "genres");
         await mkdirFs(genresDir, { recursive: true });
         const frontmatter = [
             "---",
@@ -15642,7 +15817,7 @@ export function createStudioServer(initialConfig, root) {
         }
         const body = await c.req.json();
         const { writeFile: writeFileFs, mkdir: mkdirFs } = await import("node:fs/promises");
-        const genresDir = join(root, "genres");
+        const genresDir = join(tenantRootOr(root), "genres");
         await mkdirFs(genresDir, { recursive: true });
         const p = body.profile;
         const frontmatter = [
@@ -15671,7 +15846,7 @@ export function createStudioServer(initialConfig, root) {
         if (/[/\\\0]/.test(genreId) || genreId.includes("..")) {
             throw new ApiError(400, "INVALID_GENRE_ID", `Invalid genre ID: "${genreId}"`);
         }
-        const filePath = join(root, "genres", `${genreId}.md`);
+        const filePath = join(tenantRootOr(root), "genres", `${genreId}.md`);
         try {
             const { rm } = await import("node:fs/promises");
             await rm(filePath);
@@ -15842,7 +16017,7 @@ export function createStudioServer(initialConfig, root) {
         const baseUrl = currentConfig.llm.baseUrl;
         let models = [];
         try {
-            const secrets = await loadSecrets(root);
+            const secrets = await loadSecrets(tenantRootOr(root));
             const apiKey = secrets.services[service]?.apiKey || currentConfig.llm.apiKey || "";
             const resolvedBaseUrl = await resolveConfiguredServiceBaseUrl(root, service, baseUrl);
             const listed = await listModelsForService(isCustomServiceId(service) ? "custom" : service, apiKey, isCustomServiceId(service) ? resolvedBaseUrl ?? undefined : undefined);
@@ -16083,7 +16258,7 @@ export function createStudioServer(initialConfig, root) {
                 currentConfig.modelOverrides = mergeAgentProfilesIntoOverrides(currentConfig, profiles);
                 await hydrateAgentOverrideRuntimeConfig(root, currentConfig);
             }
-            const secrets = await loadSecrets(root).catch(() => ({ services: {} }));
+            const secrets = await loadSecrets(tenantRootOr(root)).catch(() => ({ services: {} }));
             if (draftService && typeof serviceDraft.apiKey === "string" && serviceDraft.apiKey.trim()) {
                 secrets.services = secrets.services ?? {};
                 secrets.services[draftService] = { apiKey: serviceDraft.apiKey.trim() };
@@ -16345,7 +16520,7 @@ export function createStudioServer(initialConfig, root) {
     });
     app.post("/api/v1/vault/init", async (c) => {
         await ensureWritingVault(root);
-        const latest = await readOptionalText(join(root, ".hardwrite", "radar-latest.json"));
+        const latest = await readOptionalText(join(tenantRootOr(root), ".hardwrite", "radar-latest.json"));
         if (latest.trim()) {
             try {
                 await persistRadarArtifacts(root, JSON.parse(latest));
@@ -16417,7 +16592,7 @@ export function createStudioServer(initialConfig, root) {
     // --- Radar Scan ---
     app.get("/api/v1/radar/latest", async (c) => {
         try {
-            const raw = await readFile(join(root, ".hardwrite", "radar-latest.json"), "utf-8");
+            const raw = await readFile(join(tenantRootOr(root), ".hardwrite", "radar-latest.json"), "utf-8");
             return c.json({ result: JSON.parse(raw) });
         }
         catch {
@@ -16472,10 +16647,11 @@ export function createStudioServer(initialConfig, root) {
         const { existsSync } = await import("node:fs");
         const { GLOBAL_ENV_PATH } = await import("@juanshe/core");
         const checks: DoctorChecks = {
-            hardwriteJson: existsSync(join(root, "hardwrite.json")),
+            hardwriteJson: existsSync(join(tenantRootOr(root), "hardwrite.json")),
             projectEnv: existsSync(join(root, ".env")),
             globalEnv: existsSync(GLOBAL_ENV_PATH),
-            booksDir: existsSync(join(root, "books")),
+            // booksDir 诊断要与同段的 hardwriteJson/bookCount 同口径(租户工作区),SaaS 下报租户 books/。
+            booksDir: existsSync(join(tenantRootOr(root), "books")),
             llmConnected: false,
             bookCount: 0,
         };
@@ -16713,7 +16889,7 @@ export function createStudioServer(initialConfig, root) {
         // 持久化:把成品入库,供前台"已生成成品"列表复用——编辑部产出要留存,不能只做一次性预览。
         let savedDraftId = null;
         try {
-            const draftsDir = join(root, "content-drafts", id);
+            const draftsDir = join(tenantRootOr(root), "content-drafts", id);
             await mkdir(draftsDir, { recursive: true });
             const ts = new Date().toISOString().replace(/[:.]/g, "-");
             const titleMatch = markdown.match(/^#\s+(.+)$/m);
@@ -16759,7 +16935,7 @@ export function createStudioServer(initialConfig, root) {
     });
     // 已生成成品库:列出 content-drafts/ 下所有多平台成品(供前台"已生成成品"复用)。
     app.get("/api/v1/content-drafts", async (c) => {
-        const draftsRoot = join(root, "content-drafts");
+        const draftsRoot = join(tenantRootOr(root), "content-drafts");
         const out = [];
         try {
             const types = await readdir(draftsRoot, { withFileTypes: true }).catch(() => []);
@@ -16814,7 +16990,7 @@ export function createStudioServer(initialConfig, root) {
         if (!/^[a-z_]+$/.test(contentType) || !/^[\w:.\-]+$/.test(ts) || ts.includes("..") || ts.includes("/")) {
             return c.json({ error: "invalid draft id" }, 400);
         }
-        const draftsRoot = join(root, "content-drafts");
+        const draftsRoot = join(tenantRootOr(root), "content-drafts");
         const filePath = join(draftsRoot, contentType, `${ts}.md`);
         if (!filePath.startsWith(draftsRoot)) {
             return c.json({ error: "invalid path" }, 400);
