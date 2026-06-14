@@ -9572,6 +9572,13 @@ export function createStudioServer(initialConfig, root) {
         if (!bookId || !isSafeBookId(bookId)) {
             return c.json({ error: { code: "BOOK_NOT_FOUND", message: "作品不存在或无权访问。" }, bookId }, 404);
         }
+        // 建书生命周期端点(进度轮询 / 取消):book.json 在 foundation 落库前还没写,
+        // 不能用"存在性"拦死,否则建书全程轮询都 404(用户看到的就是这个);交给 handler 读建书 run 态判断。
+        const subPath = c.req.path.split("/").filter(Boolean).pop();
+        if (subPath === "create-status" || subPath === "create-cancel") {
+            await next();
+            return;
+        }
         // 用当前请求的(租户)state 解析 bookDir 并检查存在性 —— 别租户的 bookId 在我的根下不存在 → 404。
         const bookDir = state.bookDir(bookId);
         const exists = await access(join(bookDir, "book.json")).then(() => true).catch(() => false);

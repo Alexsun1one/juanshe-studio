@@ -127,5 +127,11 @@ describe("SaaS 安全 · admin 白名单 + topup 鉴权", () => {
     expect(res.status).not.toBe(404);
     const body = (await res.json().catch(() => ({}))) as { error?: { code?: string } };
     expect(body?.error?.code).not.toBe("BOOK_NOT_FOUND");
+
+    // 建书进度轮询 /books/:id/create-status:book.json 在 foundation 落库前还没写,
+    // 必须能轮询,不能被 requireBookAccess 的存在性检查当成 BOOK_NOT_FOUND 拦死(用户实际踩到的 404)。
+    const cs = await app.request("http://localhost/api/v1/books/some-creating-book/create-status", { headers: { cookie: admin.cookie } });
+    const csBody = (await cs.json().catch(() => ({}))) as { error?: { code?: string } };
+    expect(csBody?.error?.code).not.toBe("BOOK_NOT_FOUND");
   });
 });
