@@ -1,0 +1,56 @@
+# 卷舍 SaaS · 单实例托管编排(MVP)。复用 nextapi-vps,与发卡服务(/opt/juanshe-activation)共机。
+# 拓扑:nginx(TLS) → web(Next standalone :3100) → api(studio :4569);api 数据落持久卷。
+# 启动前务必先看 deploy/README.md 的 checklist(平台 key 必须留空、配 secret、放证书)。
+#
+# ⚠ 未本地验证(本机无 docker):首次在 VPS 上 `docker compose build` 时按 README 逐步验证。
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    environment:
+      - NODE_ENV=production
+      - HARDWRITE_SAAS_MODE=1
+      - HARDWRITE_BIND_HOST=0.0.0.0          # 容器内必须 0.0.0.0,否则 web 容器连不到
+      - HARDWRITE_COOKIE_SECURE=1            # 走 HTTPS → 会话 cookie 加 Secure
+      - JUANSHE_API_PORT=4569
+      - JUANSHE_WORKSPACE=/data              # 平台工作区(平台 hardwrite.json 的 key 必须留空)
+      - HARDWRITE_SAAS_DATA_DIR=/data/.saas  # 各租户隔离数据根
+      - HARDWRITE_ACTIVATION_SECRET=${HARDWRITE_ACTIVATION_SECRET}  # 与发卡服务同一密钥,用于校验 Pro/Ultra 升级码
+      - HARDWRITE_SAAS_MAX_BATCH_CHAPTERS=${HARDWRITE_SAAS_MAX_BATCH_CHAPTERS:-20}
+    volumes:
+      - juanshe-saas-data:/data
+    expose:
+      - "4569"                              # 只在 compose 内网暴露,不对外开端口
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    environment:
+      - NODE_ENV=production
+      - HOSTNAME=0.0.0.0
+      - PORT=3100
+      - JUANSHE_API_BASE=http://api:4569    # 服务名直连内网 api
+    depends_on:
+      - api
+    expose:
+      - "3100"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/juanshe.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro         # 放 fullchain.pem / privkey.pem(Let's Encrypt 或自签)
+    depends_on:
+      - web
+    restart: unless-stopped
+
+volumes:
+  juanshe-saas-data:                        # 租户书稿/记忆/密钥/图谱;由 backup-saas.sh 每日备份

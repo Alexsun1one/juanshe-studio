@@ -1,0 +1,26 @@
+# 卷舍 SaaS · API(studio)容器 —— 多阶段:builder 装+建+pnpm deploy 自包含产物,runner 只跑 dist。
+# ⚠ 本机无 docker,本文件未做本地 `docker build` 验证,首次部署在 VPS 上验证(见 deploy/README.md)。
+# 沿用项目验证过的打包惯例:pnpm --filter @juanshe/studio deploy --prod --legacy --ignore-scripts
+# (与 packages/studio-electron/scripts/prepare-resources.mjs 一致),产出含 dist + 解析好的
+# node_modules(hono/zod/@juanshe/core/@juanshe/engine),不含 devDeps、不含 electron。
+
+FROM node:22-slim AS builder
+RUN corepack enable
+WORKDIR /repo
+COPY . .
+# 只装 studio 及其工作区依赖(core/engine),不拉 studio-web/electron/cli(避免 electron 巨包与 postinstall)。
+RUN pnpm install --frozen-lockfile --ignore-scripts --filter "@juanshe/studio..."
+# core/engine 必须先 build(deploy 打包它们的 dist),再 build studio,最后 deploy 成自包含目录。
+RUN pnpm --filter @juanshe/core build \
+ && pnpm --filter @juanshe/engine build \
+ && pnpm --filter @juanshe/studio build \
+ && pnpm --filter @juanshe/studio deploy --prod --legacy --ignore-scripts /app
+
+FROM node:22-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+# node:22 自带 node_sqlite(故事图谱用 node:sqlite);slim 无需额外原生依赖(hono/zod/core/engine 纯 JS)。
+COPY --from=builder /app /app
+# 数据(各租户 .saas/tenants/* 与工作区)走挂载卷,见 docker-compose.yml。
+EXPOSE 4569
+CMD ["node", "dist/api/index.js"]

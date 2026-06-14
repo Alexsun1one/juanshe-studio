@@ -1,0 +1,25 @@
+# 卷舍 SaaS · Web(studio-web)容器 —— Next.js standalone 输出(next.config 已 output:"standalone")。
+# ⚠ 本机无 docker,未做本地 docker build 验证;但 standalone 产物已用 prod node 进程在 SaaS 模式下
+# 本地烟测通过(浏览器→web→api 三跳 cookie OK)。容器只是把同一产物装进 node:22。
+
+FROM node:22-slim AS builder
+RUN corepack enable
+WORKDIR /repo
+COPY . .
+# web 构建需要 core/engine 的类型/产物;先装 web 子图依赖,build core/engine,再 next build。
+RUN pnpm install --frozen-lockfile --ignore-scripts --filter "studio-web..."
+RUN pnpm --filter @juanshe/core build \
+ && pnpm --filter @juanshe/engine build \
+ && pnpm --filter studio-web build
+
+FROM node:22-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+# Next standalone 布局:standalone 根含 packages/studio-web/server.js + 裁剪后的 node_modules;
+# static 与 public 不在 standalone 里,需手动拷到对应子路径(outputFileTracingRoot=monorepo 根)。
+COPY --from=builder /repo/packages/studio-web/.next/standalone ./
+COPY --from=builder /repo/packages/studio-web/.next/static ./packages/studio-web/.next/static
+COPY --from=builder /repo/packages/studio-web/public ./packages/studio-web/public
+EXPOSE 3100
+# server.js 读 PORT/HOSTNAME;JUANSHE_API_BASE 指向 api 服务(compose 注入)。
+CMD ["node", "packages/studio-web/server.js"]
