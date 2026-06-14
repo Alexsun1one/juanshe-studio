@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 
 const projectConfig = {
   name: "saas-isolation-test",
@@ -36,6 +36,30 @@ const projectConfig = {
 // 与 server.ts 的 tenantIdForEmail 一致,用来定位租户物理目录。
 function tenantIdForEmail(email: string): string {
   return `tenant_${createHash("sha256").update(email).digest("hex").slice(0, 18)}`;
+}
+
+// ── 与 server.ts 的激活码算法逐字符一致,用来在测试里铸出"已签名的分级码"(pro/ultra)。 ──
+const ACTIVATION_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const ACTIVATION_PREFIX = "JUAN";
+const ACTIVATION_BUILTIN_SALT = "juanshe.activation.v1";
+const ACTIVATION_TIER_CHAR: Record<string, string> = { normal: "0", pro: "2", ultra: "4" };
+function activationChecksum(payload: string, secret: string): string {
+  const mac = createHmac("sha256", secret || ACTIVATION_BUILTIN_SALT).update(payload).digest();
+  let out = "";
+  for (let i = 0; i < 6; i++) out += ACTIVATION_ALPHABET[mac[i] % 32];
+  return out;
+}
+function activationTierGuard(tierChar: string, secret: string): string {
+  const mac = createHmac("sha256", secret || ACTIVATION_BUILTIN_SALT).update("juanshe.tier|" + tierChar).digest();
+  return ACTIVATION_ALPHABET[mac[0] % 32];
+}
+// 铸一个 tier 分级码(确定性:随机段固定,便于断言)。等价于 server.ts 的 tieredActivationCode。
+function mintTieredCode(tier: "normal" | "pro" | "ultra", secret: string, rand = "ABCDEFGH"): string {
+  const tc = ACTIVATION_TIER_CHAR[tier] ?? "0";
+  const guard = activationTierGuard(tc, secret);
+  const payload = (tc + guard + rand).slice(0, 10).padEnd(10, "0");
+  const body = payload + activationChecksum(ACTIVATION_PREFIX + payload, secret);
+  return `${ACTIVATION_PREFIX}-${body.slice(0, 4)}-${body.slice(4, 8)}-${body.slice(8, 12)}-${body.slice(12, 16)}`;
 }
 
 function setCookie(response: Response): string {
@@ -233,6 +257,215 @@ describe("SaaS multi-tenant isolation kernel", () => {
     const bGenres = await app.request("http://localhost/api/v1/genres", { headers: { cookie: b.cookie } });
     const bIds = ((await bGenres.json()) as { genres: Array<{ id: string }> }).genres.map((g) => g.id);
     expect(bIds).not.toContain("alice-secret-genre"); // B 看不到 A 自建类型(此前读全局 root → 串户)
+  });
+
+  // ── P0-2:激活码 × SaaS —— 挂 tier + 一次性赠 credits + 防重复 ──
+  it("activate (SaaS) attaches tier to the logged-in user and grants credits once", async () => {
+    process.env.HARDWRITE_ACTIVATION_SECRET = "test-secret-p0-2";
+    process.env.HARDWRITE_SAAS_PRO_GRANT_CREDITS = "1000";
+    try {
+      const a = await register(app, "alice@example.com", "password-aaa"); // 首个=admin,200 初始额度
+      const proCode = mintTieredCode("pro", "test-secret-p0-2");
+
+      const before = await app.request("http://localhost/api/v1/auth/me", { headers: { cookie: a.cookie } });
+      const beforeUser = ((await before.json()) as { user: { credits: number; tier: string } }).user;
+      expect(beforeUser.tier).toBe("normal");
+
+      const act = await app.request("http://localhost/api/v1/auth/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: a.cookie },
+        body: JSON.stringify({ code: proCode }),
+      });
+      expect(act.status).toBe(200);
+      const actBody = (await act.json()) as { saas: boolean; grantedCredits: number; user: { tier: string; credits: number } };
+      expect(actBody.saas).toBe(true);
+      expect(actBody.user.tier).toBe("pro");
+      expect(actBody.grantedCredits).toBe(1000);
+      expect(actBody.user.credits).toBe(beforeUser.credits + 1000);
+
+      // 二次激活同一 tier → 不再重复赠(防刷)。
+      const act2 = await app.request("http://localhost/api/v1/auth/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: a.cookie },
+        body: JSON.stringify({ code: proCode }),
+      });
+      const act2Body = (await act2.json()) as { grantedCredits: number; user: { credits: number } };
+      expect(act2Body.grantedCredits).toBe(0);
+      expect(act2Body.user.credits).toBe(actBody.user.credits); // 余额不变
+    } finally {
+      delete process.env.HARDWRITE_ACTIVATION_SECRET;
+      delete process.env.HARDWRITE_SAAS_PRO_GRANT_CREDITS;
+    }
+  });
+
+  it("activate (SaaS) without a session is rejected (401) and does not touch global activation", async () => {
+    process.env.HARDWRITE_ACTIVATION_SECRET = "test-secret-p0-2";
+    try {
+      const proCode = mintTieredCode("pro", "test-secret-p0-2");
+      const act = await app.request("http://localhost/api/v1/auth/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: proCode }),
+      });
+      expect(act.status).toBe(401);
+    } finally {
+      delete process.env.HARDWRITE_ACTIVATION_SECRET;
+    }
+  });
+
+  // ── P0-2:Pro/Ultra 免扣 —— premium 路由对 Pro 用户不扣 credits ──
+  it("Pro user is exempt from credit debit on premium routes", async () => {
+    process.env.HARDWRITE_ACTIVATION_SECRET = "test-secret-p0-2";
+    process.env.HARDWRITE_SAAS_PRO_GRANT_CREDITS = "0"; // 不赠,纯看免扣
+    try {
+      const a = await register(app, "alice@example.com", "password-aaa"); // admin,200 初始额度
+      const proCode = mintTieredCode("pro", "test-secret-p0-2");
+      await app.request("http://localhost/api/v1/auth/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: a.cookie },
+        body: JSON.stringify({ code: proCode }),
+      });
+      const me1 = await app.request("http://localhost/api/v1/auth/me", { headers: { cookie: a.cookie } });
+      const credits1 = ((await me1.json()) as { user: { credits: number } }).user.credits;
+
+      // radar/scan = premium(3 点)。Pro 免扣 → 不返回 402、余额不变。
+      const res = await app.request("http://localhost/api/v1/radar/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: a.cookie },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).not.toBe(402);
+      const me2 = await app.request("http://localhost/api/v1/auth/me", { headers: { cookie: a.cookie } });
+      const credits2 = ((await me2.json()) as { user: { credits: number } }).user.credits;
+      expect(credits2).toBe(credits1); // 免扣:余额未变
+    } finally {
+      delete process.env.HARDWRITE_ACTIVATION_SECRET;
+      delete process.env.HARDWRITE_SAAS_PRO_GRANT_CREDITS;
+    }
+  });
+
+  // ── P0-2:SaaS 禁用 daemon 单例 ──
+  it("daemon/start is rejected (403) in SaaS mode", async () => {
+    const a = await register(app, "alice@example.com", "password-aaa");
+    const res = await app.request("http://localhost/api/v1/daemon/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", cookie: a.cookie },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe("DAEMON_DISABLED_IN_SAAS");
+  });
+
+  // 停掉某租户某书的后台写作 IIFE,并轮询其 run 直到终态 —— 确保 fire-and-forget 的异步落盘
+  // 在 teardown(rm 临时目录)之前结束,避免 ENOTEMPTY/ENOENT 竞态。
+  async function stopWorkflow(cookie: string, bookId: string, runId?: string): Promise<void> {
+    await app.request(`http://localhost/api/v1/books/${bookId}/workflow/stop`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", cookie },
+      body: JSON.stringify({ reason: "测试结束" }),
+    });
+    if (!runId) return;
+    const terminal = new Set(["cancelled", "error", "done", "needs-repair"]);
+    for (let i = 0; i < 60; i++) {
+      const res = await app.request(`http://localhost/api/v1/runs/${runId}`, { headers: { cookie } });
+      if (res.status === 404) return;
+      const run = ((await res.json()) as { run?: { status?: string } }).run;
+      if (run && terminal.has(String(run.status))) return;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }
+
+  // ── P0-2:write-batch SaaS 章数被 cap 到 ≤20 ──
+  it("write-batch caps chapters to SAAS_MAX_BATCH_CHAPTERS (20) in SaaS mode", async () => {
+    const a = await register(app, "alice@example.com", "password-aaa");
+    await seedBookForTenant(root, a.tenantId, "cap-novel", "上限测试书");
+    // 请求 500 章,SaaS 应 cap 到 20。fire-and-forget IIFE 会对着 fake endpoint 失败,
+    // 不是真实 LLM 生成;断言完立刻 stop 释放槽。
+    const res = await app.request("http://localhost/api/v1/books/cap-novel/write-batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", cookie: a.cookie },
+      body: JSON.stringify({ chapters: 500, ignoreFoundationGate: true, ignoreExistingQualityGate: true }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { total: number; status: string; runId: string };
+    expect(body.status).toBe("batch-writing");
+    expect(body.total).toBe(20); // cap 生效(桌面是 100/1000)
+    await stopWorkflow(a.cookie, "cap-novel", body.runId);
+  });
+
+  // ── P0-2:锁 Map 跨租户不撞 —— 两租户同名书并发,各自独立 runId,互不 abort ──
+  it("same-named books across tenants do not collide locks (no cross-tenant abort)", async () => {
+    // 两租户都需有额度才能过 premium 门(write-batch=8 点);给注册赠额。
+    process.env.HARDWRITE_SIGNUP_CREDITS = "500";
+    try {
+    const a = await register(app, "alice@example.com", "password-aaa");
+    const b = await register(app, "bob@example.com", "password-bbb");
+    // 两租户各自一本同 id 的书。
+    await seedBookForTenant(root, a.tenantId, "shared-name", "A 的同名书");
+    await seedBookForTenant(root, b.tenantId, "shared-name", "B 的同名书");
+
+    const startBatch = (cookie: string) =>
+      app.request("http://localhost/api/v1/books/shared-name/write-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie },
+        body: JSON.stringify({ chapters: 5, ignoreFoundationGate: true, ignoreExistingQualityGate: true }),
+      });
+
+    const aRes = await startBatch(a.cookie);
+    expect(aRes.status).toBe(200);
+    const aRun = (await aRes.json()) as { runId: string; status: string };
+    expect(aRun.status).toBe("batch-writing");
+
+    // 核心断言:B 启动同名书拿到 200 + 自己独立的 runId。
+    // 若锁 Map 用裸 bookId(=书名 slug)当 key,B 的 prepareWriteSlot 会撞上 A 刚写入的同 key 锁 →
+    // 返回 already-writing(409)。B 拿到 200 即证明 tenantScopedKey 把两租户的同名书锁隔开了。
+    const bRes = await startBatch(b.cookie);
+    expect(bRes.status).toBe(200);
+    const bRun = (await bRes.json()) as { runId: string; status: string };
+    expect(bRun.status).toBe("batch-writing");
+    expect(bRun.runId).not.toBe(aRun.runId);
+
+    // 反向:B 的写作请求绝不能让 A 的 run 被取消(跨租户 abort)。A 的 run 仍是非 cancelled。
+    // (A 自己的后台 IIFE 会对 fake endpoint 失败,但失败原因是 error,不会是"被另一次启动取消"。)
+    const aRunAfter = await app.request(`http://localhost/api/v1/runs/${aRun.runId}`, { headers: { cookie: a.cookie } });
+    if (aRunAfter.status === 200) {
+      const status = ((await aRunAfter.json()) as { run: { status: string } }).run.status;
+      expect(status).not.toBe("cancelled");
+    }
+
+    await stopWorkflow(a.cookie, "shared-name", aRun.runId);
+    await stopWorkflow(b.cookie, "shared-name", bRun.runId);
+    } finally {
+      delete process.env.HARDWRITE_SIGNUP_CREDITS;
+    }
+  });
+
+  // ── P0-2:同租户已有活跃写作时,第二个写作请求被 409 拒绝(资源墙)──
+  it("a tenant with an active write job is blocked (409) from starting another book's batch", async () => {
+    const a = await register(app, "alice@example.com", "password-aaa");
+    await seedBookForTenant(root, a.tenantId, "busy-book-1", "占用书一");
+    await seedBookForTenant(root, a.tenantId, "busy-book-2", "占用书二");
+
+    const first = await app.request("http://localhost/api/v1/books/busy-book-1/write-batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", cookie: a.cookie },
+      body: JSON.stringify({ chapters: 5, ignoreFoundationGate: true, ignoreExistingQualityGate: true }),
+    });
+    expect(first.status).toBe(200);
+    const firstRun = (await first.json()) as { runId: string };
+
+    // 同租户开第二本书的批量 → 资源墙 409(TENANT_WRITE_BUSY)。
+    const second = await app.request("http://localhost/api/v1/books/busy-book-2/write-batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", cookie: a.cookie },
+      body: JSON.stringify({ chapters: 5, ignoreFoundationGate: true, ignoreExistingQualityGate: true }),
+    });
+    expect(second.status).toBe(409);
+    const body = (await second.json()) as { error: { code: string } };
+    expect(body.error.code).toBe("TENANT_WRITE_BUSY");
+
+    await stopWorkflow(a.cookie, "busy-book-1", firstRun.runId);
   });
 });
 

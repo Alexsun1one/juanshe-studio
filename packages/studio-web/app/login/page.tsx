@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight, KeyRound, PenLine, Sparkles, AlertCircle, Mail } from "lucide-react"
+import { ArrowRight, KeyRound, PenLine, Sparkles, AlertCircle, Mail, Lock, CheckCircle2 } from "lucide-react"
 import { CjLogo } from "@/components/design/cj-logo"
 import { setAuthorName } from "@/lib/use-author-name"
 import "./login.css"
@@ -45,6 +45,14 @@ const EDITORIAL_STORY_PARTS = [
 ] as const
 const EDITORIAL_STORY = EDITORIAL_STORY_PARTS.map((part) => part.text).join("")
 
+type SaasUser = {
+  id?: string
+  email?: string
+  role?: string
+  tenantId?: string
+  credits?: number
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const [author, setAuthor] = React.useState("")
@@ -55,15 +63,43 @@ export default function LoginPage() {
   const [qrError, setQrError] = React.useState(false)
   // 本机是否强制激活:自助部署默认 false → 可免码直接进入;商业分发设 env(HARDWRITE_ACTIVATION_*)后为 true。
   const [activationRequired, setActivationRequired] = React.useState(false)
+  // 托管多租户(SaaS):邮箱+密码注册/登录。null=未判定(避免闪桌面表单),false=桌面单机,true=SaaS。
+  const [saas, setSaas] = React.useState<boolean | null>(null)
   React.useEffect(() => {
+    let cancelled = false
+    // 优先用 /auth/me 判定模式(saas:true/false);其返回还带当前会话用户(已登录可直接进站)。
+    fetch("/api/v1/auth/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((s) => {
+        if (cancelled) return
+        const isSaas = Boolean(s?.saas)
+        setSaas(isSaas)
+        if (isSaas && s?.user) setSaasUser(s.user as SaasUser)
+      })
+      .catch(() => {
+        if (!cancelled) setSaas(false) // 判定失败按桌面处理,保持可自助进入
+      })
+    // 桌面模式才关心激活是否强制(SaaS 用账号会话,不读这条)
     fetch("/api/v1/auth/activation", { cache: "no-store" })
       .then((r) => r.json())
-      .then((s) => setActivationRequired(Boolean(s?.required)))
+      .then((s) => { if (!cancelled) setActivationRequired(Boolean(s?.required)) })
       .catch(() => { /* 后端不可达时按"不强制"处理,保持可自助进入 */ })
+    return () => { cancelled = true }
   }, [])
   const [storyText, setStoryText] = React.useState("")
   const qrRef = React.useRef<HTMLImageElement>(null)
   const storyScrollRef = React.useRef<HTMLDivElement>(null)
+
+  // ── SaaS 表单状态 ─────────────────────────────────────────────
+  const [saasMode, setSaasMode] = React.useState<"login" | "register">("login")
+  const [password, setPassword] = React.useState("")
+  const [saasUser, setSaasUser] = React.useState<SaasUser | null>(null)
+  const [upgradeCode, setUpgradeCode] = React.useState("")
+  const [upgradeBusy, setUpgradeBusy] = React.useState(false)
+  const [upgradeErr, setUpgradeErr] = React.useState<string | null>(null)
+  const [upgradeTier, setUpgradeTier] = React.useState<string | null>(null)
+  const [upgradeCredits, setUpgradeCredits] = React.useState<number | null>(null)
+
   // SSR 注水前图片若已 404,onError 事件会丢失 → 注水后补判一次坏图,确保占位回退生效
   React.useEffect(() => {
     const img = qrRef.current
@@ -98,6 +134,14 @@ export default function LoginPage() {
     return nodes
   }, [storyText])
 
+  // 进站后路由:首次 → 编辑部入职过场(/welcome),复访 → 直接进站(/)
+  const goAfterAuth = React.useCallback(() => {
+    let onboarded = false
+    try { onboarded = localStorage.getItem("cj.onboarded") === "1" } catch { /* ignore */ }
+    router.push(onboarded ? "/" : "/welcome")
+  }, [router])
+
+  // ── 桌面单机:作者名 + 激活码(免码可进) ───────────────────────
   const enter = async (e?: React.FormEvent) => {
     e?.preventDefault()
     if (busy) return
@@ -115,9 +159,7 @@ export default function LoginPage() {
           } catch {
             /* ignore */
           }
-          let onboarded = false
-          try { onboarded = localStorage.getItem("cj.onboarded") === "1" } catch { /* ignore */ }
-          router.push(onboarded ? "/" : "/welcome")
+          goAfterAuth()
           return
         }
         setErr("请先输入激活码。关注公众号回复「领码」即可领取。")
@@ -151,15 +193,317 @@ export default function LoginPage() {
       } catch {
         /* ignore */
       }
-      // 首次登录 → 编辑部入职过场(总编寒暄 + 新手引导);复访 → 直接进站
-      let onboarded = false
-      try { onboarded = localStorage.getItem("cj.onboarded") === "1" } catch { /* ignore */ }
-      router.push(onboarded ? "/" : "/welcome")
+      goAfterAuth()
     } catch {
       setErr("无法连接卷舍后端,请确认服务已启动后重试。")
       setBusy(false)
     }
   }
+
+  // ── SaaS:邮箱+密码 注册/登录 ────────────────────────────────
+  const submitSaas = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    if (busy) return
+    setErr(null)
+    const mail = email.trim()
+    const pwd = password
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+      setErr("请输入有效邮箱。")
+      return
+    }
+    if (pwd.length < 8) {
+      setErr("密码至少 8 位。")
+      return
+    }
+    setBusy(true)
+    try {
+      const path = saasMode === "register" ? "/api/v1/auth/register" : "/api/v1/auth/login"
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: mail, password: pwd }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data?.error) {
+        setErr(data?.error?.message || (saasMode === "register" ? "注册失败,请稍后重试。" : "邮箱或密码错误。"))
+        setBusy(false)
+        return
+      }
+      // 登录态由后端 Set-Cookie 会话承载;本地只存可读身份草稿(作者称谓沿用邮箱前缀)
+      const user = (data?.user ?? null) as SaasUser | null
+      try {
+        if (mail) localStorage.setItem("cj.email", mail)
+        const display = author.trim() || mail.split("@")[0] || "作者大大"
+        setAuthorName(display)
+      } catch { /* ignore */ }
+      setSaasUser(user)
+      setBusy(false)
+      // 进站前先在此页给一个"升级激活码"入口(不强制),用户可直接进站或先升级
+    } catch {
+      setErr("无法连接卷舍后端,请确认服务已启动后重试。")
+      setBusy(false)
+    }
+  }
+
+  // ── SaaS:登录后用 Pro/Ultra 激活码升级当前账号 ───────────────
+  const submitUpgrade = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    if (upgradeBusy) return
+    setUpgradeErr(null)
+    const trimmed = upgradeCode.trim()
+    if (!trimmed) {
+      setUpgradeErr("请输入 Pro / Ultra 激活码。")
+      return
+    }
+    setUpgradeBusy(true)
+    try {
+      const res = await fetch("/api/v1/auth/activate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: trimmed, email: email.trim(), deviceId: getDeviceId() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data?.error) {
+        setUpgradeErr(data?.error?.message || "激活码无效,请检查后重试。")
+        setUpgradeBusy(false)
+        return
+      }
+      const tier = data?.activation?.tier ?? null
+      if (tier) {
+        setUpgradeTier(String(tier))
+        try { localStorage.setItem("cj.tier", String(tier)) } catch { /* ignore */ }
+      }
+      // P0-2:SaaS 模式下激活会给当前账号挂 tier + 按 tier 赠 credits。
+      // 重新拉一次 /auth/me 取到账后的最新额度展示给用户。
+      try {
+        const me = await fetch("/api/v1/auth/me", { cache: "no-store" }).then((r) => r.json())
+        const credits = me?.user?.credits
+        if (typeof credits === "number") {
+          setUpgradeCredits(credits)
+          setSaasUser((prev) => (prev ? { ...prev, credits } : prev))
+        }
+      } catch { /* 额度展示是锦上添花,失败不阻断 */ }
+      setUpgradeBusy(false)
+    } catch {
+      setUpgradeErr("无法连接卷舍后端,请稍后重试。")
+      setUpgradeBusy(false)
+    }
+  }
+
+  const renderDesktopCard = () => (
+    <form className="card" onSubmit={enter}>
+      <div className="card-emblem"><Sparkles size={18} /></div>
+      <h2>推开卷舍的门</h2>
+      <p className="card-sub">里面那群永不疲倦的家伙,已经为你<span className="juan">卷</span>了很久了。</p>
+
+      <label className="field">
+        <span className="lab"><PenLine size={13} /> 你想被称作?</span>
+        <input
+          className="inp"
+          value={author}
+          onChange={(e) => setAuthor(e.target.value)}
+          placeholder="作者大大"
+          maxLength={20}
+          autoFocus
+        />
+        <span className="hint">编辑部会这样称呼你(可随时改)。</span>
+      </label>
+
+      <label className="field">
+        <span className="lab"><KeyRound size={13} /> 激活码</span>
+        <input
+          className="inp mono"
+          value={code}
+          onChange={(e) => { setCode(e.target.value.toUpperCase()); if (err) setErr(null) }}
+          placeholder="JUAN-XXXX-XXXX-XXXX"
+          spellCheck={false}
+        />
+        <span className="hint">
+          {activationRequired
+            ? `没有激活码?关注公众号「${WECHAT_NAME}」回复「${WECHAT_KEYWORD}」领取。`
+            : "免激活码 = 普通会员直接进站,轻档写作;填 Pro / Ultra 码解锁更强编辑部。"}
+        </span>
+      </label>
+
+      <label className="field">
+        <span className="lab"><Mail size={13} /> 邮箱(选填)</span>
+        <input
+          className="inp"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          spellCheck={false}
+          autoComplete="email"
+        />
+        <span className="hint">绑邮箱可在换设备时找回、接收产品更新;不填也能进。</span>
+      </label>
+
+      {!code.trim() && (
+        <div className="code-claim">
+          <span className="cc-title">{activationRequired ? "还没有激活码?" : "免码即可开写 · 关注公众号领 Pro 体验码"}</span>
+          {!qrError ? (
+            // eslint-disable-next-line @next/next/no-img-element -- 公众号横条是用户自备静态素材,无需 next/image 优化
+            <img
+              ref={qrRef}
+              className="cc-banner"
+              src={WECHAT_QR}
+              alt={`关注公众号「${WECHAT_NAME}」领取激活码`}
+              onError={() => setQrError(true)}
+            />
+          ) : (
+            <div className="cc-banner-fallback" title="公众号二维码待配置">
+              公众号二维码待配置
+              <span>稍后在产品设置里配置</span>
+            </div>
+          )}
+          <p className="cc-hint">
+            微信扫码 / 搜一搜关注 <b>「{WECHAT_NAME}」</b>
+            {activationRequired ? <>,回复 <b>「{WECHAT_KEYWORD}」</b> 即可领取激活码。</> : <> —— 新功能、更新和玩法都先在这发。</>}
+          </p>
+        </div>
+      )}
+
+      {err && (
+        <p className="login-err" role="alert">
+          <AlertCircle size={14} /> {err}
+        </p>
+      )}
+
+      <button type="submit" className="enter" disabled={busy}>
+        {busy ? "正在进门…" : <>进入卷舍 <ArrowRight size={16} /></>}
+      </button>
+
+      <p className="foot-note">密钥与激活信息仅存于本地,绝不上传 · BYOK 自带模型</p>
+    </form>
+  )
+
+  const renderSaasAuthCard = () => (
+    <form className="card" onSubmit={submitSaas}>
+      <div className="card-emblem"><Sparkles size={18} /></div>
+      <h2>{saasMode === "register" ? "加入卷舍编辑部" : "回到卷舍编辑部"}</h2>
+      <p className="card-sub">
+        {saasMode === "register"
+          ? <>用邮箱开一个属于你的<span className="juan">卷</span>舍工位 —— 你的书、记忆和密钥都只在你的租户里。</>
+          : <>编辑部一直亮着灯。用邮箱<span className="juan">回</span>到你的工位继续写。</>}
+      </p>
+
+      <div className="saas-tabs" role="tablist" aria-label="注册或登录">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={saasMode === "login"}
+          className={`saas-tab${saasMode === "login" ? " on" : ""}`}
+          onClick={() => { setSaasMode("login"); setErr(null) }}
+        >
+          登录
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={saasMode === "register"}
+          className={`saas-tab${saasMode === "register" ? " on" : ""}`}
+          onClick={() => { setSaasMode("register"); setErr(null) }}
+        >
+          注册
+        </button>
+      </div>
+
+      <label className="field">
+        <span className="lab"><Mail size={13} /> 邮箱</span>
+        <input
+          className="inp"
+          type="email"
+          value={email}
+          onChange={(e) => { setEmail(e.target.value); if (err) setErr(null) }}
+          placeholder="you@example.com"
+          spellCheck={false}
+          autoComplete="email"
+          autoFocus
+        />
+      </label>
+
+      <label className="field">
+        <span className="lab"><Lock size={13} /> 密码</span>
+        <input
+          className="inp"
+          type="password"
+          value={password}
+          onChange={(e) => { setPassword(e.target.value); if (err) setErr(null) }}
+          placeholder="至少 8 位"
+          spellCheck={false}
+          autoComplete={saasMode === "register" ? "new-password" : "current-password"}
+        />
+        <span className="hint">
+          {saasMode === "register"
+            ? "密码只用来守住你的工位,卷舍不会明文存储。"
+            : "忘了也别慌 —— 编辑部会帮你找回(后续在设置里)。"}
+        </span>
+      </label>
+
+      {err && (
+        <p className="login-err" role="alert">
+          <AlertCircle size={14} /> {err}
+        </p>
+      )}
+
+      <button type="submit" className="enter" disabled={busy}>
+        {busy
+          ? (saasMode === "register" ? "正在开工位…" : "正在进门…")
+          : <>{saasMode === "register" ? "注册并进入卷舍" : "进入卷舍"} <ArrowRight size={16} /></>}
+      </button>
+
+      <p className="foot-note">
+        {saasMode === "register"
+          ? <>已经有工位了?<span className="saas-swap" role="button" tabIndex={0} onClick={() => { setSaasMode("login"); setErr(null) }} onKeyDown={(e) => { if (e.key === "Enter") { setSaasMode("login"); setErr(null) } }}>去登录</span></>
+          : <>第一次来?<span className="saas-swap" role="button" tabIndex={0} onClick={() => { setSaasMode("register"); setErr(null) }} onKeyDown={(e) => { if (e.key === "Enter") { setSaasMode("register"); setErr(null) } }}>开一个工位</span></>}
+      </p>
+    </form>
+  )
+
+  const renderSaasUpgradeCard = () => (
+    <div className="card">
+      <div className="card-emblem ok"><CheckCircle2 size={18} /></div>
+      <h2>工位已就绪</h2>
+      <p className="card-sub">
+        欢迎,<b>{email.trim() || saasUser?.email || "作者大大"}</b>。编辑部已经为你点亮工位,随时可以进站开写。
+      </p>
+
+      <div className="saas-upgrade">
+        <span className="su-title"><KeyRound size={13} /> 有 Pro / Ultra 激活码?现在升级</span>
+        <p className="su-hint">把激活码挂到这个账号,解锁更强的编辑部并按等级到账 credits。</p>
+        <div className="su-row">
+          <input
+            className="inp mono"
+            value={upgradeCode}
+            onChange={(e) => { setUpgradeCode(e.target.value.toUpperCase()); if (upgradeErr) setUpgradeErr(null) }}
+            placeholder="JUAN-XXXX-XXXX-XXXX"
+            spellCheck={false}
+          />
+          <button type="button" className="su-apply" onClick={submitUpgrade} disabled={upgradeBusy}>
+            {upgradeBusy ? "升级中…" : "升级"}
+          </button>
+        </div>
+        {upgradeErr && (
+          <p className="login-err" role="alert">
+            <AlertCircle size={14} /> {upgradeErr}
+          </p>
+        )}
+        {upgradeTier && (
+          <p className="su-ok" role="status">
+            <CheckCircle2 size={14} /> 已升级到 <b>{upgradeTier}</b>
+            {typeof upgradeCredits === "number" ? <> · 到账 <b>{upgradeCredits}</b> credits</> : null}
+          </p>
+        )}
+      </div>
+
+      <button type="button" className="enter" onClick={goAfterAuth}>
+        进入卷舍 <ArrowRight size={16} />
+      </button>
+
+      <p className="foot-note">你的书、记忆与密钥都隔离在你的租户里 · BYOK 自带模型</p>
+    </div>
+  )
 
   return (
     <div className="cj-login">
@@ -210,93 +554,13 @@ export default function LoginPage() {
         </p>
       </aside>
 
-      {/* 右:进入卷舍(作者名 + 激活码)*/}
+      {/* 右:进入卷舍 —— SaaS 走邮箱密码,桌面走作者名+激活码 */}
       <main className="panel">
-        <form className="card" onSubmit={enter}>
-          <div className="card-emblem"><Sparkles size={18} /></div>
-          <h2>推开卷舍的门</h2>
-          <p className="card-sub">里面那群永不疲倦的家伙,已经为你<span className="juan">卷</span>了很久了。</p>
-
-          <label className="field">
-            <span className="lab"><PenLine size={13} /> 你想被称作?</span>
-            <input
-              className="inp"
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
-              placeholder="作者大大"
-              maxLength={20}
-              autoFocus
-            />
-            <span className="hint">编辑部会这样称呼你(可随时改)。</span>
-          </label>
-
-          <label className="field">
-            <span className="lab"><KeyRound size={13} /> 激活码</span>
-            <input
-              className="inp mono"
-              value={code}
-              onChange={(e) => { setCode(e.target.value.toUpperCase()); if (err) setErr(null) }}
-              placeholder="JUAN-XXXX-XXXX-XXXX"
-              spellCheck={false}
-            />
-            <span className="hint">
-              {activationRequired
-                ? `没有激活码?关注公众号「${WECHAT_NAME}」回复「${WECHAT_KEYWORD}」领取。`
-                : "免激活码 = 普通会员直接进站,轻档写作;填 Pro / Ultra 码解锁更强编辑部。"}
-            </span>
-          </label>
-
-          <label className="field">
-            <span className="lab"><Mail size={13} /> 邮箱(选填)</span>
-            <input
-              className="inp"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              spellCheck={false}
-              autoComplete="email"
-            />
-            <span className="hint">绑邮箱可在换设备时找回、接收产品更新;不填也能进。</span>
-          </label>
-
-          {!code.trim() && (
-            <div className="code-claim">
-              <span className="cc-title">{activationRequired ? "还没有激活码?" : "免码即可开写 · 关注公众号领 Pro 体验码"}</span>
-              {!qrError ? (
-                // eslint-disable-next-line @next/next/no-img-element -- 公众号横条是用户自备静态素材,无需 next/image 优化
-                <img
-                  ref={qrRef}
-                  className="cc-banner"
-                  src={WECHAT_QR}
-                  alt={`关注公众号「${WECHAT_NAME}」领取激活码`}
-                  onError={() => setQrError(true)}
-                />
-              ) : (
-                <div className="cc-banner-fallback" title="公众号二维码待配置">
-                  公众号二维码待配置
-                  <span>稍后在产品设置里配置</span>
-                </div>
-              )}
-              <p className="cc-hint">
-                微信扫码 / 搜一搜关注 <b>「{WECHAT_NAME}」</b>
-                {activationRequired ? <>,回复 <b>「{WECHAT_KEYWORD}」</b> 即可领取激活码。</> : <> —— 新功能、更新和玩法都先在这发。</>}
-              </p>
-            </div>
-          )}
-
-          {err && (
-            <p className="login-err" role="alert">
-              <AlertCircle size={14} /> {err}
-            </p>
-          )}
-
-          <button type="submit" className="enter" disabled={busy}>
-            {busy ? "正在进门…" : <>进入卷舍 <ArrowRight size={16} /></>}
-          </button>
-
-          <p className="foot-note">密钥与激活信息仅存于本地,绝不上传 · BYOK 自带模型</p>
-        </form>
+        {saas === null
+          ? null
+          : saas
+            ? (saasUser ? renderSaasUpgradeCard() : renderSaasAuthCard())
+            : renderDesktopCard()}
       </main>
     </div>
   )

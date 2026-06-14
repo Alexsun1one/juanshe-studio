@@ -481,11 +481,13 @@ function CjTopbar() {
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey) }
   }, [userMenu])
 
-  // 退出登录 / 切换激活码:通知后端注销当前激活(activation.json → unlocked=false),
+  // 退出登录 / 切换激活码:SaaS 模式清后端会话(/auth/logout 清 cookie),
+  // 桌面模式注销当前激活(activation.json → unlocked=false);两端都安全(无会话/无激活时各自 no-op)。
   // 再清掉本地身份(保留 deviceId / 入职 / UI 偏好),跳回登录页重新进门。
   const logout = React.useCallback(async () => {
     if (loggingOut) return
     setLoggingOut(true)
+    try { await fetch("/api/v1/auth/logout", { method: "POST" }) } catch { /* 离线也要让用户能退 */ }
     try { await fetch("/api/v1/auth/deactivate", { method: "POST" }) } catch { /* 离线也要让用户能退 */ }
     try {
       localStorage.removeItem("cj.authed")

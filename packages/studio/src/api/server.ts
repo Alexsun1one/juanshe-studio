@@ -708,6 +708,27 @@ function resolveLegacyStageEvent(stage) {
 }
 const SAAS_SESSION_COOKIE = "hardwrite_saas_session";
 const SAAS_STORE_VERSION = 1;
+// ── SaaS 资源硬上限(复用 nextapi-vps 必须有,否则一个用户挂机连写拖垮发卡服务)──
+// 每批章数上限(SaaS):桌面维持 1000/100,SaaS cap 到 ≤20。可用 env 覆盖,但仍夹在 [1,50]。
+const SAAS_MAX_BATCH_CHAPTERS = Math.max(1, Math.min(50, Number(process.env.HARDWRITE_SAAS_MAX_BATCH_CHAPTERS || 20)));
+// 后台长跑墙:同一批写作累计运行超过此时长(默认 2 小时)主动停并标记,防挂机连写无限占用。
+const SAAS_MAX_BATCH_DURATION_MS = Math.max(5 * 60 * 1000, Number(process.env.HARDWRITE_SAAS_MAX_BATCH_DURATION_MS || 2 * 60 * 60 * 1000));
+// ── 激活码 × SaaS:tier 一次性赠送额度(常量可调)──────────────────────────────
+// normal 不赠;pro/ultra 按 tier 一次性赠。升级到更高 tier 只补「更高档赠额 − 已赠额」的差额(防重复刷)。
+const SAAS_TIER_RANK = { normal: 0, pro: 1, ultra: 2 };
+const SAAS_TIER_GRANT_CREDITS = {
+    normal: 0,
+    pro: Math.max(0, Number(process.env.HARDWRITE_SAAS_PRO_GRANT_CREDITS || 1000)),
+    ultra: Math.max(0, Number(process.env.HARDWRITE_SAAS_ULTRA_GRANT_CREDITS || 3000)),
+};
+function saasTierRank(tier) {
+    return SAAS_TIER_RANK[String(tier || "normal").toLowerCase()] ?? 0;
+}
+// Pro/Ultra 用户的 premium 路由扣费策略:pro/ultra 免扣;normal/未登录 = 照常扣。
+// 按 tier 返回扣费倍率(0=免扣,1=全额);未来要"低扣"把对应档改成 0..1 即可。
+function saasDebitMultiplierForTier(tier) {
+    return saasTierRank(tier) >= SAAS_TIER_RANK.pro ? 0 : 1;
+}
 const PREMIUM_API_COSTS = [
     { method: "POST", pattern: /^\/api\/v1\/books\/create$/, credits: 10, reason: "创建作品与故事圣经" },
     { method: "POST", pattern: /^\/api\/v1\/books\/[^/]+\/write-next$/, credits: 8, reason: "生成下一章" },
@@ -721,6 +742,10 @@ const PREMIUM_API_COSTS = [
     { method: "POST", pattern: /^\/api\/v1\/style\/analyze$/, credits: 2, reason: "文风分析" },
     { method: "POST", pattern: /^\/api\/v1\/covers\/generate$/, credits: 5, reason: "封面生成" },
     { method: "POST", pattern: /^\/api\/v1\/radar\/scan$/, credits: 3, reason: "市场雷达扫描" },
+    // 引擎直写路由(@juanshe/engine):同样烧 LLM,必须计费,否则 SaaS 下零积分白跑(尤其 run-book 可连写整本)。
+    { method: "POST", pattern: /^\/api\/v1\/engine\/write-chapter$/, credits: 8, reason: "引擎单章写作" },
+    { method: "POST", pattern: /^\/api\/v1\/engine\/write-chapter\/stream$/, credits: 8, reason: "引擎单章写作(流式)" },
+    { method: "POST", pattern: /^\/api\/v1\/engine\/run-book$/, credits: 30, reason: "引擎整本编排(多章)" },
 ];
 function isSaasModeEnabled() {
     return process.env.HARDWRITE_SAAS_MODE === "1" || process.env.HARDWRITE_SAAS_MODE === "true";
@@ -743,6 +768,7 @@ function publicUser(user) {
         role: user.role,
         tenantId: user.tenantId,
         credits: Number(user.credits ?? 0),
+        tier: user.tier ?? "normal",
         createdAt: user.createdAt,
     };
 }
@@ -8352,6 +8378,66 @@ export function createStudioServer(initialConfig, root) {
     const activeWriteJobs = new Map();
     const activeStateRepairJobs = new Map();
     const progressPersistAt = new Map();
+    // ── 写作锁 Map 租户化(P0-2)──────────────────────────────────────────────
+    // 这些 Map 用裸 bookId(=书名 slug)做 key。跨租户同名书会撞 key → A 启动写作会
+    // abort/接管 B 的同名书任务。SaaS 模式下用 tenantScopedKey() 前缀隔离 key;并把裸 bookId
+    // 与 tenantId 写进 job value,迭代点(/api/v1/daemon)读 value.bookId 而非带前缀的 map key。
+    // 桌面/ALS 空时 tenantScopedKey 返回裸 bookId → 行为字节级不变。
+    function writeJobKey(bookId) {
+        return tenantScopedKey(bookId);
+    }
+    function getWriteJob(bookId) {
+        return activeWriteJobs.get(writeJobKey(bookId));
+    }
+    function setWriteJob(bookId, value) {
+        const tenantId = isSaasModeEnabled() ? (currentTenantStore()?.tenantId ?? null) : null;
+        activeWriteJobs.set(writeJobKey(bookId), { ...value, bookId, tenantId });
+    }
+    function hasWriteJob(bookId) {
+        return activeWriteJobs.has(writeJobKey(bookId));
+    }
+    function deleteWriteJob(bookId) {
+        return activeWriteJobs.delete(writeJobKey(bookId));
+    }
+    function getRepairJob(bookId) {
+        return activeStateRepairJobs.get(writeJobKey(bookId));
+    }
+    function setRepairJob(bookId, value) {
+        activeStateRepairJobs.set(writeJobKey(bookId), value);
+    }
+    function deleteRepairJob(bookId) {
+        return activeStateRepairJobs.delete(writeJobKey(bookId));
+    }
+    // ALS 无关的按 run 释放锁:stale sweeper 跑在 setInterval(无 ALS 上下文),map key 已带租户前缀,
+    // 此时按裸 bookId 删会落空。改为遍历 value 按 job.bookId(+可选 runId)精确匹配删除 → 桌面与 SaaS 都对。
+    function releaseJobMapForRun(map, bookId, runId) {
+        if (!bookId)
+            return;
+        for (const [key, job] of map.entries()) {
+            const jobBookId = (job && typeof job === "object" && "bookId" in job) ? job.bookId : key;
+            if (jobBookId !== bookId)
+                continue;
+            const jobRunId = typeof job === "string" ? job : job?.runId;
+            if (runId && jobRunId && jobRunId !== runId)
+                continue;
+            map.delete(key);
+        }
+    }
+    // 同租户已有活跃写作任务(write/batch/quality-batch)时,拒绝新写作请求(SaaS 资源墙)。
+    // exceptBookId:豁免本书自己的槽 —— 同书重试/强制接管交给 prepareWriteSlot 处理,这里只拦"另一本书"的并发。
+    function tenantHasActiveWriteJob(exceptBookId) {
+        if (!isSaasModeEnabled())
+            return false;
+        const tid = currentTenantStore()?.tenantId ?? null;
+        for (const job of activeWriteJobs.values()) {
+            if ((job?.tenantId ?? null) !== tid)
+                continue;
+            if (exceptBookId && job?.bookId === exceptBookId)
+                continue;
+            return true;
+        }
+        return false;
+    }
     const ACTIVE_WRITE_STALE_MS = 10 * 60 * 1000;
     const REPAIR_LLM_TIMEOUT_MS = Number(process.env.HARDWRITE_REPAIR_LLM_TIMEOUT_MS || process.env.HARDWRITE_LONG_LLM_TIMEOUT_MS || 10 * 60 * 1000);
     const REPAIR_ADAPTIVE_ENABLED = process.env.HARDWRITE_REPAIR_ADAPTIVE !== "0";
@@ -8365,7 +8451,7 @@ export function createStudioServer(initialConfig, root) {
     const PROGRESS_PERSIST_INTERVAL_MS = 2500;
     let cachedConfig = initialConfig;
     function activeWriteRunId(bookId) {
-        const entry = activeWriteJobs.get(bookId);
+        const entry = getWriteJob(bookId);
         return typeof entry === "string" ? entry : entry?.runId;
     }
     function isServerRunActive(run) {
@@ -8433,8 +8519,8 @@ export function createStudioServer(initialConfig, root) {
         if (!(await taskRunIsCancelled(runId)))
             return false;
         if (bookId) {
-            activeWriteJobs.delete(bookId);
-            activeStateRepairJobs.delete(bookId);
+            deleteWriteJob(bookId);
+            deleteRepairJob(bookId);
             broadcast("workflow:stopped", { bookId, runId, agent: "guardian", agentLabel: "守护进程", stage: reason });
         }
         return true;
@@ -8451,9 +8537,9 @@ export function createStudioServer(initialConfig, root) {
     }
     function abortBookJobControllers(bookId, reason) {
         let aborted = 0;
-        if (abortJobController(activeWriteJobs.get(bookId), reason))
+        if (abortJobController(getWriteJob(bookId), reason))
             aborted++;
-        if (abortJobController(activeStateRepairJobs.get(bookId), reason))
+        if (abortJobController(getRepairJob(bookId), reason))
             aborted++;
         return aborted;
     }
@@ -8474,11 +8560,11 @@ export function createStudioServer(initialConfig, root) {
     async function cancelBookRuns(bookId, reason = "用户手动停止本书工作流") {
         if (!bookId || !isSafeBookId(bookId))
             return { cancelled: 0, releasedLocks: 0, abortedRequests: 0 };
-        const hadWriteLock = activeWriteJobs.has(bookId);
-        const hadRepairLock = activeStateRepairJobs.has(bookId);
+        const hadWriteLock = hasWriteJob(bookId);
+        const hadRepairLock = activeStateRepairJobs.has(writeJobKey(bookId));
         const abortedRequests = abortBookJobControllers(bookId, reason);
-        activeWriteJobs.delete(bookId);
-        activeStateRepairJobs.delete(bookId);
+        deleteWriteJob(bookId);
+        deleteRepairJob(bookId);
         try {
             const { rm } = await import("node:fs/promises");
             await rm(join(state.bookDir(bookId), ".write.lock"), { force: true });
@@ -8632,11 +8718,13 @@ export function createStudioServer(initialConfig, root) {
         return existingRun;
     }
     function shouldPersistProgress(key, status) {
+        // SaaS:bookId/"global" 回落 key 跨租户会撞,前缀隔离(仅影响节流时序,不影响正确性,但避免串户共享节流窗)。
+        const scopedKey = tenantScopedKey(String(key));
         const done = status === "done" || status === "error";
         const now = Date.now();
-        const last = progressPersistAt.get(key) || 0;
+        const last = progressPersistAt.get(scopedKey) || 0;
         if (done || now - last >= PROGRESS_PERSIST_INTERVAL_MS) {
-            progressPersistAt.set(key, now);
+            progressPersistAt.set(scopedKey, now);
             return true;
         }
         return false;
@@ -8654,7 +8742,7 @@ export function createStudioServer(initialConfig, root) {
         const lostOwner = runLostProcessOwner(existingRun);
         const stale = lostOwner || !existingRun || !isServerRunActive(existingRun) || runHeartbeatAgeMs(existingRun) > existingStaleLimit;
         if (!stale) {
-            activeWriteJobs.set(bookId, { runId: existingRunId, startedAt: Date.now() });
+            setWriteJob(bookId, { runId: existingRunId, startedAt: Date.now() });
             return {
                 error: options.forceTakeover
                     ? "这本书已有新鲜写作任务正在运行。系统已重新绑定当前任务，不会用强制接管中断它；如果页面长时间无响应，请点“检查并继续”。"
@@ -8664,7 +8752,7 @@ export function createStudioServer(initialConfig, root) {
                 heartbeatAgeMs: runHeartbeatAgeMs(existingRun),
             };
         }
-        activeWriteJobs.delete(bookId);
+        deleteWriteJob(bookId);
         const staleError = lostOwner ? "Backend task lost in-memory owner after restart." : "Backend active write job heartbeat timed out.";
         const failure = failureInfoForActivity("watchdog:stale", { error: staleError, total: existingRun?.total, index: existingRun?.currentIndex });
         if (existingRun && isServerRunActive(existingRun)) {
@@ -8757,8 +8845,8 @@ export function createStudioServer(initialConfig, root) {
                 run.heartbeatAt = now;
                 run.completedAt = now;
                 run.events = [{ time: now, kind: "workflow:stopped", stage: run.currentStage, agent: "guardian", error: run.error, failureReason: run.failureReason }, ...(run.events || [])].slice(0, 40);
-                activeWriteJobs.delete(run.bookId);
-                activeStateRepairJobs.delete(run.bookId);
+                releaseJobMapForRun(activeWriteJobs, run.bookId);
+                releaseJobMapForRun(activeStateRepairJobs, run.bookId);
                 changed = true;
                 continue;
             }
@@ -8789,7 +8877,7 @@ export function createStudioServer(initialConfig, root) {
             run.updatedAt = new Date().toISOString();
             run.events = [{ time: run.updatedAt, kind: "watchdog:stale", stage: run.currentStage, agent: "guardian", error: run.error, failureReason: failure.reason }, ...(run.events || [])].slice(0, 40);
             if (run.bookId) {
-                activeWriteJobs.delete(run.bookId);
+                releaseJobMapForRun(activeWriteJobs, run.bookId, run.id);
                 const payload = { bookId: run.bookId, runId: run.id, agent: "guardian", agentLabel: "守护进程", stage: missingInMemoryOwner ? "服务重启中断旧任务，已释放锁并自动恢复" : "后端任务心跳超时，释放旧任务锁并允许继续", failureReason: failure.reason, impact: failure.impact, suggestion: failure.suggestion };
                 void appendBookAgentEvent(root, run.bookId, "watchdog:stale", payload);
                 broadcast("watchdog:stale", payload);
@@ -8806,11 +8894,11 @@ export function createStudioServer(initialConfig, root) {
     staleRunSweeper.unref?.();
     void releaseStaleTaskRunsFromTable().catch(() => false);
     function setWriteSlot(bookId, runId, extra = {}) {
-        activeWriteJobs.set(bookId, { runId, startedAt: Date.now(), ...extra });
+        setWriteJob(bookId, { runId, startedAt: Date.now(), ...extra });
     }
     function releaseWriteSlot(bookId, runId) {
         if (activeWriteRunId(bookId) === runId)
-            activeWriteJobs.delete(bookId);
+            deleteWriteJob(bookId);
     }
     function qualityGateActuallyPassed(quality, targetScore = 80) {
         const score = Number(quality?.total);
@@ -9010,9 +9098,11 @@ export function createStudioServer(initialConfig, root) {
         const meta = index.find((item) => Number(item.number || item.chapterNumber || 0) === Number(chapterNumber));
         if (meta?.status !== "state-degraded")
             return null;
-        const existing = activeStateRepairJobs.get(bookId);
+        const existing = getRepairJob(bookId);
         if (existing)
             return existing;
+        // 锁 key 在创建时(请求/写作流 ALS 已 populate)按值捕获,finally 删除不依赖后续 ALS。
+        const repairLockKey = writeJobKey(bookId);
         const abortController = new AbortController();
         const job = (async () => {
             const repairRunId = run?.id;
@@ -9048,11 +9138,11 @@ export function createStudioServer(initialConfig, root) {
                 throw e;
             }
             finally {
-                activeStateRepairJobs.delete(bookId);
+                activeStateRepairJobs.delete(repairLockKey);
             }
         })();
         job.abortController = abortController;
-        activeStateRepairJobs.set(bookId, job);
+        activeStateRepairJobs.set(repairLockKey, job);
         return job;
     }
     async function repairLatestStateIfNeeded(bookId, run, reason = "写作前状态自愈") {
@@ -9060,9 +9150,11 @@ export function createStudioServer(initialConfig, root) {
         if (!latest)
             return null;
         const chapterNumber = Number(latest.number || latest.chapterNumber || 0);
-        const existing = activeStateRepairJobs.get(bookId);
+        const existing = getRepairJob(bookId);
         if (existing)
             return existing;
+        // 锁 key 在创建时按值捕获(同 repairChapterStateIfNeeded)。
+        const repairLockKey = writeJobKey(bookId);
         const abortController = new AbortController();
         const job = (async () => {
             const repairRunId = run?.id;
@@ -9099,11 +9191,11 @@ export function createStudioServer(initialConfig, root) {
                 throw e;
             }
             finally {
-                activeStateRepairJobs.delete(bookId);
+                activeStateRepairJobs.delete(repairLockKey);
             }
         })();
         job.abortController = abortController;
-        activeStateRepairJobs.set(bookId, job);
+        activeStateRepairJobs.set(repairLockKey, job);
         return job;
     }
     app.use("/*", cors());
@@ -9112,7 +9204,9 @@ export function createStudioServer(initialConfig, root) {
     // 常规商业包/自部署 = 免码直通进站写书(普通会员轻档),激活码只解锁 Pro/Ultra。
     // 放行 /auth/* 与 OPTIONS,其余未解锁一律 403。
     app.use("/*", async (c, next) => {
-        if (c.req.method === "OPTIONS" || !activationRequired()) {
+        // SaaS 模式自有「邮箱账号 + 会话 + 激活码挂 user」体系,绝不能再叠这道桌面全局激活硬门——
+        // 否则部署残留 HARDWRITE_ACTIVATION_REQUIRED=1 会把整个托管站锁死。SaaS 下直接放行,交给 SaaS 认证中间件。
+        if (c.req.method === "OPTIONS" || isSaasModeEnabled() || !activationRequired()) {
             await next();
             return;
         }
@@ -9153,11 +9247,16 @@ export function createStudioServer(initialConfig, root) {
         const tenantState = getTenantState(tenantId, tenantRoot);
         const tenantStore = { tenantId, root: tenantRoot, state: tenantState };
         const premium = findPremiumCost(c.req.method, path);
+        // Pro/Ultra 免扣:按当前 user.tier 决定扣费倍率(pro/ultra=0 免扣,normal=1 全额)。
+        // 倍率为 0 时,该请求等价于"非 premium":跑 handler、不查余额、不扣 credits。
+        const debitMultiplier = premium ? saasDebitMultiplierForTier(auth.user.tier) : 1;
+        const effectiveCost = premium ? Math.round(premium.credits * debitMultiplier) : 0;
         // 后续整段(余额检查 + next + 扣费)都跑在租户 ALS 上下文里。
         // 早退响应(余额不足 402)通过 paymentRequired 标志带出去再 c.json,避免在嵌套闭包里丢掉返回值。
         let paymentRequired = null;
         await requestContext.run(tenantStore, async () => {
-            if (!premium) {
+            if (!premium || effectiveCost <= 0) {
+                // 非 premium 路由,或 Pro/Ultra 免扣 → 直接跑,不查余额不扣费。
                 await next();
                 return;
             }
@@ -9167,8 +9266,8 @@ export function createStudioServer(initialConfig, root) {
                 const preStore = await loadSaasStore(root);
                 const preUser = preStore.users.find((item) => item.id === auth.user.id);
                 const liveCredits = Number(preUser?.credits ?? 0);
-                if (liveCredits < premium.credits) {
-                    paymentRequired = { credits: liveCredits, requiredCredits: premium.credits, reason: premium.reason };
+                if (liveCredits < effectiveCost) {
+                    paymentRequired = { credits: liveCredits, requiredCredits: effectiveCost, reason: premium.reason };
                     return;
                 }
                 await next();
@@ -9176,12 +9275,12 @@ export function createStudioServer(initialConfig, root) {
                     const store = await loadSaasStore(root);
                     const user = store.users.find((item) => item.id === auth.user.id);
                     if (user) {
-                        user.credits = Math.max(0, Number(user.credits ?? 0) - premium.credits);
+                        user.credits = Math.max(0, Number(user.credits ?? 0) - effectiveCost);
                         store.ledger.push({
                             id: newId("ledger"),
                             userId: user.id,
                             type: "debit",
-                            credits: -premium.credits,
+                            credits: -effectiveCost,
                             reason: premium.reason,
                             path,
                             createdAt: new Date().toISOString(),
@@ -9346,8 +9445,69 @@ export function createStudioServer(initialConfig, root) {
         }
         const normalized = normalizeActivationCode(rawCode);
         const now = new Date().toISOString();
-        const prev = await loadActivation(root);
         const tier = result.tier ?? activationTierFromCode(normalized, process.env.HARDWRITE_ACTIVATION_SECRET || "");
+        // ── SaaS 模式:有登录会话 → 把 tier 挂到当前 user + 按 tier 一次性补差额赠 credits ──
+        // (本路由在 /auth/* 公开段,auth 中间件未 populate ALS → 手动解析会话。)
+        // 绝不走桌面的全局 saveActivation:那会改平台级激活记录,污染所有租户。
+        if (isSaasModeEnabled()) {
+            const session = await resolveSaasSession(root, c);
+            if (!session) {
+                return c.json({ error: { code: "AUTH_REQUIRED", message: "请先登录账号再激活。" } }, 401);
+            }
+            // 在 per-userId 串行锁里读改写,杜绝并发激活把赠额重复入账。
+            let updatedUser = null;
+            let grantedDelta = 0;
+            await withBillingLock(session.user.id, async () => {
+                const store = await loadSaasStore(root);
+                const user = store.users.find((item) => item.id === session.user.id);
+                if (!user)
+                    return;
+                const prevTier = user.tier ?? "normal";
+                const prevGranted = Number(user.tierGrantedCredits ?? 0);
+                // 只在升级到「更高 tier」时补差额(同档或降档不再赠;normal 不赠)。
+                const targetGrant = SAAS_TIER_GRANT_CREDITS[String(tier).toLowerCase()] ?? 0;
+                if (saasTierRank(tier) > saasTierRank(prevTier)) {
+                    user.tier = tier;
+                }
+                else if (!user.tier) {
+                    user.tier = prevTier;
+                }
+                grantedDelta = Math.max(0, targetGrant - prevGranted);
+                if (grantedDelta > 0) {
+                    user.credits = Number(user.credits ?? 0) + grantedDelta;
+                    user.tierGrantedCredits = prevGranted + grantedDelta;
+                    store.ledger.push({
+                        id: newId("ledger"),
+                        userId: user.id,
+                        type: "credit",
+                        credits: grantedDelta,
+                        reason: `${String(user.tier).toUpperCase()} 等级赠送额度`,
+                        createdAt: now,
+                    });
+                }
+                user.activatedAt = user.activatedAt ?? now;
+                user.activationUpdatedAt = now;
+                await saveSaasStore(root, store);
+                updatedUser = user;
+            });
+            if (!updatedUser) {
+                return c.json({ error: { code: "AUTH_REQUIRED", message: "请先登录账号再激活。" } }, 401);
+            }
+            return c.json({
+                ok: true,
+                saas: true,
+                grantedCredits: grantedDelta,
+                user: publicUser(updatedUser),
+                activation: {
+                    unlocked: true,
+                    plan: result.plan ?? "offline",
+                    tier: updatedUser.tier ?? tier,
+                    expiresAt: result.expiresAt ?? null,
+                },
+            });
+        }
+        // ── 桌面模式:维持原 saveActivation(全局)逻辑不变 ──
+        const prev = await loadActivation(root);
         const activation = {
             unlocked: true,
             code: normalized,
@@ -9513,7 +9673,7 @@ export function createStudioServer(initialConfig, root) {
                 passThreshold: Math.min(100, Math.max(0, Number(body.passThreshold ?? 85) || 85)),
                 maxReviseRounds: Math.min(2, Math.max(0, Number(body.maxReviseRounds ?? 1))),
                 signal: ac.signal,
-                root, // 闭合学习环:写前检索经验注入 planner、写后记录本章
+                root: tenantRootOr(root), // 闭合学习环:写前检索经验注入 planner、写后记录本章(SaaS 租户隔离)
             });
             // 据真实结局判 ok:只有 completed 算成功;halted/aborted/error 让调用方(含 runBook)能区分,
             // 不把未完成/空稿当成功。HTTP 仍 200(请求本身已处理),结局在 body 的 ok/status/reason。
@@ -9570,7 +9730,7 @@ export function createStudioServer(initialConfig, root) {
                     passThreshold: Math.min(100, Math.max(0, Number(body.passThreshold ?? 85) || 85)),
                     maxReviseRounds: Math.min(2, Math.max(0, Number(body.maxReviseRounds ?? 1))),
                     signal: ac.signal,
-                    root,
+                    root: tenantRootOr(root), // SaaS 租户隔离:正文与经验库落租户根
                     onStage: (stage) => { void stream.writeSSE({ event: "stage", data: JSON.stringify({ stage, label: STAGE_LABEL[stage] || stage }) }); },
                     onToken: (delta) => { void stream.writeSSE({ event: "token", data: JSON.stringify({ delta }) }); },
                 });
@@ -9633,7 +9793,7 @@ export function createStudioServer(initialConfig, root) {
                 maxReviseRounds: Math.min(2, Math.max(0, Number(body.maxReviseRounds ?? 1))),
                 concurrency: Math.min(8, Math.max(1, Number(body.concurrency || 2) || 2)),
                 signal: ac.signal,
-                root, // 闭合学习环:整本各章共用回灌、写后逐章记录(经验跨书累积)
+                root: tenantRootOr(root), // 闭合学习环:整本各章共用回灌、写后逐章记录(SaaS 租户隔离)
             });
             // 精简返回(逐章正文可能很大,默认只回元数据 + 字数;debug=1 才带正文)
             const withDrafts = body.includeDrafts === true || c.req.query("includeDrafts") === "1";
@@ -13440,6 +13600,18 @@ export function createStudioServer(initialConfig, root) {
                 return c.json({ bookId: id, ...foundation }, 409);
             }
         }
+        // SaaS 资源墙:同租户已有活跃写作/批量任务时拒绝新批量请求(挂机连写拖垮发卡服务)。
+        // 在 prepareWriteSlot 之前判定,避免抢到槽后又拒绝。
+        if (tenantHasActiveWriteJob(id)) {
+            return c.json({
+                error: {
+                    code: "TENANT_WRITE_BUSY",
+                    message: "你已有一个正在运行的写作任务。托管版每个账号同一时间只允许一个写作流水线，请等当前任务结束或先停止它再开新任务。",
+                },
+                status: "tenant-busy",
+                bookId: id,
+            }, 409);
+        }
         const blocked = await prepareWriteSlot(id, { forceTakeover: Boolean(body.forceTakeover) });
         if (blocked)
             return c.json({ ...blocked, bookId: id }, 409);
@@ -13448,7 +13620,9 @@ export function createStudioServer(initialConfig, root) {
         const rangeTotal = fromChapter && toChapter && toChapter >= fromChapter ? (toChapter - fromChapter + 1) : 0;
         // 直播/无人值守模式:章数上限放宽到 1000、永不硬停(低分接受继续写)、不被旧章门禁拦截。
         const livestream = body.livestream === true || body.neverStop === true;
-        const total = Math.max(1, Math.min(livestream ? 1000 : 100, rangeTotal || Number(body.chapters) || 1));
+        // SaaS:每批章数硬 cap 到 SAAS_MAX_BATCH_CHAPTERS(默认 20);桌面维持原 1000(直播)/100。
+        const perBatchCap = isSaasModeEnabled() ? SAAS_MAX_BATCH_CHAPTERS : (livestream ? 1000 : 100);
+        const total = Math.max(1, Math.min(perBatchCap, rangeTotal || Number(body.chapters) || 1));
         const wordCount = Number(body.wordCount ?? body.targetWordsPerChapter) || undefined;
         const _batchBook = await state.loadBookConfig(id).catch(() => null);
         const _batchBookScore = Number(_batchBook?.targetScore || _batchBook?.writing?.targetScore) || 0;
@@ -13473,6 +13647,7 @@ export function createStudioServer(initialConfig, root) {
         const stopHeartbeat = startTaskHeartbeat(run.id, "planner", `批量写作工作流运行中：${total}章`);
         void appendBookAgentEvent(root, id, "batch:start", { runId: run.id, total, fromChapter, toChapter, wordCount, targetScore, targetQuality: targetScore, maxRewritesPerChapter, autoRepair });
         broadcast("batch:start", { bookId: id, runId: run.id, total, fromChapter, toChapter, wordCount, targetScore, targetQuality: targetScore, maxRewritesPerChapter, autoRepair });
+        const batchStartedAt = Date.now();
         runInTenantContext(jobStore, () => (async () => {
             const results = [];
             let consecutiveErrors = 0; // 直播模式:连续瞬时错误计数,达上限才真放弃
@@ -13481,6 +13656,16 @@ export function createStudioServer(initialConfig, root) {
                 try {
                     if (await taskRunIsCancelled(run.id)) {
                         await broadcastStoppedIfCancelled(run.id, id);
+                        return;
+                    }
+                    // SaaS 长跑墙:累计运行超过 SAAS_MAX_BATCH_DURATION_MS(默认 2 小时)主动停并标记,
+                    // 防挂机连写/直播无限占用发卡服务资源。桌面模式不设墙(行为不变)。
+                    if (isSaasModeEnabled() && Date.now() - batchStartedAt > SAAS_MAX_BATCH_DURATION_MS) {
+                        const hours = Math.round(SAAS_MAX_BATCH_DURATION_MS / 3600000 * 10) / 10;
+                        const wallStage = `批量写作已连续运行超过 ${hours} 小时，托管版自动暂停以释放资源；已完成 ${results.length} 章，可点继续再开新批次。`;
+                        void appendBookAgentEvent(root, id, "batch:max-duration", { runId: run.id, total, completed: results.length, agent: "guardian", agentLabel: "守护进程", stage: wallStage });
+                        void updateTaskRun(root, run.id, { status: "needs-repair", completed: results.length, currentAgent: "guardian", currentStage: wallStage, results, failureReason: wallStage, suggestion: "托管版单批最长运行有时长上限；继续点「批量写作」可从当前进度接着写。" }, { kind: "batch:max-duration", stage: wallStage, agent: "guardian" });
+                        broadcast("batch:max-duration", { bookId: id, runId: run.id, total, completed: results.length, failureReason: wallStage });
                         return;
                     }
                     void updateTaskRun(root, run.id, { status: "running", currentAgent: "state-validator", currentStage: `第 ${i + 1}/${total} 章写作前状态检查`, currentIndex: i + 1, completed: results.length }, { kind: "batch:preflight", stage: `第 ${i + 1}/${total} 章写作前状态检查`, agent: "state-validator" });
@@ -13661,6 +13846,17 @@ export function createStudioServer(initialConfig, root) {
                 broadcast("quality-batch:blocked-foundation", { bookId: id, ...foundation });
                 return c.json({ bookId: id, ...foundation }, 409);
             }
+        }
+        // SaaS 资源墙:同租户已有活跃写作/批量任务时拒绝(与 write-batch 一致)。
+        if (tenantHasActiveWriteJob(id)) {
+            return c.json({
+                error: {
+                    code: "TENANT_WRITE_BUSY",
+                    message: "你已有一个正在运行的写作任务。托管版每个账号同一时间只允许一个写作流水线，请等当前任务结束或先停止它再开新任务。",
+                },
+                status: "tenant-busy",
+                bookId: id,
+            }, 409);
         }
         const blocked = await prepareWriteSlot(id, { forceTakeover: Boolean(body.forceTakeover) });
         if (blocked)
@@ -14760,13 +14956,19 @@ export function createStudioServer(initialConfig, root) {
         }
         const activeRuns = activeRunRows.map(enrichTaskRunForClient);
         const activeBookLocks = [];
-        for (const [bookId, job] of activeWriteJobs.entries()) {
-            if (!(await bookExists(bookId))) {
-                activeWriteJobs.delete(bookId);
+        // SaaS:map key 带租户前缀 → 用 job.bookId(裸)而非 map key;只列当前租户自己的锁。
+        const viewerTid = isSaasModeEnabled() ? (currentTenantStore()?.tenantId ?? null) : null;
+        for (const [mapKey, job] of activeWriteJobs.entries()) {
+            const lockBookId = (job && typeof job === "object" && "bookId" in job) ? job.bookId : mapKey;
+            const lockTid = (job && typeof job === "object" && "tenantId" in job) ? job.tenantId : null;
+            if (viewerTid !== null && lockTid !== viewerTid)
+                continue;
+            if (!(await bookExists(lockBookId))) {
+                activeWriteJobs.delete(mapKey);
                 continue;
             }
             activeBookLocks.push({
-                bookId,
+                bookId: lockBookId,
                 runId: job.runId,
                 startedAt: job.startedAt,
                 startedBeijingTime: formatBeijingDateTime(new Date(job.startedAt).toISOString()),
@@ -14783,6 +14985,16 @@ export function createStudioServer(initialConfig, root) {
         });
     });
     app.post("/api/v1/daemon/start", async (c) => {
+        // SaaS:Scheduler 是进程级单例,会捕获第一个调用者的(租户)根 → 多租户下只写那一个租户,串户/越权。
+        // 托管版直接拒绝本地自治 daemon;批量写作请走 write-batch(已按租户隔离 + 资源墙)。
+        if (isSaasModeEnabled()) {
+            return c.json({
+                error: {
+                    code: "DAEMON_DISABLED_IN_SAAS",
+                    message: "托管版不支持本地自治 daemon(进程级单例无法多租户隔离)。请改用「批量写作」连续生成多章。",
+                },
+            }, 403);
+        }
         if (schedulerInstance?.isRunning) {
             return c.json({ error: "Daemon already running" }, 400);
         }

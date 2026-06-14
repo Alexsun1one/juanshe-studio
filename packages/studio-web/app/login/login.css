@@ -543,6 +543,89 @@
 .cj-login .code-claim { padding: 8px; }
 .cj-login .cc-banner { max-height: 92px; }
 
+/* ════ SaaS · 邮箱+密码 注册/登录(托管多租户) ════ */
+.cj-login .card-emblem.ok { background: color-mix(in oklab, var(--ok-500, #1db97a) 14%, var(--bg-card)); color: var(--ok-600, #119a64); }
+.cj-login .saas-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 3px;
+  background: var(--bg-sunken, color-mix(in oklab, var(--brand-500) 5%, var(--bg-canvas)));
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+}
+.cj-login .saas-tab {
+  flex: 1;
+  height: 32px;
+  border: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink-500);
+  font-family: var(--font-pixel-ui);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background .15s, color .15s, box-shadow .15s;
+}
+.cj-login .saas-tab:hover { color: var(--ink-700); }
+.cj-login .saas-tab.on {
+  background: var(--bg-card);
+  color: var(--brand-700, var(--brand-600));
+  box-shadow: 0 1px 0 color-mix(in oklab, var(--bg-inverse) 30%, transparent) inset, 0 4px 10px -6px rgba(74, 58, 36, 0.4);
+}
+.cj-login .saas-swap {
+  color: var(--brand-600);
+  font-weight: 700;
+  cursor: pointer;
+}
+.cj-login .saas-swap:hover { text-decoration: underline; }
+
+/* 登录后:Pro/Ultra 激活码升级入口 */
+.cj-login .saas-upgrade {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 4px 0 14px;
+  padding: 11px 12px;
+  background: color-mix(in oklab, var(--brand-500) 5%, var(--bg-canvas));
+  border: 1px solid color-mix(in oklab, var(--brand-500) 18%, var(--line-1));
+  border-radius: var(--r-lg);
+}
+.cj-login .su-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--brand-700, var(--brand-600));
+}
+.cj-login .su-hint { margin: 0; font-size: 11px; line-height: 1.5; color: var(--ink-500); }
+.cj-login .su-row { display: flex; gap: 7px; }
+.cj-login .su-row .inp { flex: 1; height: 38px; }
+.cj-login .su-apply {
+  flex: 0 0 auto;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--brand-500);
+  border-radius: var(--r-md);
+  background: var(--brand-50, color-mix(in oklab, var(--brand-500) 10%, var(--bg-card)));
+  color: var(--brand-700, var(--brand-600));
+  font-family: var(--font-pixel-ui);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, transform .12s;
+}
+.cj-login .su-apply:hover { background: color-mix(in oklab, var(--brand-500) 16%, var(--bg-card)); transform: translateY(-1px); }
+.cj-login .su-apply:disabled { opacity: .6; cursor: default; transform: none; }
+.cj-login .su-ok {
+  display: flex; align-items: center; gap: 6px;
+  margin: 2px 0 0; font-size: 12px; font-weight: 600;
+  color: var(--ok-700, #0f7d52);
+}
+.cj-login .su-ok b { color: var(--ok-700, #0f7d52); font-weight: 800; }
+
 @media (max-width: 880px) {
   .cj-login { grid-template-columns: 1fr; height: auto; min-height: 100dvh; overflow: visible; }
   .cj-login .aside { padding: 30px 26px; }
