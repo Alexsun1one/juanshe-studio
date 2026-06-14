@@ -51,6 +51,7 @@ import { CommandPalette } from "@/components/shell/command-palette"
 import { BuildStatusIndicator } from "@/components/shell/build-status-indicator"
 import { WechatFollow } from "@/components/cj/wechat-follow"
 import { WorkflowTheater } from "@/components/workbench/workflow-theater"
+import { FeedBell } from "@/components/workbench/feed-bell"
 import { ThemeColorPicker } from "@/components/shell/theme-color-picker"
 import { BrandOrnaments } from "@/components/design/brand-ornaments"
 
@@ -602,6 +603,8 @@ function CjTopbar() {
         </div>
         {/* 语言切换已移除:国内产品 + 英文 i18n 未全量,不留"点了没反应"的假开关。
             将来要做国际版,再补全量翻译并接 useLocale 实开关。 */}
+        {/* 站长广播小铃铛:未读红点 + 弹层看全部;桌面单机/无 SaaS 自动不渲染 */}
+        <FeedBell />
         <ThemeColorPicker />
         <button
           type="button"

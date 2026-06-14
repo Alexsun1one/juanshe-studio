@@ -889,6 +889,47 @@ async function saveCodesStore(root, store) {
     await mkdir(saasDataDir(root), { recursive: true });
     await atomicWriteFile(saasCodesFile(root), JSON.stringify(store, null, 2));
 }
+// ── 站长广播 Feed(.saas/feed.json)─────────────────────────────────────────
+// 站长在管理后台发"动态"(公众号文章/新品/更新日志链接)→ 全体用户站内可见 + 未读提醒。
+// 这是免费产品(BYOK)的直达广播频道,把活跃写作者注意力导回站长的内容。每条:
+//   { id, title, body, link, type:'update'|'article'|'product', pinned, createdAt, createdBy }
+// 读取(GET /api/v1/feed)同时算当前用户 unreadCount(createdAt > user.feedSeenAt)。
+// 标记已读(POST /api/v1/feed/seen)把 user.feedSeenAt=now,走 withBillingLock 串行写 store。
+const FEED_TYPES = ["update", "article", "product"];
+function saasFeedFile(root) {
+    return join(saasDataDir(root), "feed.json");
+}
+async function loadFeedStore(root) {
+    const dir = saasDataDir(root);
+    const file = saasFeedFile(root);
+    await mkdir(dir, { recursive: true });
+    try {
+        const parsed = JSON.parse(await readFile(file, "utf-8"));
+        return {
+            version: parsed.version ?? 1,
+            items: Array.isArray(parsed.items) ? parsed.items : [],
+        };
+    }
+    catch {
+        const fresh = { version: 1, items: [] };
+        await atomicWriteFile(file, JSON.stringify(fresh, null, 2));
+        return fresh;
+    }
+}
+async function saveFeedStore(root, store) {
+    await mkdir(saasDataDir(root), { recursive: true });
+    await atomicWriteFile(saasFeedFile(root), JSON.stringify(store, null, 2));
+}
+// 排序:pinned 置顶,组内按 createdAt 倒序(新的在前)。供 GET /feed 与 admin 列表共用。
+function sortFeedItems(items) {
+    return [...items].sort((a, b) => {
+        const pa = a.pinned ? 1 : 0;
+        const pb = b.pinned ? 1 : 0;
+        if (pa !== pb)
+            return pb - pa;
+        return String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""));
+    });
+}
 function normalizeCodeKey(code) {
     return normalizeActivationCode(code);
 }
@@ -9662,6 +9703,104 @@ export function createStudioServer(initialConfig, root) {
             code: entry.codeFormatted ?? entry.code,
             status: codeStatus(entry),
         });
+    });
+    // ── 站长广播 Feed:管理后台发/删/列(严格 admin,门禁来自 /api/v1/admin/* 中间件)──
+    // 发动态:校验 title 非空、type 合法(update/article/product)、link 可空。
+    app.post("/api/v1/admin/feed", async (c) => {
+        const body = await c.req.json().catch(() => ({}));
+        const title = String(body.title ?? "").trim();
+        if (!title) {
+            return c.json({ error: { code: "INVALID_TITLE", message: "标题不能为空。" } }, 400);
+        }
+        const type = String(body.type ?? "update").toLowerCase();
+        if (!FEED_TYPES.includes(type)) {
+            return c.json({ error: { code: "INVALID_TYPE", message: "type 必须是 update/article/product。" } }, 400);
+        }
+        const rawLink = body.link === undefined || body.link === null ? "" : String(body.link).trim();
+        // link 可空;给了就必须是 http(s) 链接(防止站内塞 javascript: 等不安全协议)。
+        if (rawLink && !/^https?:\/\//i.test(rawLink)) {
+            return c.json({ error: { code: "INVALID_LINK", message: "链接必须以 http:// 或 https:// 开头,或留空。" } }, 400);
+        }
+        const admin = c.get("adminUser");
+        const item = {
+            id: newId("feed"),
+            title: title.slice(0, 200),
+            body: String(body.body ?? "").slice(0, 4000),
+            link: rawLink.slice(0, 1000),
+            type,
+            pinned: Boolean(body.pinned),
+            createdAt: new Date().toISOString(),
+            createdBy: admin?.email ?? null,
+        };
+        const store = await loadFeedStore(root);
+        store.items.push(item);
+        await saveFeedStore(root, store);
+        return c.json({ ok: true, item });
+    });
+    // 列全部动态(管理用):pinned 置顶 + createdAt 倒序。
+    app.get("/api/v1/admin/feed", async (c) => {
+        const store = await loadFeedStore(root);
+        return c.json({ items: sortFeedItems(store.items) });
+    });
+    // 删一条动态。
+    app.delete("/api/v1/admin/feed/:id", async (c) => {
+        const id = c.req.param("id");
+        const store = await loadFeedStore(root);
+        const before = store.items.length;
+        store.items = store.items.filter((item) => item.id !== id);
+        if (store.items.length === before) {
+            return c.json({ error: { code: "FEED_NOT_FOUND", message: "动态不存在。" } }, 404);
+        }
+        await saveFeedStore(root, store);
+        return c.json({ ok: true, id });
+    });
+    // ── 站长广播 Feed:登录用户读取(非 admin 也能读)+ 标记已读 ──────────────
+    // 桌面单机模式:无广播频道概念,按 isSaasModeEnabled gate 返回空列表(saas:false),
+    // 行为字节级不变(不报错、不暴露 SaaS 语义)。
+    app.get("/api/v1/feed", async (c) => {
+        if (!isSaasModeEnabled()) {
+            return c.json({ saas: false, items: [], unreadCount: 0 });
+        }
+        const auth = await resolveSaasSession(root, c);
+        if (!auth) {
+            return c.json({ error: { code: "AUTH_REQUIRED", message: "请先登录账号。" } }, 401);
+        }
+        const store = await loadFeedStore(root);
+        const sorted = sortFeedItems(store.items);
+        // 未读 = createdAt 严格大于 user.feedSeenAt 的条数(从未读过 → 全部未读)。
+        const seenAt = auth.user.feedSeenAt ? Date.parse(auth.user.feedSeenAt) : 0;
+        const unreadCount = sorted.reduce((acc, item) => {
+            const created = item.createdAt ? Date.parse(item.createdAt) : 0;
+            return acc + (Number.isFinite(created) && created > seenAt ? 1 : 0);
+        }, 0);
+        // 公开响应剥掉 createdBy(发布者=站长 admin 邮箱,内部字段,绝不暴露给普通登录用户)。
+        const items = sorted.map(({ createdBy, ...pub }) => pub);
+        return c.json({ saas: true, items, unreadCount, feedSeenAt: auth.user.feedSeenAt ?? null });
+    });
+    // 标记已读:user.feedSeenAt = now,清未读。withBillingLock 串行写 store,杜绝并发覆盖。
+    app.post("/api/v1/feed/seen", async (c) => {
+        if (!isSaasModeEnabled()) {
+            return c.json({ saas: false, ok: true, feedSeenAt: null });
+        }
+        const auth = await resolveSaasSession(root, c);
+        if (!auth) {
+            return c.json({ error: { code: "AUTH_REQUIRED", message: "请先登录账号。" } }, 401);
+        }
+        const now = new Date().toISOString();
+        let updated = false;
+        await withBillingLock(auth.user.id, async () => {
+            const store = await loadSaasStore(root);
+            const user = store.users.find((item) => item.id === auth.user.id);
+            if (!user)
+                return;
+            user.feedSeenAt = now;
+            await saveSaasStore(root, store);
+            updated = true;
+        });
+        if (!updated) {
+            return c.json({ error: { code: "USER_NOT_FOUND", message: "用户不存在。" } }, 404);
+        }
+        return c.json({ ok: true, feedSeenAt: now });
     });
     app.get("/api/v1/auth/me", async (c) => {
         if (!isSaasModeEnabled()) {

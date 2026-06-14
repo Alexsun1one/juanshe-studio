@@ -5,6 +5,7 @@
 // ============================================================================
 
 import { ApiClientError } from "./client"
+import type { FeedItem, FeedType } from "./feed"
 
 export type Tier = "normal" | "pro" | "ultra"
 export type CodeStatus = "valid" | "used" | "expired" | "revoked" | "unknown"
@@ -150,4 +151,39 @@ export function mintCode(tier: Tier, expiresInDays?: number): Promise<AdminMintC
 
 export function revokeCode(code: string): Promise<{ ok: boolean; code: string; status: CodeStatus }> {
   return postJSON(`/api/v1/admin/codes/${encodeURIComponent(code)}/revoke`)
+}
+
+// ── 站长广播 Feed(发 / 列 / 删,严格 admin)──────────────────────────────────
+
+/** 发动态入参(后端校验:title 非空、type 合法、link 可空且必须 http(s))。 */
+export type CreateFeedInput = {
+  title: string
+  body?: string
+  link?: string
+  type: FeedType
+  pinned?: boolean
+}
+
+/** GET /admin/feed —— 列全部动态(pinned 置顶 + createdAt 倒序,后端已排好)。 */
+export function fetchAdminFeed(): Promise<{ items: FeedItem[] }> {
+  return getJSON<{ items: FeedItem[] }>("/api/v1/admin/feed")
+}
+
+/** POST /admin/feed —— 发一条动态。 */
+export function createFeedItem(input: CreateFeedInput): Promise<{ ok: boolean; item: FeedItem }> {
+  return postJSON<{ ok: boolean; item: FeedItem }>("/api/v1/admin/feed", {
+    title: input.title,
+    body: input.body ?? "",
+    link: input.link ?? "",
+    type: input.type,
+    pinned: Boolean(input.pinned),
+  })
+}
+
+/** DELETE /admin/feed/:id —— 删一条动态。 */
+export async function deleteFeedItem(id: string): Promise<{ ok: boolean; id: string }> {
+  const url = `/api/v1/admin/feed/${encodeURIComponent(id)}`
+  const res = await fetch(url, { method: "DELETE", headers: { Accept: "application/json" }, cache: "no-store" })
+  if (!res.ok) throw await adminError("DELETE", url, res)
+  return res.json() as Promise<{ ok: boolean; id: string }>
 }

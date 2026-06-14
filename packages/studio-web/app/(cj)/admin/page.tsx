@@ -14,15 +14,20 @@ import { useRouter } from "next/navigation"
 import {
   Check,
   Copy,
+  ExternalLink,
   KeyRound,
   Loader2,
+  Megaphone,
   Minus,
+  Pin,
   Plus,
   RefreshCw,
   Search,
+  Send,
   ShieldCheck,
   ShieldOff,
   Ticket,
+  Trash2,
   Users,
 } from "lucide-react"
 
@@ -38,7 +43,10 @@ import {
 } from "@/components/ui/dialog"
 import {
   adjustUserCredits,
+  createFeedItem,
+  deleteFeedItem,
   fetchAdminCodes,
+  fetchAdminFeed,
   fetchAdminOverview,
   fetchAdminUsers,
   fetchAuthMe,
@@ -51,6 +59,7 @@ import {
   type CodeStatus,
   type Tier,
 } from "@/lib/api/admin"
+import type { FeedItem, FeedType } from "@/lib/api/feed"
 
 import "./admin.css"
 
@@ -70,6 +79,8 @@ const CODE_STATUS_LABEL: Record<CodeStatus, string> = {
   revoked: "已吊销",
   unknown: "未知",
 }
+const FEED_TYPE_LABEL: Record<FeedType, string> = { update: "更新", article: "文章", product: "新品" }
+const FEED_TYPE_OPTIONS: FeedType[] = ["update", "article", "product"]
 
 function fmt(n: number | undefined): string {
   return typeof n === "number" && Number.isFinite(n) ? n.toLocaleString("zh-CN") : "—"
@@ -186,6 +197,7 @@ function AdminConsole() {
       </header>
 
       <OverviewPanel overview={overview} error={overviewErr} />
+      <FeedPanel />
       <UsersPanel onMutated={loadOverview} />
       <CodesPanel />
     </div>
@@ -679,6 +691,221 @@ function CodesPanel() {
           </table>
         </div>
       )}
+    </section>
+  )
+}
+
+/* ── ④ 发动态(站长广播 Feed)──────────────────────────────────── */
+function FeedPanel() {
+  const [items, setItems] = React.useState<FeedItem[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [listErr, setListErr] = React.useState<string | null>(null)
+
+  // 发布表单
+  const [title, setTitle] = React.useState("")
+  const [body, setBody] = React.useState("")
+  const [link, setLink] = React.useState("")
+  const [type, setType] = React.useState<FeedType>("update")
+  const [pinned, setPinned] = React.useState(false)
+  const [posting, setPosting] = React.useState(false)
+  const [postErr, setPostErr] = React.useState<string | null>(null)
+
+  // 删除确认
+  const [pendingDelete, setPendingDelete] = React.useState<FeedItem | null>(null)
+  const [deleting, setDeleting] = React.useState(false)
+  const [deleteErr, setDeleteErr] = React.useState<string | null>(null)
+
+  const load = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetchAdminFeed()
+      setItems(res.items)
+      setListErr(null)
+    } catch (e) {
+      setListErr(errMsg(e))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    void load()
+  }, [load])
+
+  const canPost = title.trim().length > 0 && !posting
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!canPost) return
+    setPosting(true)
+    setPostErr(null)
+    try {
+      await createFeedItem({ title: title.trim(), body: body.trim(), link: link.trim(), type, pinned })
+      // 发完清表单(保留类型/置顶选择,便于连发同类)
+      setTitle("")
+      setBody("")
+      setLink("")
+      await load()
+    } catch (e) {
+      setPostErr(errMsg(e))
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    setDeleting(true)
+    setDeleteErr(null)
+    try {
+      await deleteFeedItem(pendingDelete.id)
+      setPendingDelete(null)
+      await load()
+    } catch (e) {
+      setDeleteErr(errMsg(e))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <section className="admin-section">
+      <div className="admin-section-head">
+        <Megaphone size={16} className="admin-section-ico" />
+        <h2 className="admin-section-title">发动态</h2>
+        <span className="admin-section-count">{fmt(items.length)} 条</span>
+      </div>
+
+      {/* 发布表单 */}
+      <form className="admin-feed-compose" onSubmit={submit}>
+        <div className="admin-field">
+          <span className="admin-field-label">标题</span>
+          <input
+            type="text"
+            className="admin-input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="如:新文《如果造物主真是程序员…》已发布"
+            maxLength={200}
+          />
+        </div>
+        <div className="admin-field">
+          <span className="admin-field-label">正文(可选 · 一句话最佳)</span>
+          <textarea
+            className="admin-input admin-feed-body"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="给作者一句话说明,会显示在动态条副标题。"
+            rows={2}
+            maxLength={4000}
+          />
+        </div>
+        <div className="admin-feed-row">
+          <div className="admin-field admin-feed-link">
+            <span className="admin-field-label">链接(可选 · 点「查看」跳转)</span>
+            <input
+              type="url"
+              className="admin-input"
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              placeholder="https://mp.weixin.qq.com/s/…"
+              maxLength={1000}
+            />
+          </div>
+          <div className="admin-feed-field">
+            <span className="admin-field-label">类型</span>
+            <div className="admin-seg" role="radiogroup" aria-label="选择动态类型">
+              {FEED_TYPE_OPTIONS.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="radio"
+                  aria-checked={type === t}
+                  className={`admin-seg-btn${type === t ? " active" : ""}`}
+                  onClick={() => setType(t)}
+                >
+                  {FEED_TYPE_LABEL[t]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="admin-feed-foot">
+          <label className="admin-feed-pin">
+            <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} />
+            <Pin size={12} /> 置顶(优先显示在作者工作台动态条)
+          </label>
+          <button type="submit" className={`btn primary admin-feed-go${posting ? " is-loading" : ""}`} disabled={!canPost}>
+            <Send size={14} /> 发布动态
+          </button>
+        </div>
+        {postErr && <div className="admin-error sm">{postErr}</div>}
+      </form>
+
+      {/* 已发列表 */}
+      {listErr ? (
+        <div className="admin-error">{listErr}</div>
+      ) : loading && items.length === 0 ? (
+        <div className="admin-feed-state"><Loader2 className="admin-spin" size={16} /> 加载中…</div>
+      ) : items.length === 0 ? (
+        <div className="admin-feed-state">还没有发过动态 —— 上面发第一条,全体作者站内即可看到。</div>
+      ) : (
+        <ul className="admin-feed-list">
+          {items.map((it) => (
+            <li key={it.id} className={`admin-feed-item type-${it.type}`}>
+              <div className="admin-feed-item-main">
+                <div className="admin-feed-item-top">
+                  <span className={`admin-feed-type type-${it.type}`}>{FEED_TYPE_LABEL[it.type]}</span>
+                  {it.pinned && <span className="admin-feed-pinned"><Pin size={10} /> 置顶</span>}
+                  <span className="admin-feed-item-title">{it.title}</span>
+                </div>
+                {it.body && <p className="admin-feed-item-body">{it.body}</p>}
+                <div className="admin-feed-item-meta">
+                  <span>{fmtDate(it.createdAt)}</span>
+                  {it.createdBy && <span>· {it.createdBy}</span>}
+                  {it.link && (
+                    <a className="admin-feed-item-link" href={it.link} target="_blank" rel="noopener noreferrer">
+                      链接 <ExternalLink size={10} />
+                    </a>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn sm ghost danger admin-feed-del"
+                onClick={() => { setDeleteErr(null); setPendingDelete(it) }}
+                title="删除这条动态"
+              >
+                <Trash2 size={12} /> 删除
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* 删除确认弹窗 */}
+      <Dialog open={!!pendingDelete} onOpenChange={(o) => { if (!o) setPendingDelete(null) }}>
+        <DialogContent className="admin-dialog">
+          <DialogHeader>
+            <DialogTitle>删除这条动态?</DialogTitle>
+            <DialogDescription>
+              「{pendingDelete?.title}」删除后,所有作者站内将不再看到这条广播。此操作不可撤销。
+            </DialogDescription>
+          </DialogHeader>
+          {deleteErr && <div className="admin-error sm">{deleteErr}</div>}
+          <DialogFooter>
+            <button type="button" className="btn" onClick={() => setPendingDelete(null)} disabled={deleting}>取消</button>
+            <button
+              type="button"
+              className={`btn admin-feed-danger${deleting ? " is-loading" : ""}`}
+              onClick={() => void confirmDelete()}
+              disabled={deleting}
+            >
+              确认删除
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }

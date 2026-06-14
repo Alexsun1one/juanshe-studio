@@ -25,6 +25,7 @@ import { WarmWhisper } from "@/components/workbench/warm-whisper"
 import { CelebrationBurst } from "@/components/workbench/celebration-burst"
 import { EditorialOfficeHero } from "@/components/workbench/editorial-office-hero"
 import { FirstRunHero } from "@/components/workbench/first-run-hero"
+import { FeedStrip } from "@/components/workbench/feed-strip"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -566,6 +567,7 @@ export default function CjDashboard() {
   if (!booksLoading && !active) {
     return (
       <div className="page cj-dashboard">
+        <FeedStrip />
         <FirstRunHero onCreate={() => setNewBookOpen(true)} />
         <NewBookDialog open={newBookOpen} onOpenChange={setNewBookOpen} />
       </div>
@@ -574,6 +576,8 @@ export default function CjDashboard() {
 
   return (
     <div className="cj-screen cj-workbench cj-dashboard">
+      {/* 站长广播动态条:最新 pinned/未读一条,可关可展开;无动态/桌面单机不渲染 */}
+      <FeedStrip />
       {/* ── 顶部工作条:书架(重复实体卡)+ 标题 + 一行小型 KPI token ── */}
       <header className="cj-workhead">
       {/* 书架已移除:顶栏作品切换器已能切书,首页不再用一排书卡占一屏高度 —— 工作头聚焦当前作品。

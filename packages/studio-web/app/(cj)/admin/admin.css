@@ -373,10 +373,161 @@
 }
 .admin-error.sm { padding: 8px 11px; font-size: 12px; margin-top: 4px; }
 
+/* ── ④ 发动态(站长广播 Feed)─────────────────────────────────── */
+.admin-feed-compose {
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  background: color-mix(in oklab, var(--brand-500) 4%, var(--bg-card));
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admin-feed-body {
+  height: auto;
+  min-height: 54px;
+  padding: 9px 11px;
+  line-height: 1.5;
+  resize: vertical;
+  font-family: inherit;
+}
+.admin-feed-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.admin-feed-link { flex: 1 1 280px; min-width: 0; }
+.admin-feed-field { display: flex; flex-direction: column; gap: 6px; }
+.admin-feed-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.admin-feed-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink-600);
+  cursor: pointer;
+  user-select: none;
+}
+.admin-feed-pin input { accent-color: var(--brand-500); width: 14px; height: 14px; cursor: pointer; }
+.admin-feed-pin svg { color: var(--brand-500); }
+.admin-feed-go { margin-left: auto; height: 38px; }
+
+.admin-feed-state {
+  padding: 24px 14px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-500);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-lg);
+}
+.admin-feed-state .admin-spin { display: inline-block; vertical-align: -3px; margin-right: 6px; }
+
+/* 已发列表 */
+.admin-feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-feed-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--line-1);
+  border-left: 3px solid var(--brand-400, var(--brand-500));
+  border-radius: var(--r-md);
+  background: var(--bg-card);
+}
+.admin-feed-item.type-article { border-left-color: var(--info-500); }
+.admin-feed-item.type-product { border-left-color: #E5862F; }
+.admin-feed-item:hover { background: var(--bg-hover); }
+.admin-feed-item-main { flex: 1 1 auto; min-width: 0; }
+.admin-feed-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin-feed-type {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  color: var(--brand-700, var(--brand-600));
+  background: var(--brand-50);
+}
+.admin-feed-type.type-article { color: var(--info-500); background: var(--info-50); }
+.admin-feed-type.type-product { color: #C16A1E; background: color-mix(in oklab, #F6BE48 18%, transparent); }
+.admin-feed-pinned {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--brand-600);
+}
+.admin-feed-item-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-900);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-feed-item-body {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-600);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.admin-feed-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--ink-400);
+}
+.admin-feed-item-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--brand-600);
+  text-decoration: none;
+  font-weight: 600;
+}
+.admin-feed-item-link:hover { text-decoration: underline; }
+.admin-feed-del { flex: 0 0 auto; align-self: center; }
+
+/* 删除确认主按钮:实心红 */
+.btn.admin-feed-danger {
+  background: var(--err-500);
+  color: #fff;
+  border-color: var(--err-500);
+}
+.btn.admin-feed-danger:hover { background: var(--err-600, #D8584F); border-color: var(--err-600, #D8584F); }
+
 /* 窄屏 */
 @media (max-width: 760px) {
   .admin-search { margin-left: 0; width: 100%; }
   .admin-search input { width: 100%; flex: 1; }
   .admin-mint-go { margin-left: 0; width: 100%; }
   .admin-kpis { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .admin-feed-go { margin-left: 0; width: 100%; }
+  .admin-feed-foot { align-items: stretch; }
 }
