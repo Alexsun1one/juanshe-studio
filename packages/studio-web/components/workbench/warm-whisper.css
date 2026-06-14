@@ -4,8 +4,8 @@
   align-items: center;
   gap: 8px;
   max-width: 100%;
-  padding: 6px 12px;
-  margin: 2px 0 16px;
+  padding: 4px 11px;
+  margin: 2px 0 8px;
   border-radius: var(--r-pill, 999px);
   background: color-mix(in oklab, var(--brand-500) 5%, var(--bg-sunken));
   border: 1px solid var(--line-2);

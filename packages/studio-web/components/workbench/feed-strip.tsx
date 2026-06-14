@@ -73,6 +73,9 @@ export function FeedStrip() {
   if (!enabled || !lead) return null
 
   const moreCount = visible.length - 1
+  // 去重:不少动态 title 与 body 填了同一句,显两遍既丑又占地方 —— 一样就只留标题。
+  const leadSub = oneLine(lead.body || "")
+  const showSub = leadSub.length > 0 && leadSub !== (lead.title || "").trim()
 
   return (
     <div className="feed-strip-wrap" ref={wrapRef}>
@@ -83,7 +86,7 @@ export function FeedStrip() {
         <span className={`feed-strip-tag tag-${lead.type}`}>{TYPE_LABEL[lead.type]}</span>
         <span className="feed-strip-body">
           <strong className="feed-strip-title">{lead.title}</strong>
-          {lead.body && <span className="feed-strip-sub">{oneLine(lead.body)}</span>}
+          {showSub && <span className="feed-strip-sub">{leadSub}</span>}
         </span>
         <div className="feed-strip-actions">
           {lead.link && (
