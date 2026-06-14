@@ -404,3 +404,75 @@ select.nb-input {
   .nb-actions-secondary .nb-btn,
   .nb-actions-primary .nb-btn { flex: 1; }
 }
+
+/* ── 一句话灵感提示卡 ──────────────────────────────────────── */
+.nb-guidetip {
+  margin-top: 2px;
+  padding: 12px 14px 11px;
+  border-radius: var(--r-lg, 12px);
+  border: 1px solid color-mix(in srgb, var(--brand-500) 22%, transparent);
+  border-left: 3px solid var(--brand-500);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand-500) 8%, transparent), transparent 56%),
+    var(--bg-card);
+}
+.nb-guidetip-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 9px;
+}
+.nb-guidetip-ico { color: var(--brand-500); flex: 0 0 auto; }
+.nb-guidetip-hook {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand-600);
+  line-height: 1.4;
+}
+.nb-guidetip-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.nb-guidetip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans-ui);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.nb-guidetip-bad {
+  flex: 0 0 auto;
+  max-width: 40%;
+  color: var(--accent-warm-deep);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--accent-warm) 60%, transparent);
+  opacity: 0.85;
+}
+.nb-guidetip-arrow { flex: 0 0 auto; color: var(--ink-400); }
+.nb-guidetip-good {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--ink-800);
+}
+.nb-guidetip-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand-600);
+  text-decoration: none;
+  transition: gap 160ms var(--ease-soft, ease-out), color 160ms;
+}
+.nb-guidetip-link:hover { color: var(--brand-700); gap: 8px; }
+
+@media (max-width: 560px) {
+  .nb-guidetip-row { flex-wrap: wrap; }
+  .nb-guidetip-bad { max-width: 100%; }
+}

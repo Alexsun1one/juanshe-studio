@@ -86,6 +86,7 @@ const NAV: NavGroup[] = [
     pixelKind: "grp-creation",
     items: [
       { href: "/books", label: "作品管理", icon: BookOpenText, pixelKind: "library" },
+      { href: "/guide", label: "创作指南", icon: BookText, badge: "导引", pixelKind: "wiki" },
       { href: "/assistant", label: "AI 助手", icon: Sparkles, pixelKind: "assistant" },
       { href: "/compose", label: "多平台创作", icon: Newspaper, badge: "AI", pixelKind: "platform" },
       { href: "/editor", label: "章节编辑", icon: PenLine, pixelKind: "editor" },
@@ -159,7 +160,7 @@ const ROUTE_SECTION_LABELS: Record<string, string> = {
 
 function routeSectionOf(pathname: string | null): string {
   if (!pathname || pathname === "/") return "workbench"
-  if (/^\/(books|assistant|compose|editor|outline|characters|materials)/.test(pathname)) return "creation"
+  if (/^\/(books|guide|assistant|compose|editor|outline|characters|materials)/.test(pathname)) return "creation"
   if (/^\/(genres|import|wiki|knowledge|graph|memory)/.test(pathname)) return "knowledge"
   if (/^\/(library|platform-export|publish|insights|detect)/.test(pathname)) return "publish"
   if (/^\/(runs|system|agents|capabilities)/.test(pathname)) return "system"

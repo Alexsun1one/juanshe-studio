@@ -31,6 +31,7 @@ type Route = { href: string; label: string; pixelKind?: PixelBadgeKind; keywords
 const ROUTES: Route[] = [
   { href: "/", label: "工作台", pixelKind: "workbench", keywords: "dashboard home shouye" },
   { href: "/books", label: "作品管理", pixelKind: "library", keywords: "books zuopin" },
+  { href: "/guide", label: "创作指南", pixelKind: "wiki", keywords: "guide zhinan chuangzuo linggan how to write" },
   { href: "/assistant", label: "AI 助手", pixelKind: "assistant", keywords: "assistant ai zhushou" },
   { href: "/compose", label: "多平台创作", pixelKind: "platform", keywords: "compose chuangzuo" },
   { href: "/editor", label: "章节编辑", pixelKind: "editor", keywords: "editor zhangjie bianji" },

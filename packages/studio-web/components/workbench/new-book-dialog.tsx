@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Loader2, Sparkles, FileText, Upload, X, Trash2, ListChecks, Layers, AlertTriangle } from "lucide-react"
+import { Loader2, Sparkles, FileText, Upload, X, Trash2, ListChecks, Layers, AlertTriangle, ArrowRight, Lightbulb } from "lucide-react"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -388,6 +389,39 @@ export function NewBookDialog({
               />
               <span className="nb-hint">越具体越好 — 时代/地点/主角动机/基调/章节节奏。Architect 会先据此起稿。</span>
             </label>
+
+            {/* 一句话灵感提示卡 — 一句钩子 + 超短好/坏对比 + 链到完整指南。最小侵入,不动提交逻辑。 */}
+            <aside className="nb-guidetip" aria-label="一句话灵感写法提示">
+              <div className="nb-guidetip-head">
+                <Lightbulb size={13} className="nb-guidetip-ico" />
+                <span className="nb-guidetip-hook">一句话决定整本书 —— 这样写,编辑部更懂你</span>
+              </div>
+              <ul className="nb-guidetip-rows">
+                <li className="nb-guidetip-row">
+                  <span className="nb-guidetip-bad">关于成长与救赎的史诗</span>
+                  <ArrowRight size={11} className="nb-guidetip-arrow" />
+                  <span className="nb-guidetip-good">能「听见」老建筑记忆的修复师,接下一桩旧剧院翻新案</span>
+                </li>
+                <li className="nb-guidetip-row">
+                  <span className="nb-guidetip-bad">都市爽文,爽就完了</span>
+                  <ArrowRight size={11} className="nb-guidetip-arrow" />
+                  <span className="nb-guidetip-good">破产的游戏制作人靠预判算法翻身,每场发布会实时打脸</span>
+                </li>
+                <li className="nb-guidetip-row">
+                  <span className="nb-guidetip-bad">要好看,要有深度</span>
+                  <ArrowRight size={11} className="nb-guidetip-arrow" />
+                  <span className="nb-guidetip-good">克制内伤式的悲;每卷一个身份揭穿;不要圣母</span>
+                </li>
+              </ul>
+              <Link
+                href="/guide"
+                className="nb-guidetip-link"
+                onClick={() => onOpenChange(false)}
+              >
+                查看完整创作指南
+                <ArrowRight size={12} />
+              </Link>
+            </aside>
 
             {/* 上传文件 — 别的模型/手写的设定 .md / .txt 多文件,内容拼到 brief */}
             <div className="nb-field">
