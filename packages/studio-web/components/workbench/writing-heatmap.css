@@ -1,0 +1,148 @@
+/* ── 写作打卡热力图（GitHub 贡献图风格）─────────────────────────────────────
+   5 档暖色阶：0=纸色描边（没写），1→4=柔紫由浅到深（写得越多越深）。
+   亮暗双适配：亮=奶油纸底上的柔紫；暗=深堇紫底上的亮堇紫，避免深字大片/冷蓝。
+   分享卡 SVG 导出读同一组 --hm-* 的 computed 值（见 share-card.tsx）。 */
+
+.hm-wrap {
+  /* 5 档色阶（CSS 变量集中在此，share-card 解析后复刻进 SVG）*/
+  --hm-0: color-mix(in oklab, var(--bg-sunken) 70%, var(--bg-card));
+  --hm-1: color-mix(in oklab, var(--brand-500) 22%, var(--bg-card));
+  --hm-2: color-mix(in oklab, var(--brand-500) 42%, var(--bg-card));
+  --hm-3: color-mix(in oklab, var(--brand-500) 66%, var(--bg-card));
+  --hm-4: var(--brand-500);
+  --hm-edge: color-mix(in oklab, var(--ink-900) 7%, transparent);
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hm-grid-area {
+  position: relative;
+  box-sizing: content-box;
+}
+
+.hm-grid {
+  position: relative;
+}
+
+.hm-cell {
+  position: absolute;
+  border-radius: 2.5px;
+  background: var(--hm-0);
+  box-shadow: inset 0 0 0 1px var(--hm-edge);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.hm-cell[data-tier="1"] { background: var(--hm-1); box-shadow: none; }
+.hm-cell[data-tier="2"] { background: var(--hm-2); box-shadow: none; }
+.hm-cell[data-tier="3"] { background: var(--hm-3); box-shadow: none; }
+.hm-cell[data-tier="4"] { background: var(--hm-4); box-shadow: none; }
+.hm-cell:hover,
+.hm-cell:focus-visible {
+  transform: scale(1.18);
+  box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--brand-500) 60%, transparent);
+  outline: none;
+  z-index: 2;
+}
+
+/* 月份 / 周几标签 */
+.hm-months {
+  position: absolute;
+  pointer-events: none;
+}
+.hm-month {
+  position: absolute;
+  top: 0;
+  font-size: 10px;
+  color: var(--ink-400);
+  font-family: var(--font-pixel-ui);
+  white-space: nowrap;
+}
+.hm-weekdays {
+  position: absolute;
+  left: 0;
+  width: 14px;
+  pointer-events: none;
+}
+.hm-weekday {
+  position: absolute;
+  left: 0;
+  font-size: 9px;
+  color: var(--ink-400);
+  font-family: var(--font-pixel-ui);
+}
+
+/* 图例 */
+.hm-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--ink-400);
+  font-family: var(--font-pixel-ui);
+}
+.hm-legend-text { margin: 0 2px; }
+.hm-legend-cell {
+  width: 10px;
+  height: 10px;
+  border-radius: 2.5px;
+  background: var(--hm-0);
+  box-shadow: inset 0 0 0 1px var(--hm-edge);
+}
+.hm-legend-cell[data-tier="1"] { background: var(--hm-1); box-shadow: none; }
+.hm-legend-cell[data-tier="2"] { background: var(--hm-2); box-shadow: none; }
+.hm-legend-cell[data-tier="3"] { background: var(--hm-3); box-shadow: none; }
+.hm-legend-cell[data-tier="4"] { background: var(--hm-4); box-shadow: none; }
+
+/* hover 浮窗 */
+.hm-tip {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 8px));
+  background: var(--bg-inverse);
+  color: var(--ink-inv);
+  padding: 5px 9px;
+  border-radius: var(--r-sm);
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: var(--sh-3);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.hm-tip strong {
+  font-weight: 700;
+  font-family: var(--font-pixel-ui);
+}
+.hm-tip span {
+  opacity: 0.78;
+  font-size: 10px;
+}
+.hm-tip::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 7px;
+  height: 7px;
+  background: var(--bg-inverse);
+}
+
+.hm-empty {
+  font-size: 12px;
+  color: var(--ink-400);
+  padding: 10px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-cell {
+    transition: none;
+  }
+  .hm-cell:hover,
+  .hm-cell:focus-visible {
+    transform: none;
+  }
+}

@@ -9,7 +9,11 @@ export async function GET(
   const upstream = await fetch(
     backendUrl(`/api/v1/books/${encodeURIComponent(id)}/export`, req),
     {
-      headers: { Accept: req.headers.get("accept") ?? "*/*" },
+      headers: {
+        Accept: req.headers.get("accept") ?? "*/*",
+        // 透传 Cookie:SaaS 会话鉴权需要,否则登录态穿不过 Next 代理 → 401。
+        cookie: req.headers.get("cookie") ?? "",
+      },
       cache: "no-store",
     },
   )

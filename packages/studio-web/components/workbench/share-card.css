@@ -1,0 +1,78 @@
+/* ── 分享卡弹层 ───────────────────────────────────────────────────────────
+   弹层壳走 shadcn Dialog；卡片本体是自包含 SVG（亮暗双色板，导出 PNG）。 */
+
+.share-card-dialog {
+  max-width: 560px !important;
+  width: calc(100% - 2rem);
+}
+
+.share-card-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: var(--bg-sunken);
+  width: fit-content;
+}
+.sct-tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 5px 16px;
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-family: var(--font-pixel-ui);
+  color: var(--ink-500);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.sct-tab:hover:not(:disabled) { color: var(--ink-800); }
+.sct-tab.on {
+  background: var(--bg-card);
+  color: var(--brand-500);
+  box-shadow: var(--sh-1);
+}
+.sct-tab:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.share-card-preview {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0 2px;
+}
+.share-card-canvas {
+  display: block;
+  width: 100%;
+  max-width: 440px;
+  height: auto;
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-3);
+}
+
+.share-card-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+.scf-btn {
+  appearance: none;
+  border: 1px solid var(--line-2);
+  background: var(--bg-card);
+  color: var(--ink-700);
+  padding: 8px 18px;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-family: var(--font-pixel-ui);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.scf-btn:hover { background: var(--bg-hover); }
+.scf-btn.primary {
+  background: var(--brand-500);
+  border-color: var(--brand-500);
+  color: #fff;
+}
+.scf-btn.primary:hover { background: var(--brand-600); }
+.scf-btn:disabled { opacity: 0.6; cursor: progress; }
+
+:where([data-theme="dark"], .dark) .scf-btn.primary { color: #16162B; }

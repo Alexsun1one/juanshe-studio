@@ -1,0 +1,92 @@
+/* ── 工作台打卡卡 ─────────────────────────────────────────────────────────
+   热力图 + 连更/今日字数/最长连更 KPI + 临近里程碑鼓励 + 「晒连更」。
+   暖纸柔紫，亮暗双适配；复用 .card 基样，仅补内部排布。 */
+
+.streak-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.streak-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.streak-kpis {
+  display: flex;
+  align-items: baseline;
+  gap: 26px;
+  flex-wrap: wrap;
+}
+.streak-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.streak-kpi .sk-num {
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+.streak-kpi.primary .sk-num {
+  font-size: 38px;
+  color: var(--brand-500);
+}
+.streak-kpi .sk-label {
+  font-size: 11px;
+  color: var(--ink-400);
+  font-family: var(--font-pixel-ui);
+}
+.streak-kpi.muted .sk-num { color: var(--ink-600); font-size: 24px; }
+
+.streak-share-btn {
+  appearance: none;
+  border: 1px solid color-mix(in oklab, var(--brand-500) 32%, var(--line-2));
+  background: color-mix(in oklab, var(--brand-500) 8%, var(--bg-card));
+  color: var(--brand-500);
+  padding: 7px 16px;
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-family: var(--font-pixel-ui);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: background 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+}
+.streak-share-btn:hover {
+  background: color-mix(in oklab, var(--brand-500) 14%, var(--bg-card));
+  transform: translateY(-1px);
+}
+.streak-share-btn span[aria-hidden] { color: var(--accent-warm); }
+
+.streak-encourage {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-600);
+  line-height: 1.5;
+}
+
+.streak-heat {
+  overflow-x: auto;
+  padding-bottom: 2px;
+  /* 细滚动条不抢眼 */
+  scrollbar-width: thin;
+}
+.streak-heat::-webkit-scrollbar { height: 6px; }
+.streak-heat::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: var(--r-pill);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streak-share-btn:hover { transform: none; }
+}

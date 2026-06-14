@@ -17,6 +17,7 @@ import {
 import { useT, useLocale } from "@/lib/i18n"
 import { useWorkspace } from "@/lib/workspace-context"
 import {
+  allBooksExportUrl,
   bookExportUrl,
   createBook,
   updateBook,
@@ -146,6 +147,12 @@ export function BooksTab() {
     window.open(bookExportUrl(book.id, format), "_blank", "noopener,noreferrer")
   }
 
+  // 数据可携带:把「全部」书稿整本目录(章节/设定/记忆库全保真)打成 zip 下载带走,免费不扣额度。
+  function handleExportAll() {
+    if (books.length === 0) return
+    window.open(allBooksExportUrl(), "_blank", "noopener,noreferrer")
+  }
+
   return (
     <div className="min-w-0 space-y-6">
       <header className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -162,10 +169,26 @@ export function BooksTab() {
               : `本地工作区中的所有作品 · ${runningCount} 本自动续写中`}
           </p>
         </div>
-        <Button size="sm" onClick={() => setCreatingOpen((value) => !value)}>
-          <Plus className="mr-1.5 size-3.5" strokeWidth={1.8} />
-          {t("settings.books.create")}
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={books.length === 0}
+            onClick={handleExportAll}
+            title={
+              lang === "en"
+                ? "Download all your books as a .zip — yours to keep, no lock-in"
+                : "把你的全部书稿打包成 .zip 下载带走 —— 数据归你，随时迁出，不锁定"
+            }
+          >
+            <Download className="mr-1.5 size-3.5" strokeWidth={1.8} />
+            {lang === "en" ? "Export all · zip" : "打包全部 · zip"}
+          </Button>
+          <Button size="sm" onClick={() => setCreatingOpen((value) => !value)}>
+            <Plus className="mr-1.5 size-3.5" strokeWidth={1.8} />
+            {t("settings.books.create")}
+          </Button>
+        </div>
       </header>
 
       {creatingOpen && (

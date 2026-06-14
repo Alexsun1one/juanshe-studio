@@ -861,9 +861,49 @@ export type SystemHealth = {
 }
 
 // ============================================================================
+// 写作打卡热力图 + 连更里程碑（GitHub 贡献图风格）
+//   桌面与 SaaS 登录用户都能用：读当前工作区 state 章节聚合。
+//   桌面 saas:false 不送 credits；SaaS 命中里程碑且未领过 → 后端发软配额，
+//   newlyRewarded 供前端 CelebrationBurst 庆祝。门禁/发放/幂等全在后端。
+// ============================================================================
+export interface StreakDay {
+  date: string // 本地 YYYY-MM-DD
+  words: number
+  chapters: number
+}
+export interface StreakMilestone {
+  days: number
+  credits: number
+}
+export interface StreakReward {
+  days: number
+  credits: number
+}
+export interface Streak {
+  saas: boolean
+  calendar: StreakDay[] // 近 53 周升序密集日历（无写作的日子补 0）
+  currentStreak: number
+  longestStreak: number
+  todayWords: number
+  activeDays: number
+  totalWords: number
+  /** 仅 SaaS 返回里程碑配置；桌面 undefined */
+  milestones?: StreakMilestone[]
+  /** 已领过的里程碑天数集合（幂等去重）；桌面为空数组 */
+  rewardedMilestones: number[]
+  /** 本次请求新发放的里程碑（供庆祝）；桌面为空数组 */
+  newlyRewarded: StreakReward[]
+  /** SaaS 当前软配额余额；桌面为 null */
+  credits: number | null
+}
+
+// ============================================================================
 // 接口路径常量（前端只通过 ENDPOINTS 访问 URL，便于后端调整）
 // ============================================================================
 export const ENDPOINTS = {
+  streak: () => `/api/v1/streak`,
+  /** 导出全部书稿(整本目录打包 zip · 数据可携带,免费不扣 credits) */
+  allBooksExport: () => `/api/v1/export/books`,
   agentList: () => `/api/v1/agents`,
   agentDetail: (id: string) => `/api/v1/agents/${id}`,
   agentLogs: (bookId: string, chapter: number, agentId?: string) =>

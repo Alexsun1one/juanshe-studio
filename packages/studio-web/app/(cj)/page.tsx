@@ -26,6 +26,7 @@ import { CelebrationBurst } from "@/components/workbench/celebration-burst"
 import { EditorialOfficeHero } from "@/components/workbench/editorial-office-hero"
 import { FirstRunHero } from "@/components/workbench/first-run-hero"
 import { FeedStrip } from "@/components/workbench/feed-strip"
+import { StreakCard } from "@/components/workbench/streak-card"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -897,6 +898,10 @@ export default function CjDashboard() {
               </div>
             </div>
           </section>
+
+          {/* 写作打卡：连更热力图(GitHub 贡献图)+ 连更天数/今日字数/最长连更 + 临近里程碑鼓励 + 晒连更。
+              留存引擎:每天回来写、把连更接力棒传下去;命中里程碑后端发软配额并触发庆祝。 */}
+          <StreakCard bookTitle={active?.title.zh ?? "我的作品"} totalWords={active?.totalWords} />
         </div>
 
         {/* ── 右侧 Inspector:接棒 / 质量门槛 / 风险(只在 pane 内滚)── */}

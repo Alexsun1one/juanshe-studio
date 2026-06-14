@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { serve } from "@hono/node-server";
+import archiver from "archiver";
 import { StateManager, PipelineRunner, ConsolidatorAgent, MemoryDB, createLLMClient, createLogger, createInteractionToolsFromDeps, computeAnalytics, loadProjectConfig, loadProjectSession, processProjectInteractionRequest, resolveSessionActiveBook, listBookSessions, loadBookSession, appendManualSessionMessages, createAndPersistBookSession, renameBookSession, deleteBookSession, migrateBookSession, SessionAlreadyMigratedError, runAgentSession, buildAgentSystemPrompt, resolveServicePreset, resolveServiceProviderFamily, resolveServiceModelsBaseUrl, resolveServiceModel, loadSecrets, saveSecrets, listModelsForService, isApiKeyOptionalForEndpoint, getAllEndpoints, probeModelsFromUpstream, fetchWithProxy, chatCompletion, buildExportArtifact, GLOBAL_ENV_PATH, markdownToContentDocument, renderForPlatform, getContentTypeProfile, assembleContentType, buildWritingSystemPrompt, mountSkills, buildCriticSystemPrompt, buildReviserSystemPrompt, parseCritiqueReport, critiqueWantsRevision, critiquePasses, buildResearchQueries, buildResearchContext, emptyAccountStyle, evolveStyleProfile, buildAccountVoicePrompt, parseCharacterMatrix, parseRoleFile, parseEmotionalArcs, groupArcsByCharacter, tensionByChapter, parsePendingHooks, parseSubplotBoard, hooksByStartChapter, parseVolumeMap, parseChapterSummaries, appearanceCounts, parseStoryFrame, buildGovernanceRecommendation, analyzeStyle, EDITOR_IN_CHIEF_SYSTEM_PROMPT, buildEditorInChiefUserMessage, parseEditorialVerdict, listWechatTemplates, DEFAULT_WECHAT_TEMPLATE, analyzeAITells, aiToneScore, DEFAULT_AI_TONE_FLOOR, } from "@juanshe/core";
 import { access, appendFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
@@ -4040,6 +4041,114 @@ async function loadWritingStats(root, state) {
         progress: Math.min(1, todayWordCount / 15000),
     };
 }
+// ── 写作打卡热力图(GitHub 贡献图风格)聚合 ──────────────────────────────────
+// 读"当前工作区"的 state 代理(SaaS 自动是当前租户,桌面是本地工作区)→ 聚合全部书的
+// 章节 → 按【本地自然日】累计字数/章节数 → 算 currentStreak / longestStreak / todayWords。
+// 桌面与 SaaS 都能用(纯读 state,无 SaaS 门禁)。连更 = words>0 的相邻自然日。
+const STREAK_CALENDAR_DAYS = 371; // 53 周整(GitHub 贡献图同款),含今天
+
+// 本地日期 YYYY-MM-DD(不能用 toISOString —— 那是 UTC,会把"凌晨写的字"算到前一天)。
+function localDateKey(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+// 把任意章节时间戳解析成本地日 key;解析不出来返回 null(不计入,绝不当成今天)。
+function chapterDateKey(chapter) {
+    const raw = chapter?.updatedAt ?? chapter?.createdAt ?? "";
+    if (!raw)
+        return null;
+    const ms = Date.parse(String(raw));
+    if (!Number.isFinite(ms))
+        return null;
+    return localDateKey(new Date(ms));
+}
+
+async function aggregateWritingStreak(state) {
+    const bookIds = await state.listBooks().catch(() => []);
+    // 按本地日聚合:date -> { words, chapters }
+    const byDay = new Map();
+    let totalWords = 0;
+    for (const bookId of Array.isArray(bookIds) ? bookIds : []) {
+        const chapters = await state.loadChapterIndex(bookId).catch(() => []);
+        for (const chapter of Array.isArray(chapters) ? chapters : []) {
+            const wordsRaw = Number(chapter?.wordCount ?? chapter?.chineseChars ?? 0);
+            const words = Number.isFinite(wordsRaw) && wordsRaw > 0 ? Math.trunc(wordsRaw) : 0;
+            totalWords += words;
+            const key = chapterDateKey(chapter);
+            if (!key)
+                continue;
+            const entry = byDay.get(key) ?? { words: 0, chapters: 0 };
+            entry.words += words;
+            entry.chapters += 1;
+            byDay.set(key, entry);
+        }
+    }
+
+    // 构造近 STREAK_CALENDAR_DAYS 天的密集日历(无写作的日子补 0),从最早到今天升序。
+    const today = new Date();
+    const todayKey = localDateKey(today);
+    const calendar = [];
+    for (let offset = STREAK_CALENDAR_DAYS - 1; offset >= 0; offset--) {
+        const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset);
+        const key = localDateKey(day);
+        const entry = byDay.get(key);
+        calendar.push({ date: key, words: entry?.words ?? 0, chapters: entry?.chapters ?? 0 });
+    }
+
+    // currentStreak:从今天往回数连续"有写作(words>0)"的自然日;今天没写则从昨天起算(不打断历史连更)。
+    const writtenDays = new Set();
+    for (const [key, entry] of byDay.entries()) {
+        if (entry.words > 0)
+            writtenDays.add(key);
+    }
+    const todayWords = byDay.get(todayKey)?.words ?? 0;
+    let currentStreak = 0;
+    {
+        // 今天写了 → 从今天起;今天没写 → 从昨天起(给"今天还没动笔但连更未断"留缓冲)。
+        const startOffset = writtenDays.has(todayKey) ? 0 : 1;
+        for (let offset = startOffset; ; offset++) {
+            const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset);
+            if (writtenDays.has(localDateKey(day)))
+                currentStreak += 1;
+            else
+                break;
+        }
+    }
+
+    // longestStreak:扫密集日历找最长连续 words>0 段。
+    let longestStreak = 0;
+    let run = 0;
+    for (const cell of calendar) {
+        if (cell.words > 0) {
+            run += 1;
+            if (run > longestStreak)
+                longestStreak = run;
+        } else {
+            run = 0;
+        }
+    }
+
+    return {
+        calendar,
+        currentStreak,
+        longestStreak,
+        todayWords,
+        activeDays: writtenDays.size,
+        totalWords,
+    };
+}
+
+// 连更里程碑配置(天数 → 软配额 credits)。命中且未领过 → 发一次。
+const STREAK_MILESTONES = [
+    { days: 3, credits: 50 },
+    { days: 7, credits: 120 },
+    { days: 14, credits: 300 },
+    { days: 30, credits: 800 },
+];
+
 async function resolveChapterFile(state, bookId, num) {
     if (!isSafeBookId(bookId) || !Number.isInteger(num) || num <= 0) {
         throw new ApiError(400, "INVALID_CHAPTER", "Invalid book or chapter");
@@ -16217,6 +16326,55 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ error: "Export failed" }, 500);
         }
     });
+    // --- 导出全部书稿(整本目录打包 zip · 数据可携带)---
+    // 登录用户一键把自己「全部」书稿打成 zip 带走 —— 章节/设定/记忆库整本目录全保真,
+    // 既是人读的 .md,也能原样导回桌面/自部署版。鉴权 + 租户隔离由全局中间件(见上 /* 中间件)兜底:
+    // SaaS 下未登录已 401、state/tenantRootOr 已租户化只看自己根;桌面模式直通导出当前工作区。
+    // 关键:不登记进 premium 计费表 → 永远免费、绝不扣 credits。数据可携带是信任底线,不设任何门槛。
+    app.get("/api/v1/export/books", async (c) => {
+        const bookIds = await state.listBooks().catch(() => []);
+        if (!bookIds || bookIds.length === 0) {
+            return c.json({ error: { code: "NO_BOOKS", message: "你还没有书稿可以导出。" } }, 404);
+        }
+        const booksRoot = join(tenantRootOr(root), "books");
+        const archive = archiver("zip", { zlib: { level: 9 } });
+        const chunks = [];
+        archive.on("data", (chunk) => chunks.push(chunk));
+        const built = new Promise((resolve, reject) => {
+            archive.on("end", resolve);
+            // 目录缺文件(ENOENT)只警告不致命;其余 warning 与 error 一律失败,绝不返回半截 zip。
+            archive.on("warning", (err) => { if (err && err.code === "ENOENT") return; reject(err); });
+            archive.on("error", reject);
+        });
+        let added = 0;
+        for (const bookId of bookIds) {
+            if (!isSafeBookId(bookId)) continue; // 防御:异常 id 直接跳过,绝不越界打包
+            const dir = join(booksRoot, bookId);
+            const ok = await access(join(dir, "book.json")).then(() => true).catch(() => false);
+            if (!ok) continue;
+            // 整本目录保真:chapters/*.md + story/*.md + book.json + reports/ + memory.db
+            archive.directory(dir, bookId);
+            added += 1;
+        }
+        if (added === 0) {
+            return c.json({ error: { code: "NO_BOOKS", message: "你还没有书稿可以导出。" } }, 404);
+        }
+        try {
+            await archive.finalize();
+            await built;
+        }
+        catch {
+            return c.json({ error: { code: "EXPORT_FAILED", message: "打包导出失败,请稍后再试。" } }, 500);
+        }
+        const zip = Buffer.concat(chunks);
+        const stamp = new Date().toISOString().slice(0, 10);
+        return new Response(new Uint8Array(zip), {
+            headers: {
+                "Content-Type": "application/zip",
+                "Content-Disposition": attachmentContentDisposition(`juanshe-books-${stamp}.zip`),
+            },
+        });
+    });
     // --- Export to file (save to project dir) ---
     app.post("/api/v1/books/:id/export-save", async (c) => {
         const id = c.req.param("id");
@@ -16786,6 +16944,77 @@ export function createStudioServer(initialConfig, root) {
     });
     app.get("/api/v1/activity", async (c) => {
         return c.json({ entries: await readActivityEntries(root, 200) });
+    });
+    // ── 写作打卡热力图 + 连更里程碑 ───────────────────────────────────────────
+    // GET /api/v1/streak —— 桌面与 SaaS 登录用户都能用:读当前工作区 state 聚合连更热力图。
+    // 桌面:saas:false,纯返回热力图数据,不送 credits(桌面无配额体系)。
+    // SaaS:命中 3/7/14/30 连更里程碑且未领过 → withBillingLock 内发软配额 + ledger 记一笔
+    //       reason='streak-reward' + user.streakRewards 记已领;返回 newlyRewarded 供前端庆祝。
+    app.get("/api/v1/streak", async (c) => {
+        const streak = await aggregateWritingStreak(state);
+        // 桌面模式:无 SaaS 账号/配额,直接返回热力图数据。
+        if (!isSaasModeEnabled()) {
+            return c.json({
+                saas: false,
+                ...streak,
+                rewardedMilestones: [],
+                newlyRewarded: [],
+                credits: null,
+            });
+        }
+        const auth = await resolveSaasSession(root, c);
+        if (!auth) {
+            return c.json({ error: { code: "AUTH_REQUIRED", message: "请先登录账号。" } }, 401);
+        }
+        // 本次连更达成的里程碑全集(currentStreak 已 ≥ days)。
+        const reached = STREAK_MILESTONES.filter((m) => streak.currentStreak >= m.days);
+        const newlyRewarded = [];
+        let credits = Number(auth.user.credits ?? 0);
+        let rewardedMilestones = Array.isArray(auth.user.streakRewards)
+            ? auth.user.streakRewards.slice()
+            : [];
+        if (reached.length > 0) {
+            // withBillingLock 串行 + 锁内重读最新 store,杜绝并发重复发放。
+            await withBillingLock(auth.user.id, async () => {
+                const store = await loadSaasStore(root);
+                const user = store.users.find((item) => item.id === auth.user.id);
+                if (!user)
+                    return;
+                const already = new Set(Array.isArray(user.streakRewards) ? user.streakRewards : []);
+                let changed = false;
+                for (const milestone of reached) {
+                    if (already.has(milestone.days))
+                        continue; // 已领过 → 跳过(幂等:重复请求不重复送)
+                    already.add(milestone.days);
+                    user.credits = Math.max(0, Number(user.credits ?? 0) + milestone.credits);
+                    store.ledger.push({
+                        id: newId("ledger"),
+                        userId: user.id,
+                        type: "credit",
+                        credits: milestone.credits,
+                        reason: "streak-reward",
+                        note: `连更 ${milestone.days} 天里程碑`,
+                        createdAt: new Date().toISOString(),
+                    });
+                    newlyRewarded.push({ days: milestone.days, credits: milestone.credits });
+                    changed = true;
+                }
+                if (changed) {
+                    user.streakRewards = Array.from(already).sort((a, b) => a - b);
+                    await saveSaasStore(root, store);
+                }
+                credits = Number(user.credits ?? 0);
+                rewardedMilestones = user.streakRewards ?? Array.from(already).sort((a, b) => a - b);
+            });
+        }
+        return c.json({
+            saas: true,
+            ...streak,
+            milestones: STREAK_MILESTONES,
+            rewardedMilestones,
+            newlyRewarded,
+            credits,
+        });
     });
     app.get("/api/v1/atelier", async (c) => {
         await ensureVaultTemplates(root);

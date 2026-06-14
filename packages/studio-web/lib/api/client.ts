@@ -38,6 +38,7 @@ import type {
   RelationshipGraph,
   RewriteProposal,
   RoleQueueItem,
+  Streak,
   StyleFingerprint,
   SystemHealth,
   WikiNode,
@@ -207,6 +208,12 @@ export function fetchAgents(): Promise<Agent[]> {
   return getJSON<Agent[]>(ENDPOINTS.agentList())
 }
 
+// 写作打卡热力图 + 连更里程碑。桌面与 SaaS 登录用户都能用（读当前工作区章节聚合）。
+// 后端命中里程碑会在 withBillingLock 内发软配额并回 newlyRewarded，前端据此庆祝。
+export function fetchStreak(): Promise<Streak> {
+  return getJSON<Streak>(ENDPOINTS.streak())
+}
+
 export function fetchWorkflow(bookId: string): Promise<WorkflowSnapshot> {
   return getJSON<WorkflowSnapshot>(ENDPOINTS.workflow(bookId))
 }
@@ -331,6 +338,11 @@ export function updateBook(
 
 export function bookExportUrl(bookId: string, format: BookExportFormat = "txt") {
   return ENDPOINTS.bookExport(bookId, format)
+}
+
+/** 导出「全部」书稿的下载地址(整本目录打包 zip · 数据可携带,免费不扣 credits)。 */
+export function allBooksExportUrl() {
+  return ENDPOINTS.allBooksExport()
 }
 
 export function fetchBookDescription(
