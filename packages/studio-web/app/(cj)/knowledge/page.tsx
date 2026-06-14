@@ -413,11 +413,14 @@ export default function KnowledgePage() {
                   <div className="kg-empty-art"><EmptyArt variant="knowledge" /></div>
                   <span className="empty-ico"><Network size={24} aria-hidden /></span>
                   <div className="kg-empty-title">关系网络还未生成</div>
-                  <div className="kg-empty-desc">触发「重新生成关系图谱」后,角色与派系的关系会在这里编织成网。</div>
-                  <button type="button" className="btn primary sm" onClick={onExtract} disabled={extracting || !bookId}>
-                    {extracting ? <Loader2 size={13} className="kg-spin" aria-hidden /> : <Sparkles size={13} aria-hidden />}
-                    {extracting ? "重新生成中…" : "重新生成关系图谱"}
-                  </button>
+                  <div className="kg-empty-desc">触发「重新生成关系图谱」后,角色与派系的关系会在这里编织成网;如果还没写正文,先落下第一章。</div>
+                  <div className="kg-empty-actions">
+                    <button type="button" className="btn primary sm" onClick={onExtract} disabled={extracting || !bookId}>
+                      {extracting ? <Loader2 size={13} className="kg-spin" aria-hidden /> : <Sparkles size={13} aria-hidden />}
+                      {extracting ? "重新生成中…" : "重新生成关系图谱"}
+                    </button>
+                    <Link href="/editor?chapter=1" className="btn sm">去写第一章</Link>
+                  </div>
                 </div>
               )}
               {/* 图谱内浮层:左下派系图例 + 右下关系极性构成(均派生自真实数据) */}

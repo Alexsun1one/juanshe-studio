@@ -1,12 +1,14 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import useSWR from "swr"
 import {
   AlertCircle,
   Check,
   Clock,
   Copy,
+  FileInput,
   FileText,
   Folder,
   FolderOpen,
@@ -20,7 +22,7 @@ import {
 import { toast } from "sonner"
 import { fetchAssets } from "@/lib/api/client"
 import { useWorkspace } from "@/lib/workspace-context"
-import { CjPlaceholder } from "@/components/design/cj-placeholder"
+import { CjPlaceholder, EmptyArt } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
 import "./materials.css"
@@ -173,9 +175,28 @@ export default function MaterialsPage() {
             )}
             {data && filtered.length === 0 && (
               <div className="empty empty-lg mt-empty">
-                <span className="mt-empty-ico"><FolderOpen size={22} /></span>
-                <div className="empty-title">{q ? `没有匹配「${q}」的素材` : "这个目录暂时没有素材"}</div>
-                <div className="empty-desc">调整搜索词或切换右侧目录,创作资料会在这里汇集。</div>
+                {assets.length === 0 ? (
+                  <>
+                    <div className="mt-empty-art"><EmptyArt variant="materials" /></div>
+                    <div className="empty-title">素材箱还没拆封</div>
+                    <div className="empty-desc">导入参考资料、图片或设定文档后,它们会按目录汇集成这本书的可检索资产库。</div>
+                    <div className="mt-empty-actions">
+                      <Link href="/import" className="btn primary sm"><FileInput size={13} /> 去导入素材</Link>
+                      <Link href="/editor?chapter=1" className="btn sm">先写第一章</Link>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span className="mt-empty-ico"><FolderOpen size={22} /></span>
+                    <div className="empty-title">{q ? `没有匹配「${q}」的素材` : "这个目录暂时没有素材"}</div>
+                    <div className="empty-desc">调整搜索词或切换右侧目录,创作资料会在这里汇集。</div>
+                    {(q || folder !== "all") && (
+                      <button type="button" className="btn sm" onClick={() => { setQ(""); setFolder("all") }}>
+                        清除筛选
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
             )}
             {data && filtered.length > 0 && (

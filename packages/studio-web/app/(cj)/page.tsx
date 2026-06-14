@@ -710,6 +710,8 @@ export default function CjDashboard() {
       {/* ── 主体:中央写作工作区 + 右侧 Inspector(滚动只在各自 pane 内)── */}
       <div className="cj-screen-body wb-body">
         <div className="cj-mainpane">
+          {/* 写作打卡:连更热力图 + 连更天数/今日字数/最长连更。放在写作器上方一条,不抢中央创作区,空态也不显眼。 */}
+          <StreakCard bookTitle={active?.title.zh ?? "我的作品"} totalWords={active?.totalWords} />
           {/* 沉浸写作器 */}
           <section className="writer">
             <div className="writer-head">
@@ -900,10 +902,6 @@ export default function CjDashboard() {
               <PlatformHint type="batch-limits" variant="quiet" />
             </div>
           </section>
-
-          {/* 写作打卡：连更热力图(GitHub 贡献图)+ 连更天数/今日字数/最长连更 + 临近里程碑鼓励 + 晒连更。
-              留存引擎:每天回来写、把连更接力棒传下去;命中里程碑后端发软配额并触发庆祝。 */}
-          <StreakCard bookTitle={active?.title.zh ?? "我的作品"} totalWords={active?.totalWords} />
         </div>
 
         {/* ── 右侧 Inspector:接棒 / 质量门槛 / 风险(只在 pane 内滚)── */}

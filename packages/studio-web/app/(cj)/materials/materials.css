@@ -104,8 +104,26 @@
 
 /* 清单空态(用既有 .empty.empty-lg,补暖色圆角图标头) */
 .cj-materials .mt-empty { padding: 40px 20px; }
+.cj-materials .mt-empty-art {
+  width: min(340px, 82%);
+  height: 220px;
+  margin: 0 auto 4px;
+}
 .cj-materials .mt-empty-ico { width: 48px; height: 48px; border-radius: var(--r-lg); display: grid; place-items: center; background: var(--brand-50); color: var(--brand-500); margin: 0 auto 12px; }
 .cj-materials .mt-empty-ico-err { background: var(--st-error-bg); color: var(--st-error); }
+.cj-materials .mt-empty-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.cj-materials .mt-empty-actions .btn,
+.cj-materials .mt-empty > .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
 
 /* ════════════════════════════════════════════════════════════
    Inspector · 资产概览(类型构成)+ 目录导航 + 最近更新

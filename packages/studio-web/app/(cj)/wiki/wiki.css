@@ -212,6 +212,18 @@
   font-size: 13px;
   line-height: 1.75;
 }
+.cj-wiki .wiki-empty-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.cj-wiki .wiki-empty-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
 
 /* ════════════════════════════════════════════════════════════
    右:知识库检视(Inspector)—— 构成 / 覆盖 / 枢纽 / 待补关联

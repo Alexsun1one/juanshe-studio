@@ -230,6 +230,13 @@
   color: var(--ink-500);
   line-height: 1.7;
 }
+.cj-memory .mem-empty-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
 
 /* ── 整页空态(未选书)主体:像素剧场撑满可用宽高,核掉两侧/下方死白 ──
    三个类并写是为了在特异性上稳压 design.css 的 `.app .cj-screen-body`(grid),改走 flex 居中。 */

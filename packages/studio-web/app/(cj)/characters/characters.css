@@ -161,6 +161,13 @@
   font-size: 13px;
   line-height: 1.7;
 }
+.cj-characters .char-empty-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
 .cj-characters .char-network .cn-head {
   display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: 12px;

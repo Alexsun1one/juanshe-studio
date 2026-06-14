@@ -327,7 +327,11 @@ export default function MemoryPage() {
                 <div className="empty mem-empty-dock">
                   <div className="mem-empty-art"><EmptyArt variant="memory" /></div>
                   <b>记忆长卷还没铺开</b>
-                  <span>开始写作后,世界观与焦点会按章铺到这条长卷上。</span>
+                  <span>开始写作后,世界观锚点、长期记忆与当前焦点会按章铺到这条长卷上。</span>
+                  <div className="mem-empty-actions">
+                    <Link href="/editor?chapter=1" className="btn primary sm">去写第一章</Link>
+                    <Link href="/outline" className="btn sm">先整理大纲</Link>
+                  </div>
                 </div>
               )}
             </div>

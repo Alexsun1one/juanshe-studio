@@ -195,8 +195,8 @@ export default function GraphPage() {
                 onNodeClick={goEntity}
                 emptyAction={(
                   <>
-                    <Link className="btn primary sm" href="/knowledge">打开知识与资产</Link>
-                    <Link className="btn sm" href="/characters">查看角色设定</Link>
+                    <Link className="btn primary sm" href="/editor?chapter=1">去写第一章</Link>
+                    <Link className="btn sm" href="/characters">补角色设定</Link>
                   </>
                 )}
               />
@@ -334,7 +334,8 @@ export default function GraphPage() {
               {topNodes.length === 0 ? (
                 <div className="g-hub-empty">
                   <Network size={16} aria-hidden />
-                  图谱为空,继续写作后枢纽会浮现。
+                  图谱还在等第一批人物关系,写完首章后枢纽会浮现。
+                  <Link href="/editor?chapter=1">去写第一章</Link>
                 </div>
               ) : (
                 <div className="g-rail-list">

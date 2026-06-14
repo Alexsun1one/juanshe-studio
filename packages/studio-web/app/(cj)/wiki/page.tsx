@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import useSWR from "swr"
 import {
   ArrowUpRight,
@@ -267,6 +268,12 @@ export default function WikiPage() {
                   ? "写作推进时,角色、设定、伏笔和章节摘要会沉淀成词条,这里会变成作品的本地知识书架。"
                   : "本地知识库还在整理索引,先把书页、台灯和档案册铺好。"}
               </p>
+              {data && (
+                <div className="wiki-empty-actions">
+                  <Link className="btn primary sm" href="/editor?chapter=1">去写第一章</Link>
+                  <Link className="btn sm" href="/knowledge">打开知识资产</Link>
+                </div>
+              )}
             </div>
           ) : sel ? (
             <div className="wc-article">

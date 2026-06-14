@@ -185,6 +185,14 @@
 .cj-knowledge .kg-empty .kg-empty-title { font-size: var(--text-title); font-weight: 650; color: var(--ink-800); }
 .cj-knowledge .kg-empty .kg-empty-desc { max-width: 30ch; font-size: var(--text-cap); line-height: 1.65; color: var(--ink-500); }
 .cj-knowledge .kg-empty .btn { margin-top: 10px; display: inline-flex; align-items: center; gap: 5px; }
+.cj-knowledge .kg-empty-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+.cj-knowledge .kg-empty-actions .btn { margin-top: 8px; }
 
 /* 右:详情抽屉 */
 .cj-knowledge .kg-drawer { overflow-y: auto; border-left: 1px solid var(--line-1); padding: 0; }

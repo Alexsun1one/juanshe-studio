@@ -180,6 +180,16 @@
 /* —— 枢纽实体列表 —— */
 .cj-graph .g-hub-empty { display: flex; align-items: center; gap: 7px; font-size: 12.5px; line-height: 1.6; color: var(--ink-500); padding: 4px 2px 6px; }
 .cj-graph .g-hub-empty svg { flex: 0 0 auto; color: var(--ink-300); }
+.cj-graph .g-hub-empty a {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--brand-600);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.cj-graph .g-hub-empty a:hover { color: var(--brand-700, var(--brand-600)); text-decoration: underline; }
+.cj-graph .g-hub-empty a:focus-visible { outline: none; box-shadow: var(--ring); border-radius: var(--r-xs); }
 .cj-graph .g-rail-list { display: flex; flex-direction: column; gap: 2px; padding-top: 2px; }
 .cj-graph .g-ent {
   position: relative; display: flex; align-items: center; gap: 9px; text-align: left;

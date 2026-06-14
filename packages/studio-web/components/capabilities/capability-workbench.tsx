@@ -34,6 +34,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
+import { EmptyArt } from "@/components/design/cj-placeholder"
 import "./capability-workbench.css"
 
 type WorkbenchTab = "genres" | "import" | "detect"
@@ -89,6 +90,7 @@ export function CapabilityWorkbench({
     name: "",
     language: "zh",
   })
+  const newGenreNameRef = React.useRef<HTMLInputElement>(null)
   const [genreBody, setGenreBody] = React.useState("")
   const [genreResult, setGenreResult] = React.useState<unknown>(null)
   const [deleteGenreId, setDeleteGenreId] = React.useState<string | null>(null)
@@ -757,6 +759,7 @@ export function CapabilityWorkbench({
                 <div className="mt-3 grid gap-3">
                   <Field label="题材名">
                     <Input
+                      ref={newGenreNameRef}
                       value={newGenre.name}
                       onChange={(event) =>
                         setNewGenre((current) => ({
@@ -822,9 +825,23 @@ export function CapabilityWorkbench({
                       题材库读取失败，请检查后端或点击刷新全部重试。
                     </p>
                   ) : genres.length === 0 ? (
-                    <p className="text-muted-foreground text-xs">
-                      暂无题材。可以先新建一个 project-level 模板。
-                    </p>
+                    <div className="cap-empty-state">
+                      <div className="cap-empty-art">
+                        <EmptyArt variant="genres" />
+                      </div>
+                      <div className="cap-empty-title">题材架还在等第一张标签</div>
+                      <p className="cap-empty-desc">
+                        先建立一套 project-level 模板,写清平台定位、爽点节奏和审核风险,后面的选题与多平台改稿才有准星。
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => newGenreNameRef.current?.focus()}
+                      >
+                        <Tags className="size-4" />
+                        创建第一套题材
+                      </Button>
+                    </div>
                   ) : (
                     genres.map((genre, index) => {
                       const id = genreId(genre)

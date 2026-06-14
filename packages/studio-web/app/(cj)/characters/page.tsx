@@ -431,6 +431,12 @@ function CharacterNetwork({
         </div>
         <h2>{loading ? "正在整理角色档案" : "角色席位还在等人入场"}</h2>
         <p>{loading ? "本地角色库还在读取,先把选角台和关系线铺好。" : "建立人物档案后,这里会渲染角色关系网络、阵营与弧光推进。"}</p>
+        {!loading && (
+          <div className="char-empty-actions">
+            <Link href="/editor?chapter=1" className="btn primary sm">去写第一章</Link>
+            <Link href="/outline" className="btn sm">先整理大纲</Link>
+          </div>
+        )}
       </div>
     )
   }

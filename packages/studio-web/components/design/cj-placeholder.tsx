@@ -13,6 +13,7 @@ type EmptyArtVariant =
   | "editor"
   | "outline"
   | "characters"
+  | "genres"
   | "wiki"
   | "memory"
   | "agents"
@@ -95,6 +96,12 @@ const SCENES: Record<EmptyArtVariant, EmptyScene> = {
     prop("desk-lamp", "eps-tall", 72, 72),
     prop("coffee-mug", "eps-cat", 66, 66),
   ]),
+  genres: scene("题材架还在等第一张标签", "genres", [
+    prop("model-rack", "eps-main", 168, 142),
+    prop("story-board", "eps-left", 86, 86),
+    prop("ink-quill", "eps-tall", 72, 72),
+    prop("coffee-mug", "eps-cat", 66, 66),
+  ]),
   wiki: scene("Wiki 书页还没翻开", "wiki", [
     prop("book-registry-desk", "eps-main", 178, 156),
     prop("logo-book-quill", "eps-left", 72, 72),
@@ -126,6 +133,7 @@ const TITLE_VARIANT: Record<string, EmptyArtVariant> = {
   "章节编辑": "editor",
   "大纲与规划": "outline",
   "角色与设定": "characters",
+  "题材库": "genres",
   "LLM Wiki": "wiki",
   "记忆长卷": "memory",
 }
