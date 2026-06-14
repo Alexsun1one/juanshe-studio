@@ -62,6 +62,13 @@ export function StreakCard({
   }
 
   const { currentStreak, longestStreak, todayWords, calendar } = data
+  // 全新用户(还没动过笔):0 连更 + 26 周空格子很「太空」。改用温暖紧凑的「种子格」引导态,
+  // 等真有写作记录(连更/最长/活跃天/累计字数任一 > 0)再亮出完整热力图。
+  const hasActivity =
+    currentStreak > 0 ||
+    longestStreak > 0 ||
+    (data.activeDays ?? 0) > 0 ||
+    (data.totalWords ?? 0) > 0
   const next = nextMilestone(currentStreak)
   // 临近鼓励：差 ≤2 天到下个里程碑时，给一句"再写就到 X 天 +Y 额度"。
   const milestoneCredits: Record<number, number> = { 3: 50, 7: 120, 14: 300, 30: 800 }
@@ -77,7 +84,7 @@ export function StreakCard({
           : `写下第一章，点亮你的第一格`
 
   return (
-    <section className="streak-card card" aria-label="写作打卡">
+    <section className={`streak-card card${hasActivity ? "" : " is-empty"}`} aria-label="写作打卡">
       <CelebrationBurst signal={celebrate.sig} tone="write" note={celebrate.note} />
       <div className="streak-head">
         <div className="streak-kpis">
@@ -100,21 +107,40 @@ export function StreakCard({
             </div>
           )}
         </div>
-        <button
-          type="button"
-          className="streak-share-btn"
-          onClick={() => setShareOpen(true)}
-          title="把连更热力图做成精美卡片，晒到朋友圈/社群拉新"
-        >
-          <span aria-hidden>✦</span> 晒连更
-        </button>
+        {hasActivity && (
+          <button
+            type="button"
+            className="streak-share-btn"
+            onClick={() => setShareOpen(true)}
+            title="把连更热力图做成精美卡片，晒到朋友圈/社群拉新"
+          >
+            <span aria-hidden>✦</span> 晒连更
+          </button>
+        )}
       </div>
 
       <p className="streak-encourage">{encourage}</p>
 
-      <div className="streak-heat">
-        <WritingHeatmap calendar={calendar} weeks={26} cell={11} gap={3} />
-      </div>
+      {hasActivity ? (
+        <div className="streak-heat">
+          <WritingHeatmap calendar={calendar} weeks={26} cell={11} gap={3} />
+        </div>
+      ) : (
+        <div className="streak-empty" role="img" aria-label="还没有写作记录，写下第一章就能点亮第一格">
+          <div className="se-row" aria-hidden>
+            <span className="se-cell lit" />
+            <span className="se-cell dim" />
+            <span className="se-cell" />
+            <span className="se-cell" />
+            <span className="se-cell" />
+            <span className="se-cell" />
+            <span className="se-cell" />
+            <span className="se-arrow">→</span>
+            <span className="se-sprout">🌱</span>
+          </div>
+          <p className="se-line">每写一章，这里就点亮一格。坚持几天，长出一条属于你的连更。</p>
+        </div>
+      )}
 
       <ShareCardDialog
         open={shareOpen}

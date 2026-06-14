@@ -1473,20 +1473,24 @@ function createRunNeedsFoundation(run) {
 function updateBookCreateStatus(bookId, patch) {
     if (!bookId)
         return;
-    const existing = bookCreateStatus.get(bookId) ?? {};
-    if (!bookCreateStatus.has(bookId) && patch.allowCreate !== true)
+    // key 必须租户隔离:裸 bookId(书名 slug)会让两租户的同名书共用一条进度,A 污染/泄露给 B。
+    // 对象里仍存原始 bookId 供展示;读取端同样用 tenantScopedKey。
+    const key = tenantScopedKey(bookId);
+    const existing = bookCreateStatus.get(key) ?? {};
+    if (!bookCreateStatus.has(key) && patch.allowCreate !== true)
         return;
     const { allowCreate, ...rest } = patch;
-    bookCreateStatus.set(bookId, { ...existing, ...rest, bookId, lastEventAt: Date.now() });
+    bookCreateStatus.set(key, { ...existing, ...rest, bookId, lastEventAt: Date.now() });
 }
 function appendBookCreatePreview(bookId, text) {
     if (!bookId || !text)
         return;
-    if (!bookCreateStatus.has(bookId))
+    const key = tenantScopedKey(bookId);
+    if (!bookCreateStatus.has(key))
         return;
-    const existing = bookCreateStatus.get(bookId) ?? {};
+    const existing = bookCreateStatus.get(key) ?? {};
     const preview = `${existing.preview ?? ""}${text}`.slice(-4000);
-    bookCreateStatus.set(bookId, { ...existing, bookId, preview, lastEventAt: Date.now() });
+    bookCreateStatus.set(key, { ...existing, bookId, preview, lastEventAt: Date.now() });
 }
 // 内存缓存：service -> 模型列表 + 更新时间戳；避免每次 sidebar 挂载时都打真实 LLM /models
 const modelListCache = new Map();
@@ -6651,7 +6655,11 @@ async function readAgentAssetVault(root, bookId) {
     };
 }
 function broadcast(event, data) {
-    if (activityLogRoot && !isHighVolumeDeltaEvent(event)) {
+    // SaaS 下 ALS 无租户上下文(如 staleRunSweeper 等 setInterval 后台路径裸跑):
+    // 既无法确定该写哪个租户日志、也无法确定该投递给哪个租户 → 一律不落(全局)日志、不向 per-tenant 订阅者 fan-out,
+    // 杜绝跨租户日志混写与 SSE 正文/事件串户。事件仍持久化在 run 态/活动日志(由各自租户上下文的调用方负责)。
+    const saasNoTenant = isSaasModeEnabled() && !currentTenantStore();
+    if (activityLogRoot && !isHighVolumeDeltaEvent(event) && !saasNoTenant) {
         void appendActivityLog(activityLogRoot, event, data);
     }
     // 租户隔离:SaaS 模式下事件只 fan-out 给同租户的 SSE 订阅者,防 A 的写作流式正文串给看同名书的 B。
@@ -6659,6 +6667,9 @@ function broadcast(event, data) {
     // 内部常驻订阅者(handler.__tid 未设,如 live-draft 累计器)__tid 为 undefined → 收全部、各自按 tenantScopedKey 入账。
     const originTid = isSaasModeEnabled() ? (currentTenantStore()?.tenantId ?? null) : null;
     for (const handler of subscribers) {
+        // ALS 空(originTid=null)绝不向 per-tenant 订阅者投递,否则后台事件会串给所有租户。
+        if (saasNoTenant && handler.__tid != null)
+            continue;
         if (originTid !== null && handler.__tid != null && handler.__tid !== originTid)
             continue;
         handler(event, data);
@@ -9028,7 +9039,7 @@ export function createStudioServer(initialConfig, root) {
                 run.updatedAt = new Date().toISOString();
                 changed = true;
             }
-            const createStatus = run.type === "create-book" && run.bookId ? bookCreateStatus.get(run.bookId) : null;
+            const createStatus = run.type === "create-book" && run.bookId ? bookCreateStatus.get(tenantScopedKey(run.bookId)) : null;
             const createStillLive = isLiveBookCreateStatus(createStatus, run);
             if (run.type === "create-book" &&
                 run.bookId &&
@@ -9575,7 +9586,10 @@ export function createStudioServer(initialConfig, root) {
         // 建书生命周期端点(进度轮询 / 取消):book.json 在 foundation 落库前还没写,
         // 不能用"存在性"拦死,否则建书全程轮询都 404(用户看到的就是这个);交给 handler 读建书 run 态判断。
         const subPath = c.req.path.split("/").filter(Boolean).pop();
-        if (subPath === "create-status" || subPath === "create-cancel") {
+        if (subPath === "create-status" || subPath === "create-cancel"
+            || subPath === "events" || subPath === "stream" || subPath === "live-draft") {
+            // events/stream/live-draft 也是建书窗口期就要拉的(进度事件流/流式正文恢复),
+            // book.json 落库前同样不能被存在性拦死;handler 自己按 activity.log / 内存态判断。
             await next();
             return;
         }
@@ -11084,9 +11098,18 @@ export function createStudioServer(initialConfig, root) {
     app.get("/api/v1/books/create-states", async (c) => {
         const runs = await loadTaskRuns(root).catch(() => []);
         const states = [];
-        for (const [bookId, status] of bookCreateStatus.entries()) {
+        // 租户隔离:bookCreateStatus 的 key 是 tenantScopedKey(tid::bookId),只返回本租户前缀的条目,
+        // 绝不把别租户正在建的书(bookId/书名/进度)泄露出去。SaaS 下无租户上下文 → 返回空。
+        const tid = isSaasModeEnabled() ? (currentTenantStore()?.tenantId ?? null) : null;
+        if (isSaasModeEnabled() && !tid)
+            return c.json({ states: [] });
+        const prefix = tid ? `${tid}::` : null;
+        for (const [key, status] of bookCreateStatus.entries()) {
             if (!status)
                 continue;
+            if (prefix && !key.startsWith(prefix))
+                continue;
+            const bookId = status.bookId ?? key;
             const run = latestCreateBookRunForBook(runs, bookId);
             states.push({
                 bookId,
@@ -11840,7 +11863,7 @@ export function createStudioServer(initialConfig, root) {
     });
     app.get("/api/v1/books/:id/create-status", async (c) => {
         const id = c.req.param("id");
-        let status = bookCreateStatus.get(id);
+        let status = bookCreateStatus.get(tenantScopedKey(id));
         if (!status) {
             const [runs, persistedBook] = await Promise.all([
                 loadTaskRuns(root).catch(() => []),
@@ -11944,7 +11967,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ error: "Invalid book id" }, 400);
         const runs = await loadTaskRuns(root).catch(() => []);
         const run = latestCreateBookRunForBook(runs, id);
-        const createStatus = bookCreateStatus.get(id);
+        const createStatus = bookCreateStatus.get(tenantScopedKey(id));
         const runStatus = String(run?.status || "").toLowerCase();
         const isTerminalRun = ["created", "error", "cancelled", "done"].includes(runStatus);
         const isCreating = String(createStatus?.status || "").toLowerCase() === "creating";
@@ -13869,8 +13892,8 @@ export function createStudioServer(initialConfig, root) {
         const id = c.req.param("id");
         if (!isSafeBookId(id))
             return c.json({ error: "Invalid book id" }, 400);
-        if (!(await bookExists(id)))
-            return c.json({ error: `Book "${id}" not found` }, 404);
+        // 建书窗口期 book.json 还没落库,但 activity.log 已有 book:creating 等事件;
+        // filterActivityForBook 已按 bookId 精确过滤,可安全读 → 不用 bookExists 拦死建书进度。
         const since = c.req.query("since") || "";
         const entries = filterActivityForBook(await readActivityEntries(root, 400), id, since).map(agentEventFromActivity);
         return c.json(entries);
@@ -13879,8 +13902,7 @@ export function createStudioServer(initialConfig, root) {
         const id = c.req.param("id");
         if (!isSafeBookId(id))
             return c.json({ error: "Invalid book id" }, 400);
-        if (!(await bookExists(id)))
-            return c.json({ error: `Book "${id}" not found` }, 404);
+        // 建书窗口期同样允许订阅(读 activity.log + 内存事件流),不被 book.json 存在性拦死。
         return streamSSE(c, async (stream) => {
             const initial = await buildBookWorkflowStatus(root, state, id).catch(() => null);
             if (initial)
@@ -16075,7 +16097,7 @@ export function createStudioServer(initialConfig, root) {
                                 const title = typeof args?.title === "string" && args.title.trim()
                                     ? args.title.trim()
                                     : bookId;
-                                bookCreateStatus.set(bookId, { status: "creating" });
+                                bookCreateStatus.set(tenantScopedKey(bookId), { status: "creating", bookId });
                                 broadcast("book:creating", { bookId, title, sessionId: streamSessionId });
                             }
                         }
@@ -16112,7 +16134,7 @@ export function createStudioServer(initialConfig, root) {
                                 const bookId = resolveArchitectBookIdFromArgs(exec.args);
                                 if (bookId) {
                                     const error = exec.error ?? "Book creation failed";
-                                    bookCreateStatus.set(bookId, { status: "error", error });
+                                    bookCreateStatus.set(tenantScopedKey(bookId), { status: "error", error, bookId });
                                     broadcast("book:error", { bookId, sessionId: streamSessionId, error });
                                 }
                             }
@@ -16163,7 +16185,7 @@ export function createStudioServer(initialConfig, root) {
                 }
                 await ensureOpeningPublishingAssets(state, root, createdBookId).catch(() => null);
                 const book = await loadStudioBookListSummary(state, createdBookId).catch(() => undefined);
-                bookCreateStatus.delete(createdBookId);
+                bookCreateStatus.delete(tenantScopedKey(createdBookId));
                 broadcast("book:created", {
                     bookId: createdBookId,
                     sessionId: bookSession.sessionId,

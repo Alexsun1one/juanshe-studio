@@ -27,12 +27,12 @@ export function applyThemeColor(id: CjThemeId) {
 
 export function ThemeColorPicker() {
   const [open, setOpen] = React.useState(false)
-  const [theme, setTheme] = React.useState<CjThemeId>("violet")
+  const [theme, setTheme] = React.useState<CjThemeId>("jade")
   const ref = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
     try {
-      const t = (localStorage.getItem("cj.theme-color") as CjThemeId) || "violet"
+      const t = (localStorage.getItem("cj.theme-color") as CjThemeId) || "jade"
       if (CJ_THEMES.some((x) => x.id === t)) setTheme(t)
     } catch {
       /* ignore */

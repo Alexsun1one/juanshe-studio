@@ -10,6 +10,8 @@ export async function POST(req: Request, ctx: RouteContext) {
     `/api/v1/books/${encodeURIComponent(id)}/foundation/validate`,
     {
       method: "POST",
+      // 补地基要跑 LLM 重算 foundation,远超默认 20s 代理超时 → 放宽到 3 分钟(与 write-batch/write-next 同档)。
+      timeoutMs: 180_000,
       transform: (data) => normalizeFoundationValidate(data, id),
     },
   )

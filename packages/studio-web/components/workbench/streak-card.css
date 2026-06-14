@@ -87,6 +87,56 @@
   border-radius: var(--r-pill);
 }
 
+/* ── 空状态:还没动笔时的「种子格」引导,替代 26 周大空网格(太空) ── */
+.streak-card.is-empty { gap: 12px; }
+.streak-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 2px 4px;
+}
+.se-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.se-cell {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--bg-sunken) 70%, var(--bg-card));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ink-900) 7%, transparent);
+}
+.se-cell.lit {
+  background: var(--brand-500);
+  box-shadow: none;
+  animation: se-pulse 2.4s ease-in-out infinite;
+}
+.se-cell.dim {
+  background: color-mix(in oklab, var(--brand-500) 38%, var(--bg-card));
+  box-shadow: none;
+}
+.se-arrow {
+  color: var(--ink-400);
+  font-size: 13px;
+  margin: 0 3px;
+}
+.se-sprout {
+  font-size: 15px;
+  line-height: 1;
+}
+.se-line {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-500);
+  line-height: 1.6;
+}
+@keyframes se-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .streak-share-btn:hover { transform: none; }
+  .se-cell.lit { animation: none; }
 }
