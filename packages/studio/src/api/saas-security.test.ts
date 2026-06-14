@@ -118,4 +118,14 @@ describe("SaaS 安全 · admin 白名单 + topup 鉴权", () => {
     const noSession = await topup(app, { adminKey: "super-strong-admin-key-0123456789", email: "normal@example.com", credits: 100 });
     expect(noSession.status).toBe(401);
   });
+
+  it("建书固定子路由不被 requireBookAccess 当成 bookId 拦 404(Hono :id/* 会匹配 /create)", async () => {
+    const admin = await register(app, "admin@example.com");
+    // GET /books/create-states 只读、不调 LLM,与 POST /books/create 共用同一 requireBookAccess 中间件,
+    // 作为"固定子路由放行"的安全代理:绝不能返回 BOOK_NOT_FOUND 404(否则 SaaS 下建书被整个拦死)。
+    const res = await app.request("http://localhost/api/v1/books/create-states", { headers: { cookie: admin.cookie } });
+    expect(res.status).not.toBe(404);
+    const body = (await res.json().catch(() => ({}))) as { error?: { code?: string } };
+    expect(body?.error?.code).not.toBe("BOOK_NOT_FOUND");
+  });
 });

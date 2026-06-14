@@ -9563,6 +9563,12 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ error: { code: "AUTH_REQUIRED", message: "请先登录账号。" } }, 401);
         }
         const bookId = c.req.param("id");
+        // 固定子路由不是 bookId:Hono 的 :id/* 会把 /api/v1/books/create、/create-states 也匹配进来,
+        // 必须放行给真实 handler,否则 SaaS 下会被当成"找名为 create 的书"→ 404,把建书整个拦死。
+        if (bookId === "create" || bookId === "create-states") {
+            await next();
+            return;
+        }
         if (!bookId || !isSafeBookId(bookId)) {
             return c.json({ error: { code: "BOOK_NOT_FOUND", message: "作品不存在或无权访问。" }, bookId }, 404);
         }
