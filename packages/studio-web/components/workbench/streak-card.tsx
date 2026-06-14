@@ -28,10 +28,13 @@ function nextMilestone(currentStreak: number): { target: number; remain: number 
 export function StreakCard({
   bookTitle,
   totalWords: bookTotalWords,
+  compact = false,
 }: {
   bookTitle: string
   /** 当前作品累计字数（晒连更卡用书级数字，比全工作区 totalWords 更贴切）*/
   totalWords?: number
+  /** 紧凑模式：塞进顶部工作条右侧的一细条 —— KPI 横排 + 迷你细热力图 + 晒，不占创作区高度。 */
+  compact?: boolean
 }) {
   const author = useAuthorName()
   // 6 分钟轮询：连更/今日字数会随写作变化，但不必频繁打后端（命中里程碑发放是幂等的）。
@@ -82,6 +85,42 @@ export function StreakCard({
         : currentStreak > 0
           ? `今天还没动笔 · 写一点就能把 ${currentStreak} 天连更续上`
           : `写下第一章，点亮你的第一格`
+
+  // ── 紧凑模式:顶部工作条右侧一细条,与黄色信息条同高,不在创作区上方另起大块 ──
+  if (compact) {
+    return (
+      <section className="streak-card-compact" aria-label="写作打卡">
+        <CelebrationBurst signal={celebrate.sig} tone="write" note={celebrate.note} />
+        <div className="skc-kpis">
+          <span className="skc-kpi primary"><b className="num">{currentStreak}</b><i>天连更</i></span>
+          <span className="skc-kpi"><b className="num">{fmt(todayWords)}</b><i>今日字</i></span>
+          <span className="skc-kpi"><b className="num">{longestStreak}</b><i>最长</i></span>
+          {data.saas && typeof data.credits === "number" && (
+            <span className="skc-kpi muted"><b className="num">{fmt(data.credits)}</b><i>额度</i></span>
+          )}
+        </div>
+        {hasActivity ? (
+          <div className="skc-heat" title={encourage}>
+            <WritingHeatmap calendar={calendar} weeks={30} cell={7} gap={2} />
+          </div>
+        ) : (
+          <span className="skc-empty" title="写下第一章就能点亮第一格">写下第一章，点亮第一格 🌱</span>
+        )}
+        {hasActivity && (
+          <button type="button" className="skc-share" onClick={() => setShareOpen(true)} title="把连更做成卡片晒出去拉新">
+            <span aria-hidden>✦</span> 晒
+          </button>
+        )}
+        <ShareCardDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          initialMode="streak"
+          allowModeSwitch={false}
+          data={{ bookTitle, author, calendar, currentStreak, longestStreak, totalWords: bookTotalWords ?? data.totalWords }}
+        />
+      </section>
+    )
+  }
 
   return (
     <section className={`streak-card card${hasActivity ? "" : " is-empty"}`} aria-label="写作打卡">

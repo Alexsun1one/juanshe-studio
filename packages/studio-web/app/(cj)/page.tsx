@@ -680,9 +680,9 @@ export default function CjDashboard() {
         )}
       </div>
 
-        {/* 写作打卡卡:塞进顶部工作条右侧那块空白,不另起一行占中央创作区。 */}
+        {/* 写作打卡:顶部工作条右侧一细条(紧凑模式),与黄色信息条同高,不占中央创作区。 */}
         <div className="wb-head-streak">
-          <StreakCard bookTitle={active?.title.zh ?? "我的作品"} totalWords={active?.totalWords} />
+          <StreakCard compact bookTitle={active?.title.zh ?? "我的作品"} totalWords={active?.totalWords} />
         </div>
       </header>
 
