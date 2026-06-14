@@ -1210,9 +1210,22 @@
    ═══════════════════════════════════════════════════════════════ */
 /* 顶部工作条:紧凑,不滚动,底分割线(替代原 .page 的整页内边距)*/
 .cj-workbench > .cj-workhead {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
   padding: 12px 20px 10px;
   border-bottom: 1px solid var(--line-1);
   background: var(--bg-app);
+}
+.cj-workbench > .cj-workhead > .dash-head { flex: 1 1 auto; min-width: 0; }
+/* 连更热力图卡填顶部工作条右侧空白:定宽,窄屏堆叠回去 */
+.cj-workbench > .cj-workhead > .wb-head-streak {
+  flex: 0 0 auto;
+  width: clamp(360px, 36vw, 500px);
+}
+@media (max-width: 1100px) {
+  .cj-workbench > .cj-workhead { flex-direction: column; }
+  .cj-workbench > .cj-workhead > .wb-head-streak { width: 100%; }
 }
 .cj-workbench .cj-workhead .book-shelf { margin-bottom: 10px; }
 .cj-workbench .cj-workhead .dash-head { margin-bottom: 0; }

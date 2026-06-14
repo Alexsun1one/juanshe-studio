@@ -201,8 +201,14 @@ export async function proxyJSONOrFallback(
 
 export async function proxySSE(request: Request, path: string) {
   try {
+    // 透传 Cookie:SaaS 会话鉴权需要,否则后端 SSE 端点返回 401「请先登录账号」→
+    // EventSource 反复重连(界面显示「连接中断·重连中」),流式正文/agent 动作永远收不到。
+    const cookie = request.headers.get("cookie")
     const response = await fetch(backendUrl(path, request), {
-      headers: { accept: "text/event-stream" },
+      headers: {
+        accept: "text/event-stream",
+        ...(cookie ? { cookie } : {}),
+      },
       cache: "no-store",
       signal: request.signal,
     })
@@ -237,8 +243,13 @@ export async function proxySSEOrFallback(
 ) {
   const allowFallback = frontendFallbackEnabled()
   try {
+    // 透传 Cookie:同 proxySSE —— SaaS 会话鉴权,否则后端 SSE 401,前端流式/agent 状态全断。
+    const cookie = request.headers.get("cookie")
     const response = await fetch(backendUrl(path, request), {
-      headers: { accept: "text/event-stream" },
+      headers: {
+        accept: "text/event-stream",
+        ...(cookie ? { cookie } : {}),
+      },
       cache: "no-store",
       signal: request.signal,
     })

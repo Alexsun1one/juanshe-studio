@@ -680,6 +680,10 @@ export default function CjDashboard() {
         )}
       </div>
 
+        {/* 写作打卡卡:塞进顶部工作条右侧那块空白,不另起一行占中央创作区。 */}
+        <div className="wb-head-streak">
+          <StreakCard bookTitle={active?.title.zh ?? "我的作品"} totalWords={active?.totalWords} />
+        </div>
       </header>
 
       {/* 上次写作失败/中断:说清原因 + 给恢复入口(重试/去运行台),不再只留两个字「已清理」 */}
@@ -710,8 +714,6 @@ export default function CjDashboard() {
       {/* ── 主体:中央写作工作区 + 右侧 Inspector(滚动只在各自 pane 内)── */}
       <div className="cj-screen-body wb-body">
         <div className="cj-mainpane">
-          {/* 写作打卡:连更热力图 + 连更天数/今日字数/最长连更。放在写作器上方一条,不抢中央创作区,空态也不显眼。 */}
-          <StreakCard bookTitle={active?.title.zh ?? "我的作品"} totalWords={active?.totalWords} />
           {/* 沉浸写作器 */}
           <section className="writer">
             <div className="writer-head">
