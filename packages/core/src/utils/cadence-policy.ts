@@ -1,5 +1,7 @@
 export const CADENCE_WINDOW_DEFAULTS = {
-  summaryLookback: 4,
+  // 4 太窄:写第 N 章只看得到最近 4 章摘要 → 记不住更早用过的开篇/招牌意象 → 续写反复重铺
+  // 同一套"时间+天气+便利店"开场、逐字复用"抹布叠成方块"。拉到 10,让写手/规划师看到更长的前文。
+  summaryLookback: 10,
   englishVarianceLookback: 24,
   recentBoundaryPatternBodies: 2,
 } as const;
