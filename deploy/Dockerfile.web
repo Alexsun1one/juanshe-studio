@@ -6,8 +6,10 @@ FROM node:22-slim AS builder
 RUN corepack enable
 WORKDIR /repo
 COPY . .
-# web 构建需要 core/engine 的类型/产物;先装 web 子图依赖,build core/engine,再 next build。
-RUN pnpm install --frozen-lockfile --ignore-scripts --filter "studio-web..."
+# web 构建需要 core/engine 的类型/产物;全量装(含 devDep typescript,build 要 tsc)。
+# --ignore-scripts 跳过 electron 二进制下载/sharp 原生编译(本镜像用不到);tsc/next 是纯 JS,正常工作。
+# (不能用 --filter "studio-web..." —— 那样 core/engine 只装生产依赖,缺 tsc → build 失败。)
+RUN pnpm install --frozen-lockfile --ignore-scripts
 RUN pnpm --filter @juanshe/core build \
  && pnpm --filter @juanshe/engine build \
  && pnpm --filter studio-web build

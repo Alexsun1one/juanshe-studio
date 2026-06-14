@@ -8,8 +8,10 @@ FROM node:22-slim AS builder
 RUN corepack enable
 WORKDIR /repo
 COPY . .
-# 只装 studio 及其工作区依赖(core/engine),不拉 studio-web/electron/cli(避免 electron 巨包与 postinstall)。
-RUN pnpm install --frozen-lockfile --ignore-scripts --filter "@juanshe/studio..."
+# 全量装(含 devDep typescript,build core/engine/studio 都要 tsc)。--ignore-scripts 跳过
+# electron 二进制下载/sharp 原生编译(本镜像用不到);最终 pnpm deploy 只挑 studio 的生产依赖进 /app。
+# (不能用 --filter "@juanshe/studio..." —— 那样 core/engine 只装生产依赖,缺 tsc → build 失败。)
+RUN pnpm install --frozen-lockfile --ignore-scripts
 # core/engine 必须先 build(deploy 打包它们的 dist),再 build studio,最后 deploy 成自包含目录。
 RUN pnpm --filter @juanshe/core build \
  && pnpm --filter @juanshe/engine build \
