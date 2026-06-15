@@ -48,6 +48,7 @@ function makeRaw(
     chapter?: number | string;
     goal?: string;
     isGoldenOpening?: boolean | string;
+    servesKr?: string | null;
     threadRefs?: ReadonlyArray<string> | null | unknown;
     body?: string;
     dropFrontmatter?: boolean;
@@ -69,8 +70,9 @@ function makeRaw(
     `chapter: ${opts.chapter ?? 12}`,
     `goal: ${opts.goal ?? "把七号门被动过手脚钉成现场实证"}`,
     `isGoldenOpening: ${opts.isGoldenOpening ?? false}`,
+    opts.servesKr === undefined ? undefined : `servesKr: ${opts.servesKr ?? "null"}`,
     threadRefsText,
-  ].join("\n");
+  ].filter((line): line is string => Boolean(line)).join("\n");
 
   return `---\n${frontmatter}\n---\n${opts.body ?? SECTIONS}\n`;
 }
@@ -82,8 +84,14 @@ describe("parseMemo", () => {
     expect(memo.goal).toBe("把七号门被动过手脚钉成现场实证");
     expect(memo.isGoldenOpening).toBe(false);
     expect(memo.threadRefs).toEqual(["H03", "S004"]);
+    expect(memo.servesKr).toBeNull();
     expect(memo.body).toContain("## 当前任务");
     expect(memo.body).toContain("## 不要做");
+  });
+
+  it("parses optional servesKr from frontmatter", () => {
+    const memo = parseMemo(makeRaw({ servesKr: "KR1" }), 12, false);
+    expect(memo.servesKr).toBe("KR1");
   });
 
   it("throws when frontmatter delimiters are missing", () => {

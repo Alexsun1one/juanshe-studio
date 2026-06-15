@@ -165,6 +165,7 @@ export async function gatherPlanningMaterials(params: {
   readonly outlineNode?: string;
   readonly mustKeep?: ReadonlyArray<string>;
   readonly seed?: PlanningSeedMaterials;
+  readonly extraPlannerInputs?: ReadonlyArray<string>;
 }): Promise<PlanningMaterials> {
   const seed = params.seed ?? await loadPlanningSeedMaterials({
     bookDir: params.bookDir,
@@ -193,6 +194,7 @@ export async function gatherPlanningMaterials(params: {
       join(seed.storyDir, "book_rules.md"),
       join(seed.storyDir, "current_state.md"),
       join(seed.storyDir, "pending_hooks.md"),
+      ...(params.extraPlannerInputs ?? []),
       ...(memorySelection.dbPath ? [memorySelection.dbPath] : []),
     ],
   };

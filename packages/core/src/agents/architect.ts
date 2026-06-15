@@ -3,28 +3,38 @@ import type { LLMMessage } from "../llm/provider.js";
 import type { BookConfig, FanficMode } from "../models/book.js";
 import type { GenreProfile } from "../models/genre-profile.js";
 import { readGenreProfile } from "./rules-reader.js";
-import { writeFile, mkdir, rm } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { renderHookSnapshot } from "../utils/memory-retrieval.js";
+import { atomicWriteFile } from "../utils/fs-atomic.js";
 import {
   shouldPromoteHook,
   type PromotionContext,
   type VolumeBoundary,
 } from "../utils/hook-promotion.js";
 import type { StoredHook } from "../state/memory-db.js";
+import { withStoryTruthWriteLock } from "../utils/story-truth-writer.js";
+import {
+  deriveVolumeOkrFromVolumeMap,
+  parseVolumeOkrJson,
+  renderVolumeOkrJson,
+  type VolumeOkr,
+} from "../utils/volume-okr.js";
 
 // ---------------------------------------------------------------------------
 // Phase 5 (v13) — Static 骨架 layer collapse
 // Phase 5 consolidation — 7 sections → 5 sections (output shrinks ~25–40%).
 //
 // Architect now produces 2 prose outline files + one-file-per-character roles/
-// folder, plus compat pointer shims. The LLM output contract is 5 blocks:
+// folder, plus compat pointer shims. The LLM output contract is 5 prose blocks
+// plus one machine-readable volume_okr_json block:
 //
-//   === SECTION: story_frame ===   4 散文段（主题 / 冲突 / 世界铁律+质感 / 终局）
-//   === SECTION: volume_map ===    5 散文段 + 尾段「6 条节奏原则（具体化 + 通用）」
-//   === SECTION: roles ===         一人一卡；主角卡承载完整弧线（起点→终点→代价）
-//   === SECTION: book_rules ===    仅 YAML frontmatter，零散文
-//   === SECTION: pending_hooks ===  13-column 表；可含 startChapter=0 种子行
+//   === SECTION: story_frame ===      4 散文段（主题 / 冲突 / 世界铁律+质感 / 终局）
+//   === SECTION: volume_map ===       5 散文段 + 尾段「6 条节奏原则（具体化 + 通用）」
+//   === SECTION: volume_okr_json ===  机读卷边界 + KR 合约
+//   === SECTION: roles ===            一人一卡；主角卡承载完整弧线（起点→终点→代价）
+//   === SECTION: book_rules ===       仅 YAML frontmatter，零散文
+//   === SECTION: pending_hooks ===     13-column 表；可含 startChapter=0 种子行
 //
 // Consolidation rules (MUST reflect in prompt):
 //   - 主角弧线只写在 roles/<主角>.md，不在 story_frame 重复
@@ -36,13 +46,14 @@ import type { StoredHook } from "../state/memory-db.js";
 //   - 独立的 current_state section 已删除。现状只在运行时写入 current_state.md
 //     （consolidator 每章追加），建书时架构师不产出结构化初始态。
 //
-// Budget table (4 content items — LLM sections):
+// Budget table (5 content items — LLM sections):
 //   story_frame ≤ 3000 chars / volume_map ≤ 5000 chars / roles 总 ≤ 8000 chars
-//   book_rules ≤ 500 chars (YAML only) / pending_hooks ≤ 2000 chars
+//   volume_okr_json ≤ 3500 chars / book_rules ≤ 500 chars (YAML only) / pending_hooks ≤ 2000 chars
 //
 // 输出落盘 contract（未变）：
 //   outline/story_frame.md      ← 4 prose sections + YAML frontmatter
 //   outline/volume_map.md       ← 5 prose sections + 节奏原则尾段
+//   outline/volume_okr.json     ← machine-readable volume/KR contract
 //   roles/主要角色/<name>.md    ← one file per major character
 //   roles/次要角色/<name>.md    ← one file per minor character
 //   story_bible.md              ← compat shim
@@ -97,6 +108,7 @@ export interface ArchitectOutput {
   readonly volumeMap?: string;
   readonly rhythmPrinciples?: string;
   readonly roles?: ReadonlyArray<ArchitectRole>;
+  readonly volumeOkr?: ReadonlyArray<VolumeOkr>;
 }
 
 export class ArchitectAgent extends BaseAgent {
@@ -147,7 +159,7 @@ export class ArchitectAgent extends BaseAgent {
       : this.buildChineseFoundationPrompt(book, gp, genreBody, contextBlock, reviewFeedbackBlock, numericalBlock, powerBlock, eraBlock);
 
     const langPrefix = resolvedLanguage === "en"
-      ? `【LANGUAGE OVERRIDE】ALL output (story_frame, volume_map, roles, book_rules, pending_hooks) MUST be written in English. Character names, place names, and all prose must be in English. The === SECTION: === tags remain unchanged. Do NOT emit rhythm_principles or current_state sections — rhythm principles live inside the last paragraph of volume_map; environment/era anchors (when relevant) are woven into story_frame's world-tonal-ground paragraph.\n\n`
+      ? `【LANGUAGE OVERRIDE】ALL output (story_frame, volume_map, volume_okr_json.desc/objective/title, roles, book_rules, pending_hooks) MUST be written in English. Character names, place names, and all prose must be in English. The === SECTION: === tags remain unchanged. Do NOT emit rhythm_principles or current_state sections — rhythm principles live inside the last paragraph of volume_map; environment/era anchors (when relevant) are woven into story_frame's world-tonal-ground paragraph.\n\n`
       : "";
     const userMessage = resolvedLanguage === "en"
       ? `Generate the complete foundation for a ${gp.name} novel titled "${book.title}". Write everything in English.`
@@ -159,7 +171,7 @@ export class ArchitectAgent extends BaseAgent {
       { role: "user", content: userMessage },
     ];
 
-    // 逐段生成:把"一次产 5 段(~1.8 万字)"拆成"每段一次有界小调用"。
+    // 逐段生成:把"一次产 6 段(~2 万字)"拆成"每段一次有界小调用"。
     // 历史真因(一次产全份时):① 本地模型不守长度,会在 story_frame 一段上写飞、撞输出上限截断,后面几段根本没写;
     // ② deepseek 等 ~8k token 输出上限的云模型也必然截断缺后段。两者都让 parseSections 报缺段、建书随机失败。
     // 逐段化后:每段输出有界(maxTokens 按段限额)、模型聚焦单段不跑飞、某段截断只影响那一段且可单独重试;
@@ -167,6 +179,7 @@ export class ArchitectAgent extends BaseAgent {
     const SECTION_PLAN: ReadonlyArray<{ key: string; label: string; limit: number }> = [
       { key: "story_frame", label: "主题与基调 / 核心冲突·对手定性·前后台双层故事 / 世界观底色(铁律+质感+本书专属规则) / 终局,共 4 段散文", limit: 3000 },
       { key: "volume_map", label: "第一卷分卷纲(5 段散文,含 3-5 个可验收小目标)+ 尾段「6 条节奏原则」", limit: 5000 },
+      { key: "volume_okr_json", label: "机读卷纲合约 JSON 数组(每卷含 volume_index/title/start_ch/end_ch/objective/krs[3])", limit: 3500 },
       { key: "roles", label: "主要角色卡(一人一块,格式 ---ROLE--- 名 ---CONTENT--- 正文;主角承载起点→终点→代价完整弧线)", limit: 8000 },
       { key: "book_rules", label: "仅 YAML frontmatter,零散文", limit: 600 },
       { key: "pending_hooks", label: "13 列伏笔表(可含 startChapter=0 的初始种子行)", limit: 2200 },
@@ -189,7 +202,7 @@ export class ArchitectAgent extends BaseAgent {
 
     for (const plan of SECTION_PLAN) {
       // 每段前先试解析:某次响应已把全份吐齐(指令遵循强的云模型一次产全 / legacy 段名)就直接交付,不再多调用。
-      try { return this.parseSections(synthesize(), resolvedLanguage); } catch { /* 还缺,继续逐段补 */ }
+      try { return this.parseSections(synthesize(), resolvedLanguage, book.targetChapters); } catch { /* 还缺,继续逐段补 */ }
       if ((accumulated.get(plan.key) ?? "").trim()) continue;
       for (let retry = 0; retry < 2; retry++) {
         const doneCtx = accumulated.size
@@ -201,14 +214,14 @@ export class ArchitectAgent extends BaseAgent {
         try {
           // 不显式 cap maxTokens(遵守「创作 agent 让 model card budget 做主」策略,见 agent-max-tokens-policy)。
           // 有界靠逐段 PROMPT:聚焦单段 + 该段字数限额 + 「写完就停」——模型对单段有界指令会自我克制,
-          // 不会再像「一次产 5 段」时在 story_frame 上写飞。模型/服务的 maxOutput 是最终安全上限。
+          // 不会再像「一次产多段」时在 story_frame 上写飞。模型/服务的 maxOutput 是最终安全上限。
           const response = await this.chat([...baseMessages, { role: "user", content: focus }], {
             temperature: retry === 0 ? 0.8 : 0.5,
             requireComplete: false,
           });
           absorb(response.content, plan.key);
           // 这次响应若已让全份凑齐(模型一次多产)→ 立即交付。
-          try { return this.parseSections(synthesize(), resolvedLanguage); } catch { /* 还缺 */ }
+          try { return this.parseSections(synthesize(), resolvedLanguage, book.targetChapters); } catch { /* 还缺 */ }
           if ((accumulated.get(plan.key) ?? "").trim()) break;
           this.ctx.logger?.warn(`架构师逐段[${plan.key}]未解析到该段,重试 ${retry + 1}/2`);
         } catch (e) {
@@ -220,7 +233,7 @@ export class ArchitectAgent extends BaseAgent {
 
     // 凑齐即交付;仍缺必填段则抛(让上层显式失败,绝不静默建半截书)。
     try {
-      return this.parseSections(synthesize(), resolvedLanguage);
+      return this.parseSections(synthesize(), resolvedLanguage, book.targetChapters);
     } catch (e) {
       throw lastErr ?? e;
     }
@@ -251,7 +264,7 @@ ${reviseFrom.bookRules || "（无）"}
 ${reviseFrom.characterMatrix || "（无）"}
 
 你的任务：
-1. 把现有内容重新组织成当前 5 段 SECTION：story_frame / volume_map / roles / book_rules / pending_hooks
+1. 把现有内容重新组织成当前 6 段 SECTION：story_frame / volume_map / volume_okr_json / roles / book_rules / pending_hooks
 2. story_frame 使用段落式世界观与核心冲突，不要退回条目表格
 3. volume_map 使用段落式卷/章级方向，并把节奏原则放进末段
 4. roles 必须按一人一卡输出，主要/次要角色判断沿用原内容，缺失才按主线重要性推断
@@ -293,7 +306,7 @@ ${numericalBlock}
 ${powerBlock}
 ${eraBlock}
 
-## 输出结构（5 个 SECTION，严格按 === SECTION: === 分块，不要漏任何一块）
+## 输出结构（6 个 SECTION，严格按 === SECTION: === 分块，不要漏任何一块）
 
 ## 去重铁律（必读）
 禁止在多段里重复同一事实。主角弧线只写在 roles；世界铁律只写在 story_frame.世界观底色；节奏原则只写在 volume_map 最后一段；角色当前现状只写在 roles.当前现状；初始钩子只写在 pending_hooks（startChapter=0 行）。**如果本书是年代文/历史同人/都市重生等需要年份、季节、重大历史事件作为锚点的题材**，把环境/时代锚自然织进 story_frame.世界观底色（"1985 年 7 月，非典刚过"这类）；**修仙/玄幻/系统等没有真实年份的题材直接省略**，不要硬凑。如果一个段落写了另一段的内容，删掉。
@@ -301,6 +314,7 @@ ${eraBlock}
 ## 预算（超预算必删）
 - story_frame ≤ 3000 chars
 - volume_map ≤ 5000 chars
+- volume_okr_json ≤ 3500 chars（仅 JSON 数组）
 - roles 总 ≤ 8000 chars
 - book_rules ≤ 500 chars（仅 YAML）
 - pending_hooks ≤ 2000 chars
@@ -363,6 +377,37 @@ ${eraBlock}
 4. 信息释放节奏——主线信息在前 1/3、中段、后 1/3 分别释放多少比例？（可通用）
 5. 爽点节奏——爽点间距多少章一个？什么类型为主？（具体化优先）
 6. 情感节点递进——情感关系每多少章必须有一次实质推进？
+
+=== SECTION: volume_okr_json ===
+
+只输出一个合法 JSON 数组，不要 Markdown 代码块，不要注释，不要散文。这个 JSON 是下游 planner 的硬合约，章号区间只允许写在这里，**不要把章号区间回填到 volume_map 散文里**。
+
+数组中每卷一个对象：
+\`\`\`json
+[
+  {
+    "volume_index": 1,
+    "title": "第1卷：卷名",
+    "start_ch": 1,
+    "end_ch": 20,
+    "objective": "本卷结束时主角必须达成的可验证状态",
+    "krs": [
+      {
+        "id": "KR1",
+        "desc": "外部观察者能判定完成/未完成的关键结果",
+        "must_advance_by_chapter": 6,
+        "target_chapters": [1, 3, 6]
+      }
+    ]
+  }
+]
+\`\`\`
+
+规则：
+- 按目标总章数 ${book.targetChapters} 把全书分成 3-5 卷；若 volume_map 已自然写出卷数，以 volume_map 的卷数为准，再均匀分配 start_ch/end_ch
+- 每卷必须 3 条 KR；KR desc 必须与 volume_map 的 Objective / Key Results 同义，不得新增一条 volume_map 没有的暗线
+- must_advance_by_chapter 表示这条 KR 最迟必须开始实质推进的章节；target_chapters 是本 KR 推荐推进的章节点，至少 2 个，必须落在本卷 start_ch/end_ch 内
+- JSON 必须能被 JSON.parse 直接解析
 
 === SECTION: roles ===
 
@@ -465,7 +510,7 @@ enableFullCastTracking: false
 - **pending_hooks 表必须包含 Phase 7 扩展列——depends_on 标出因果链、pays_off_in_arc 锁定回收大致位置、core_hook 标记主线承重伏笔（3-7 条）、half_life 仅给重点伏笔设置**
 
 ## 硬性完结检查（生成前读一遍）
-必须依次输出全部 **5 个 SECTION 块**：story_frame → volume_map → roles → book_rules → pending_hooks，不允许因为 story_frame 或 volume_map 写长了就不写后 3 段。哪怕 roles 只列 3 个角色、book_rules 只有 YAML 小块、pending_hooks 只有 3 行，也要完整输出。只有写完 pending_hooks 最后一行才算交付。`;
+必须依次输出全部 **6 个 SECTION 块**：story_frame → volume_map → volume_okr_json → roles → book_rules → pending_hooks，不允许因为 story_frame 或 volume_map 写长了就不写后 4 段。哪怕 roles 只列 3 个角色、book_rules 只有 YAML 小块、pending_hooks 只有 3 行，也要完整输出。只有写完 pending_hooks 最后一行才算交付。`;
   }
 
   private buildEnglishFoundationPrompt(
@@ -495,7 +540,7 @@ ${numericalBlock}
 ${powerBlock}
 ${eraBlock}
 
-## Output contract (5 === SECTION: === blocks)
+## Output contract (6 === SECTION: === blocks)
 
 ## Deduplication rule (MANDATORY)
 Do not duplicate the same fact across sections. The protagonist's arc lives only in roles; world hard-rules live only in story_frame; rhythm principles live only in the last paragraph of volume_map; character initial status lives only in roles.Current_State; initial hooks live only in pending_hooks (start_chapter=0 rows). **When the book is period fiction / historical fanfic / urban reincarnation** — anything pinned to a real year, season, or historic marker — weave the environment/era anchor into story_frame's world-tonal-ground paragraph (e.g. "July 1985, just after the SARS wave"). **For cultivation / high-fantasy / system genres that have no real-world year, skip it entirely** — do not fabricate an era anchor. If a section repeats content that belongs elsewhere, delete it.
@@ -503,6 +548,7 @@ Do not duplicate the same fact across sections. The protagonist's arc lives only
 ## Output budget (over-budget means cut)
 - story_frame ≤ 3000 chars
 - volume_map ≤ 5000 chars
+- volume_okr_json ≤ 3500 chars (JSON array only)
 - roles ≤ 8000 chars total
 - book_rules ≤ 500 chars (YAML only)
 - pending_hooks ≤ 2000 chars
@@ -559,6 +605,37 @@ Each volume's last chapter must contain an irreversible event. Prose, one paragr
 
 ## 05_Rhythm_Principles (concrete + universal)
 **This is the single home for rhythm principles — no separate rhythm_principles section exists.** Output 6 rhythm principles. **At least 3 must be concretized for this book** (e.g., "every 5 chapters in the first 30, hit one small payoff"); the rest may stay as universal rules (e.g., "no deus ex machina", "plant the foreshadow 3-5 chapters before the climax"). A mix of concrete + universal is valid. Bad: "rhythm must balance tension and release". Good: "every 5 chapters in the first 30 carries a small payoff landing in the last 300 chars of the chapter". Cover (order flexible, substitutions of equal weight are allowed): (1) climax spacing, (2) breath frequency, (3) hook density, (4) information release pacing, (5) payoff rhythm, (6) relationship advancement — each 2-3 sentences.
+
+=== SECTION: volume_okr_json ===
+
+Output only a valid JSON array. No Markdown fence, no comments, no prose. This JSON is the hard downstream planner contract. Chapter ranges belong here only; **do not copy chapter ranges back into the prose volume_map**.
+
+Each volume object must use this shape:
+\`\`\`json
+[
+  {
+    "volume_index": 1,
+    "title": "Volume 1: title",
+    "start_ch": 1,
+    "end_ch": 20,
+    "objective": "The verifiable state the protagonist must reach by volume end",
+    "krs": [
+      {
+        "id": "KR1",
+        "desc": "A key result an outside observer can judge achieved / not achieved",
+        "must_advance_by_chapter": 6,
+        "target_chapters": [1, 3, 6]
+      }
+    ]
+  }
+]
+\`\`\`
+
+Rules:
+- Split the book's ${book.targetChapters} target chapters into 3-5 volumes. If volume_map naturally defined a volume count, keep that count and distribute start_ch/end_ch evenly.
+- Each volume must have exactly 3 KRs. KR desc must match the Objective / Key Results already described in volume_map; do not add a new hidden subplot that volume_map did not promise.
+- must_advance_by_chapter is the latest chapter by which this KR must start making visible progress. target_chapters are recommended advancement checkpoints, at least 2 numbers, all inside the volume range.
+- JSON must be directly parseable with JSON.parse.
 
 === SECTION: roles ===
 
@@ -659,7 +736,7 @@ Rules:
 - **pending_hooks table MUST carry Phase 7 extended columns — depends_on spells out the causal chain, pays_off_in_arc locks the approximate payoff location, core_hook marks main-line load-bearing hooks (3-7 per book), half_life only on priority hooks**
 
 ## Hard completeness check (read before generating)
-You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → roles → book_rules → pending_hooks. Do NOT stop after story_frame or volume_map just because they ran long. Even if roles lists only 3 characters, book_rules is a tiny YAML block, and pending_hooks has only 3 rows, all five must appear. The output is only considered delivered after the last row of pending_hooks is written.`;
+You MUST emit all **6 SECTION blocks in order**: story_frame → volume_map → volume_okr_json → roles → book_rules → pending_hooks. Do NOT stop after story_frame or volume_map just because they ran long. Even if roles lists only 3 characters, book_rules is a tiny YAML block, and pending_hooks has only 3 rows, all six must appear. The output is only considered delivered after the last row of pending_hooks is written.`;
   }
 
   // -------------------------------------------------------------------------
@@ -680,12 +757,13 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
     }
     return parsedSections;
   }
-  private parseSections(content: string, language: "zh" | "en"): ArchitectOutput {
+  private parseSections(content: string, language: "zh" | "en", targetChapters?: number): ArchitectOutput {
     const parsedSections = this.extractSectionMap(content);
 
     // Phase 5 new sections take precedence.
     const storyFrame = parsedSections.get("story_frame") ?? "";
     const volumeMap = parsedSections.get("volume_map") ?? "";
+    const volumeOkrRaw = parsedSections.get("volume_okr_json") ?? "";
     const rhythmPrinciples = parsedSections.get("rhythm_principles") ?? "";
     const rolesRaw = parsedSections.get("roles") ?? "";
 
@@ -705,8 +783,11 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
     const currentStateLegacy = parsedSections.get("current_state") ?? "";
     const pendingHooksRaw = parsedSections.get("pending_hooks");
 
-    // 5-section required contract: story_frame (or legacy story_bible),
+    // Required contract: story_frame (or legacy story_bible),
     // volume_map (or legacy volume_outline), roles, book_rules, pending_hooks.
+    // volume_okr_json is a hard contract for newly prompted outputs, but older
+    // fixtures/imports can omit it; in that case we derive a conservative JSON
+    // contract from volume_map + targetChapters.
     //
     // Backward compat: v12 outputs used story_bible/volume_outline and
     // embedded character data inside story_bible — they had no roles block.
@@ -735,6 +816,17 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
       this.stripTrailingAssistantCoda(pendingHooksRaw!),
       effectiveVolumeMap,
     );
+    // 非严格解析:LLM 吐空/畸形 volume_okr_json 时返回 [],绝不抛错崩掉建书
+    // (import/同人路径 parseSections 无 try/catch,严格版会让整本建书崩);
+    // 解析为空(缺失或畸形)就从 volume_map + 章数派生保守合约,符合 788-790 注释意图。
+    const parsedVolumeOkr = parseVolumeOkrJson(volumeOkrRaw);
+    const volumeOkr = parsedVolumeOkr.length > 0
+      ? parsedVolumeOkr
+      : deriveVolumeOkrFromVolumeMap({
+          volumeMap: effectiveVolumeMap,
+          targetChapters,
+          language,
+        });
 
     // Synthesize legacy-facing content from new prose (so back-compat callers
     // still receive real content instead of empty strings).
@@ -754,6 +846,7 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
       volumeMap: effectiveVolumeMap,
       rhythmPrinciples,
       roles,
+      volumeOkr,
     };
   }
 
@@ -846,7 +939,10 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
       mkdir(rolesMinorDir, { recursive: true }),
     ]);
 
-    const writes: Array<Promise<void>> = [];
+    const writes: Array<() => Promise<void>> = [];
+    const enqueueWrite = (filePath: string, content: string): void => {
+      writes.push(() => atomicWriteFile(filePath, content));
+    };
 
     const storyFrameBody = output.storyFrame ?? output.storyBible;
     const volumeMap = output.volumeMap ?? output.volumeOutline;
@@ -869,16 +965,15 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
     }
 
     if (!isPhase5Output) {
-      writes.push(writeFile(join(storyDir, "story_bible.md"), output.storyBible, "utf-8"));
-      writes.push(writeFile(join(storyDir, "volume_outline.md"), output.volumeOutline, "utf-8"));
-      writes.push(writeFile(join(storyDir, "book_rules.md"), output.bookRules, "utf-8"));
-      writes.push(writeFile(
+      enqueueWrite(join(storyDir, "story_bible.md"), output.storyBible);
+      enqueueWrite(join(storyDir, "volume_outline.md"), output.volumeOutline);
+      enqueueWrite(join(storyDir, "book_rules.md"), output.bookRules);
+      enqueueWrite(
         join(storyDir, "character_matrix.md"),
         language === "en"
           ? "# Character Matrix\n\n<!-- One ## section per character. Add new characters as new ## blocks. -->\n"
           : "# 角色矩阵\n\n<!-- 每个角色一个 ## 块，新角色追加新 ## 即可。 -->\n",
-        "utf-8",
-      ));
+      );
 
       if (mode === "init") {
         const currentStateSeed = output.currentState?.trim()
@@ -886,18 +981,19 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
           : (language === "en"
               ? "# Current State\n\n> Seeded at book creation. Runtime state is appended by the consolidator after each chapter.\n"
               : "# 当前状态\n\n> 建书时占位。运行时每章之后由 consolidator 追加最新状态。\n");
-        writes.push(writeFile(join(storyDir, "current_state.md"), currentStateSeed, "utf-8"));
-        writes.push(writeFile(join(storyDir, "pending_hooks.md"), output.pendingHooks, "utf-8"));
-        writes.push(writeFile(
+        enqueueWrite(join(storyDir, "current_state.md"), currentStateSeed);
+        enqueueWrite(join(storyDir, "pending_hooks.md"), output.pendingHooks);
+        enqueueWrite(
           join(storyDir, "emotional_arcs.md"),
           language === "en"
             ? "# Emotional Arcs\n\n| Character | Chapter | Emotional State | Trigger Event | Intensity (1-10) | Arc Direction |\n| --- | --- | --- | --- | --- | --- |\n"
             : "# 情感弧线\n\n| 角色 | 章节 | 情绪状态 | 触发事件 | 强度(1-10) | 弧线方向 |\n|------|------|----------|----------|------------|----------|\n",
-          "utf-8",
-        ));
+        );
       }
 
-      await Promise.all(writes);
+      await withStoryTruthWriteLock(storyDir, async () => {
+        await Promise.all(writes.map((write) => write()));
+      });
       return;
     }
 
@@ -910,10 +1006,17 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
     const storyFrame = bookRulesFrontmatter
       ? `${bookRulesFrontmatter}\n\n${storyFrameBody.trim()}\n`
       : storyFrameBody;
+    const volumeOkr = output.volumeOkr && output.volumeOkr.length > 0
+      ? output.volumeOkr
+      : deriveVolumeOkrFromVolumeMap({
+          volumeMap,
+          language,
+        });
 
     // Phase 5 primary prose files
-    writes.push(writeFile(join(outlineDir, "story_frame.md"), storyFrame, "utf-8"));
-    writes.push(writeFile(join(outlineDir, "volume_map.md"), volumeMap, "utf-8"));
+    enqueueWrite(join(outlineDir, "story_frame.md"), storyFrame);
+    enqueueWrite(join(outlineDir, "volume_map.md"), volumeMap);
+    enqueueWrite(join(outlineDir, "volume_okr.json"), renderVolumeOkrJson(volumeOkr));
     // Phase 5 consolidation: rhythm principles live inside the last paragraph
     // of volume_map. A separate 节奏原则.md / rhythm_principles.md file is only
     // written when the architect happened to produce a standalone block (legacy
@@ -923,7 +1026,7 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
     // content already pull it from volume_map's closing paragraph.
     if (rhythmPrinciples.trim()) {
       const rhythmFileName = language === "en" ? "rhythm_principles.md" : "节奏原则.md";
-      writes.push(writeFile(join(outlineDir, rhythmFileName), rhythmPrinciples, "utf-8"));
+      enqueueWrite(join(outlineDir, rhythmFileName), rhythmPrinciples);
     }
 
     // Roles — one file per character
@@ -931,20 +1034,18 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
       const targetDir = role.tier === "major" ? rolesMajorDir : rolesMinorDir;
       const safeName = role.name.replace(/[/\\:*?"<>|]/g, "_").trim();
       if (!safeName) continue;
-      writes.push(writeFile(join(targetDir, `${safeName}.md`), role.content, "utf-8"));
+      enqueueWrite(join(targetDir, `${safeName}.md`), role.content);
     }
 
     // Compat shims — these are pointer files, not authoritative content.
-    writes.push(writeFile(
+    enqueueWrite(
       join(storyDir, "story_bible.md"),
       this.buildStoryBibleShim(storyFrame, language),
-      "utf-8",
-    ));
-    writes.push(writeFile(
+    );
+    enqueueWrite(
       join(storyDir, "character_matrix.md"),
       this.buildCharacterMatrixShim(roles, language),
-      "utf-8",
-    ));
+    );
 
     // Cleanup #1: volume_outline.md mirror removed. All readers now resolve
     // through readVolumeMap() in utils/outline-paths.ts, which prefers
@@ -954,11 +1055,10 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
     // book_rules.md is now a compat shim — the authoritative YAML
     // frontmatter lives on story_frame.md (cleanup #3). readBookRules()
     // prefers story_frame.md but still falls back here for older books.
-    writes.push(writeFile(
+    enqueueWrite(
       join(storyDir, "book_rules.md"),
       this.buildBookRulesShim(bookRulesBody, language),
-      "utf-8",
-    ));
+    );
 
     // Runtime state files.
     // Phase 5 consolidation: the architect no longer emits a current_state
@@ -976,15 +1076,14 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
         : (language === "en"
             ? "# Current State\n\n> Seeded at book creation. Runtime state is appended by the consolidator after each chapter. Initial per-character state lives in roles/*.Current_State; load-bearing initial world facts live in pending_hooks rows with start_chapter=0.\n"
             : "# 当前状态\n\n> 建书时占位。运行时每章之后由 consolidator 追加最新状态。每个角色的初始状态详见 roles/*.当前现状；承重的初始世界设定见 pending_hooks 里 startChapter=0 的行。\n");
-      writes.push(writeFile(join(storyDir, "current_state.md"), currentStateSeed, "utf-8"));
-      writes.push(writeFile(join(storyDir, "pending_hooks.md"), output.pendingHooks, "utf-8"));
-      writes.push(writeFile(
+      enqueueWrite(join(storyDir, "current_state.md"), currentStateSeed);
+      enqueueWrite(join(storyDir, "pending_hooks.md"), output.pendingHooks);
+      enqueueWrite(
         join(storyDir, "emotional_arcs.md"),
         language === "en"
           ? "# Emotional Arcs\n\n| Character | Chapter | Emotional State | Trigger Event | Intensity (1-10) | Arc Direction |\n| --- | --- | --- | --- | --- | --- |\n"
           : "# 情感弧线\n\n| 角色 | 章节 | 情绪状态 | 触发事件 | 强度(1-10) | 弧线方向 |\n|------|------|----------|----------|------------|----------|\n",
-        "utf-8",
-      ));
+      );
     }
 
     // Cleanup #2 (Option B): particle_ledger.md / subplot_board.md /
@@ -996,7 +1095,9 @@ You MUST emit all **5 SECTION blocks in order**: story_frame → volume_map → 
     // them naturally. The `_numericalSystem` parameter is kept for API
     // compatibility with existing callers.
 
-    await Promise.all(writes);
+    await withStoryTruthWriteLock(storyDir, async () => {
+      await Promise.all(writes.map((write) => write()));
+    });
   }
 
   /**
@@ -1060,7 +1161,7 @@ ${numericalBlock}
 ${continuationDirective}
 
 ## Output contract
-Follow the consolidated 5-section === SECTION: === layout: story_frame, volume_map, roles, book_rules, pending_hooks. Do NOT emit rhythm_principles or current_state — rhythm principles live in the last paragraph of volume_map; character initial status lives in roles.Current_State; initial hooks live in pending_hooks start_chapter=0 rows; era / setting anchors (only when the genre pins to a real year) are woven into story_frame's world-tonal-ground paragraph.
+Follow the consolidated 6-section === SECTION: === layout: story_frame, volume_map, volume_okr_json, roles, book_rules, pending_hooks. volume_okr_json is a JSON array with volume_index/title/start_ch/end_ch/objective/krs. Do NOT emit rhythm_principles or current_state — rhythm principles live in the last paragraph of volume_map; character initial status lives in roles.Current_State; initial hooks live in pending_hooks start_chapter=0 rows; era / setting anchors (only when the genre pins to a real year) are woven into story_frame's world-tonal-ground paragraph.
 
 All prose must be derived from the source package. Do not invent settings. If the package says it is compressed, treat chapter catalog + excerpts as evidence for the foundation; the full chapters will be replayed later for detailed truth files. For volume_map, treat existing chapters as "review" (one paragraph) and continuation as prose chapter-level planning. Hook extraction must be complete for the evidence provided.
 
@@ -1081,7 +1182,7 @@ ${numericalBlock}
 ${continuationDirective}
 
 ## 输出契约
-合并后的 5 段 === SECTION: === 结构：story_frame / volume_map / roles / book_rules / pending_hooks。**不要输出 rhythm_principles 或 current_state 两个 section**——节奏原则合并进 volume_map 尾段，角色初始状态合并进 roles.当前现状，初始钩子写在 pending_hooks startChapter=0 行；环境/时代锚（只有年代文 / 历史同人 / 都市重生等真实年份题材需要）织进 story_frame.世界观底色，其他题材直接省略。
+合并后的 6 段 === SECTION: === 结构：story_frame / volume_map / volume_okr_json / roles / book_rules / pending_hooks。volume_okr_json 是 JSON 数组，字段为 volume_index/title/start_ch/end_ch/objective/krs。**不要输出 rhythm_principles 或 current_state 两个 section**——节奏原则合并进 volume_map 尾段，角色初始状态合并进 roles.当前现状，初始钩子写在 pending_hooks startChapter=0 行；环境/时代锚（只有年代文 / 历史同人 / 都市重生等真实年份题材需要）织进 story_frame.世界观底色，其他题材直接省略。
 
 所有 prose 必须从资料包中推导，不得臆造。若资料包声明为压缩包，把章节目录和正文摘录当作基础设定证据；完整章节会在后续回放阶段逐章进入 truth files。volume_map 中，已有章节作为"回顾段"（一段散文），续写部分写到章级 prose。伏笔识别以资料包提供的证据为准，尽量完整。`;
 
@@ -1094,7 +1195,7 @@ ${continuationDirective}
       { role: "user", content: userMessage },
     ], { temperature: 0.5, requireComplete: true });
 
-    return this.parseSections(response.content, resolvedLanguage);
+    return this.parseSections(response.content, resolvedLanguage, book.targetChapters);
   }
 
   async generateFanficFoundation(
@@ -1134,7 +1235,7 @@ ${fanficCanon}
 ${genreBody}
 
 ## 输出契约
-严格按合并后的 5 段 === SECTION: === 块输出：story_frame / volume_map / roles / book_rules / pending_hooks。**不要输出 rhythm_principles 或 current_state**：节奏原则合并进 volume_map 尾段；角色初始状态写在 roles.当前现状，初始钩子写在 pending_hooks startChapter=0 行；环境/时代锚（仅当同人的原作/本作锚定真实年份时）织进 story_frame.世界观底色，其他情况省略。
+严格按合并后的 6 段 === SECTION: === 块输出：story_frame / volume_map / volume_okr_json / roles / book_rules / pending_hooks。volume_okr_json 是 JSON 数组，字段为 volume_index/title/start_ch/end_ch/objective/krs。**不要输出 rhythm_principles 或 current_state**：节奏原则合并进 volume_map 尾段；角色初始状态写在 roles.当前现状，初始钩子写在 pending_hooks startChapter=0 行；环境/时代锚（仅当同人的原作/本作锚定真实年份时）织进 story_frame.世界观底色，其他情况省略。
 
 - 主要角色必须来自原作正典
 - 可添加原创配角，标注"原创"
@@ -1151,7 +1252,7 @@ ${genreBody}
       },
     ], { temperature: 0.7, requireComplete: true });
 
-    return this.parseSections(response.content, book.language ?? "zh");
+    return this.parseSections(response.content, book.language ?? "zh", book.targetChapters);
   }
 
   // -------------------------------------------------------------------------

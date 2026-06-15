@@ -1,4 +1,5 @@
 import { parseChapterSummariesMarkdown } from "./story-markdown.js";
+import { parseVolumeOkrJson } from "./volume-okr.js";
 
 export interface VolumeCadenceFileSet {
   readonly cadenceMarkdown: string;
@@ -19,6 +20,13 @@ interface VolumeKr {
   readonly description: string;
 }
 
+export interface KrSignalSource {
+  readonly id: string;
+  readonly description: string;
+}
+
+export type VolumeKrSignalMatcher = (text: string, kr: KrSignalSource) => boolean;
+
 interface KrProgress {
   readonly volume_index: number;
   readonly volume_name: string;
@@ -32,11 +40,22 @@ interface KrProgress {
 
 export function buildVolumeCadenceFileSet(params: {
   readonly volumeMap: string;
+  readonly volumeOkrJson?: string;
   readonly chapterSummaries: string;
   readonly language?: "zh" | "en";
   readonly futureWindow?: number;
+  readonly krSignalMatcher?: VolumeKrSignalMatcher;
 }): VolumeCadenceFileSet | null {
-  const volumes = parseVolumeRanges(params.volumeMap);
+  const volumeOkr = parseVolumeOkrJson(params.volumeOkrJson ?? "");
+  const usingVolumeOkr = volumeOkr.length > 0;
+  const volumes = usingVolumeOkr
+    ? volumeOkr.map((volume) => ({
+        index: volume.volume_index,
+        name: volume.title,
+        startCh: volume.start_ch,
+        endCh: volume.end_ch,
+      }))
+    : parseVolumeRanges(params.volumeMap);
   if (volumes.length === 0) return null;
 
   const summaries = parseChapterSummariesMarkdown(params.chapterSummaries);
@@ -47,12 +66,20 @@ export function buildVolumeCadenceFileSet(params: {
     ?? volumes[0]!;
   const window = Math.max(10, Math.min(20, params.futureWindow ?? 16));
   const futureEnd = Math.min(currentVolume.endCh, nextChapter + window - 1);
-  const krs = parseVolumeKrs(params.volumeMap, volumes);
+  const krs = usingVolumeOkr
+    ? volumeOkr.flatMap((volume) => volume.krs.map((kr) => ({
+        id: kr.id,
+        volumeIndex: volume.volume_index,
+        volumeName: volume.title,
+        description: kr.desc,
+      })))
+    : parseVolumeKrs(params.volumeMap, volumes);
   const currentKrs = krs.filter((kr) => kr.volumeIndex === currentVolume.index);
   const progress = buildKrProgress({
     volume: currentVolume,
     krs: currentKrs,
     summaries,
+    krSignalMatcher: params.krSignalMatcher ?? matchesKrSignal,
   });
   const language = params.language ?? "zh";
 
@@ -67,6 +94,7 @@ export function buildVolumeCadenceFileSet(params: {
     krProgressJson: `${JSON.stringify({
       schema_version: 1,
       generated_from: {
+        volume_contract: usingVolumeOkr ? "story/outline/volume_okr.json" : "story/outline/volume_map.md",
         volume_map: "story/outline/volume_map.md",
         chapter_summaries: "story/chapter_summaries.md",
       },
@@ -87,6 +115,7 @@ function buildKrProgress(params: {
   readonly volume: VolumeRange;
   readonly krs: ReadonlyArray<VolumeKr>;
   readonly summaries: ReturnType<typeof parseChapterSummariesMarkdown>;
+  readonly krSignalMatcher: VolumeKrSignalMatcher;
 }): KrProgress[] {
   const volumeSummaries = params.summaries.filter(
     (summary) => summary.chapter >= params.volume.startCh && summary.chapter <= params.volume.endCh,
@@ -104,10 +133,10 @@ function buildKrProgress(params: {
 
   return krs.map((kr) => {
     const matched = volumeSummaries.filter((summary) =>
-      includesKrSignal(summary.events, kr) ||
-      includesKrSignal(summary.stateChanges, kr) ||
-      includesKrSignal(summary.hookActivity, kr) ||
-      includesKrSignal(summary.chapterType, kr),
+      params.krSignalMatcher(summary.events, kr) ||
+      params.krSignalMatcher(summary.stateChanges, kr) ||
+      params.krSignalMatcher(summary.hookActivity, kr) ||
+      params.krSignalMatcher(summary.chapterType, kr),
     ).length;
     const contentProgressPercent = Math.min(100, Math.round((matched / expectedPerKr) * 100));
     const timePercent = Math.min(100, Math.round((elapsedChapters / expectedPerKr) * 100));
@@ -131,19 +160,174 @@ function buildKrProgress(params: {
   });
 }
 
-function includesKrSignal(text: string, kr: VolumeKr): boolean {
-  const haystack = text.toLowerCase();
-  if (haystack.includes(kr.id.toLowerCase())) return true;
-  return tokenizeKr(kr.description).some((token) => haystack.includes(token.toLowerCase()));
+export function matchesKrSignal(text: string, kr: KrSignalSource): boolean {
+  const haystack = normalizeSignalText(text);
+  if (!haystack) return false;
+
+  const id = kr.id.trim();
+  if (id && matchesIdentifier(haystack, id)) return true;
+
+  const terms = extractKrSignalTerms(kr.description);
+  if (terms.exactPhrases.some((phrase) => haystack.includes(normalizeSignalText(phrase)))) {
+    return true;
+  }
+
+  const matchedEntities = countMatches(haystack, terms.entities);
+  const matchedOutcomes = countMatches(haystack, terms.outcomes);
+  const matchedNumbers = countMatches(haystack, terms.numbers);
+
+  if (matchedEntities >= 1 && matchedOutcomes >= 1) return true;
+  if (matchedNumbers >= 1 && matchedOutcomes >= 1) return true;
+  if (terms.entities.length === 0 && matchedOutcomes >= Math.min(2, terms.outcomes.length)) return true;
+
+  const totalTerms = terms.entities.length + terms.outcomes.length + terms.numbers.length;
+  const matchedTerms = matchedEntities + matchedOutcomes + matchedNumbers;
+  return totalTerms >= 3 && matchedTerms >= 3 && matchedTerms / totalTerms >= 0.6;
 }
 
-function tokenizeKr(description: string): string[] {
-  const tokens = description
-    .split(/[，。；;、,\s]+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 2)
-    .filter((token) => !/^(完成|发现|拿到|成为|推进|建立|锁定|first|the|and)$/i.test(token));
-  return tokens.slice(0, 4);
+function matchesIdentifier(haystack: string, rawId: string): boolean {
+  const id = normalizeSignalText(rawId);
+  if (!id) return false;
+  if (/^[a-z0-9_-]+$/i.test(id)) {
+    return new RegExp(`\\b${escapeRegex(id)}\\b`, "i").test(haystack);
+  }
+  return haystack.includes(id);
+}
+
+function extractKrSignalTerms(description: string): {
+  readonly exactPhrases: string[];
+  readonly entities: string[];
+  readonly outcomes: string[];
+  readonly numbers: string[];
+} {
+  const normalized = description.trim();
+  const numbers = dedupe(normalized.match(/\d+(?:\.\d+)?/g) ?? []);
+  const quoted = dedupe(
+    [...normalized.matchAll(/["“”']([^"“”'\n]{2,})["“”']/g)]
+      .map((match) => match[1]!.trim()),
+  );
+  const asciiTerms = dedupe(
+    normalized
+      .match(/[A-Za-z][A-Za-z0-9_-]{2,}/g)
+      ?.map((term) => term.toLowerCase())
+      .filter((term) => !ASCII_STOPWORDS.has(term)) ?? [],
+  );
+  const cjkTerms = extractCjkTerms(normalized);
+  const exactPhrases = dedupe([
+    normalized.replace(/\s+/g, ""),
+    ...quoted,
+    ...cjkTerms.filter((term) => term.length >= 6),
+  ]).filter((term) => normalizeSignalText(term).length >= 6);
+  const entities = dedupe([
+    ...quoted,
+    ...asciiTerms,
+    ...cjkTerms.filter((term) => !isOutcomeTerm(term)),
+  ]).filter((term) => normalizeSignalText(term).length >= 2);
+  const outcomes = dedupe([
+    ...cjkTerms.filter(isOutcomeTerm),
+    ...extractKnownOutcomePhrases(normalized),
+  ]).filter((term) => normalizeSignalText(term).length >= 2);
+
+  return {
+    exactPhrases,
+    entities,
+    outcomes,
+    numbers,
+  };
+}
+
+function extractCjkTerms(text: string): string[] {
+  const chunks = text.match(/[\u4e00-\u9fff0-9]{2,}/g) ?? [];
+  const terms: string[] = [];
+  for (const chunk of chunks) {
+    const normalized = chunk.replace(/^[第个条位]+|[的了着过]$/g, "");
+    if (normalized.length < 2) continue;
+    for (const part of normalized.split(CJK_SPLITTER)) {
+      const cleaned = part.replace(/^[第个条位]+|[的了着过]$/g, "");
+      if (cleaned.length >= 2 && !CJK_STOP_TERMS.has(cleaned)) {
+        terms.push(cleaned);
+      }
+    }
+    for (const phrase of extractKnownOutcomePhrases(normalized)) {
+      terms.push(phrase);
+    }
+    if (normalized.length >= 6) {
+      terms.push(normalized);
+    }
+  }
+  return dedupe(terms);
+}
+
+const CJK_SPLITTER = /(?:并|且|与|和|把|将|让|被|从|到|在|为|对|通过|正式|开始|继续|完成|发现|拿到|成为|推进|建立|锁定|确认|提出|登场|接下|接住|结成|揭开|获得|公开|拿下|进入|兑现|交给|签下|达成|暴露|证明|掌握)/u;
+
+const CJK_STOP_TERMS = new Set([
+  "本卷",
+  "主角",
+  "外部观察者",
+  "关键结果",
+  "卷级目标",
+  "目标",
+  "状态",
+  "真相",
+  "线索",
+  "关系",
+  "事件",
+]);
+
+const ASCII_STOPWORDS = new Set([
+  "and",
+  "the",
+  "for",
+  "with",
+  "from",
+  "into",
+  "must",
+  "advance",
+  "volume",
+  "objective",
+  "checkpoint",
+  "result",
+  "state",
+  "goal",
+]);
+
+function extractKnownOutcomePhrases(text: string): string[] {
+  const phrases = [
+    "稳定盟约",
+    "亡母悼词",
+    "母女关系",
+    "父辈案卷",
+    "第一半页残片",
+    "药园执事",
+    "正式同盟",
+    "现场实证",
+    "公开真相",
+  ];
+  return phrases.filter((phrase) => text.includes(phrase));
+}
+
+function isOutcomeTerm(term: string): boolean {
+  if (extractKnownOutcomePhrases(term).length > 0) return true;
+  return /(盟约|委托|悼词|真相|实证|证据|位置|执事|残片|案卷|同盟|身份|权力|公开|暴露|兑现|结清|拿下)$/.test(term);
+}
+
+function countMatches(haystack: string, terms: ReadonlyArray<string>): number {
+  return terms.filter((term) => {
+    const normalized = normalizeSignalText(term);
+    return normalized.length > 0 && haystack.includes(normalized);
+  }).length;
+}
+
+function normalizeSignalText(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, "").trim();
+}
+
+function dedupe(values: ReadonlyArray<string>): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function renderCadenceMarkdown(input: {

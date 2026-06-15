@@ -99,6 +99,7 @@ describe("PolisherAgent", () => {
         chapter: 7,
         goal: "陆焚拿回残刃",
         isGoldenOpening: false,
+        servesKr: null,
         body: "## 当前任务\n陆焚拿回残刃。",
         threadRefs: [],
       },

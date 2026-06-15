@@ -39,11 +39,21 @@ import {
   readVolumeCadenceGuidance,
   readSubplotBoard,
 } from "./planner-context.js";
-import type { StoredHook } from "../state/memory-db.js";
+import type { StoredHook, StoredSummary } from "../state/memory-db.js";
 import { DEFAULT_CHAPTER_CADENCE_WINDOW } from "../utils/chapter-cadence.js";
 import { buildOpeningLedgerBrief } from "../utils/opening-ledger.js";
 import { buildNarrativeProgressDashboard } from "../utils/narrative-progress-dashboard.js";
 import { maybeRenewCoreHooks } from "../utils/hook-renewal.js";
+import { parseHookLedger } from "../utils/hook-ledger-validator.js";
+import { parseChapterSummariesMarkdown } from "../utils/story-markdown.js";
+import { matchesKrSignal } from "../utils/volume-cadence-plan.js";
+import {
+  findVolumeOkrForChapter,
+  readVolumeOkrFile,
+  selectVolumeKrForChapter,
+  type VolumeOkr,
+  type VolumeOkrKr,
+} from "../utils/volume-okr.js";
 
 export interface PlanChapterInput {
   readonly book: BookConfig;
@@ -61,6 +71,12 @@ export interface PlanChapterOutput {
 }
 
 const MEMO_RETRY_LIMIT = 3;
+const VOLUME_KR_STALL_LIMIT = 3;
+
+interface VolumeOkrChapterAnchor {
+  readonly volume: VolumeOkr;
+  readonly kr: VolumeOkrKr;
+}
 
 /**
  * Phase 3 planner.
@@ -90,14 +106,18 @@ export class PlannerAgent extends BaseAgent {
       bookDir: input.bookDir,
       chapterNumber: input.chapterNumber,
     });
-    const outlineNode = this.findOutlineNode(seedMaterials.volumeOutline, input.chapterNumber);
-    const goal = this.deriveGoal(
-      input.externalContext,
-      seedMaterials.currentFocus,
-      seedMaterials.authorIntent,
+    const volumeOkr = await readVolumeOkrFile(input.bookDir);
+    const volumeOkrAnchor = this.findVolumeOkrAnchor(volumeOkr, input.chapterNumber);
+    const outlineNode = this.findOutlineNode(seedMaterials.volumeOutline, input.chapterNumber, volumeOkrAnchor);
+    const goal = this.deriveGoal({
+      externalContext: input.externalContext,
+      currentFocus: seedMaterials.currentFocus,
+      authorIntent: seedMaterials.authorIntent,
       outlineNode,
-      input.chapterNumber,
-    );
+      chapterNumber: input.chapterNumber,
+      volumeOkrAnchor,
+      language: input.book.language ?? "zh",
+    });
     // Phase hotfix 5: read structured rules through the Phase 5 authoritative
     // loader. It prefers outline/story_frame.md frontmatter, falls back to
     // legacy book_rules.md, and refuses to silently zero out rules when the
@@ -115,6 +135,9 @@ export class PlannerAgent extends BaseAgent {
       outlineNode,
       mustKeep,
       seed: seedMaterials,
+      extraPlannerInputs: volumeOkr.length > 0
+        ? [join(storyDir, "outline", "volume_okr.json")]
+        : [],
     });
     const memorySelection = materials.memorySelection;
     await maybeRenewCoreHooks({
@@ -176,6 +199,7 @@ export class PlannerAgent extends BaseAgent {
       // 导致长线被遗忘、爽点/冲突跨卷重复、跑题。现在它能看到早年埋的线和本卷该往哪收。
       recalledSummaries: renderSummarySnapshot(memorySelection.summaries, input.book.language ?? "zh"),
       volumeDirection: String(outlineNode ?? ""),
+      volumeOkrAnchor,
       // Phase hotfix 4: thread book language through so the planner uses
       // English prompts (system + user template + golden opening guidance)
       // for English books instead of always-Chinese.
@@ -231,6 +255,7 @@ export class PlannerAgent extends BaseAgent {
     readonly progressDashboardMemoSection?: string;
     readonly recalledSummaries?: string;
     readonly volumeDirection?: string;
+    readonly volumeOkrAnchor?: VolumeOkrChapterAnchor;
     readonly language?: "zh" | "en";
   }): Promise<ChapterMemo> {
     const [characterMatrix, subplotBoard, emotionalArcs, pendingHooks, bookRulesRaw, openingLedgerBrief, auditFeedback, volumeCadenceGuidance] = await Promise.all([
@@ -329,12 +354,17 @@ export class PlannerAgent extends BaseAgent {
       chapterNumber: input.chapterNumber,
       isGoldenOpening: input.isGoldenOpening,
       fallbackGoal: input.fallbackGoal,
+      volumeOkrAnchor: input.volumeOkrAnchor,
+      volumeDeviationReason: lastError?.message,
       premiseSignal: this.extractPremiseSignal(input.authorIntent, input.currentFocus, input.storyFrame, language),
       recyclableHooks: input.recyclableHooks,
       language,
     });
     this.log?.warn(`[planner] using deterministic memo fallback for chapter ${input.chapterNumber}: ${lastError?.message ?? "unknown parse error"}`);
-    const memo = this.parseAndValidateMemo(fallback, input, { enforceRecyclable: false });
+    const memo = this.parseAndValidateMemo(fallback, input, {
+      enforceRecyclable: false,
+      enforceVolumeKr: false,
+    });
     if (auditFeedback.trim()) {
       await clearLastAuditFeedback(input.storyDir);
     }
@@ -348,10 +378,16 @@ export class PlannerAgent extends BaseAgent {
       readonly isGoldenOpening: boolean;
       readonly recyclableHooks?: ReadonlyArray<StoredHook>;
       readonly progressDashboardMemoSection?: string;
+      readonly volumeOkrAnchor?: VolumeOkrChapterAnchor;
+      readonly chapterSummariesRaw: string;
+      readonly chapterContext?: string;
     },
-    opts?: { readonly enforceRecyclable?: boolean },
+    opts?: {
+      readonly enforceRecyclable?: boolean;
+      readonly enforceVolumeKr?: boolean;
+    },
   ): ChapterMemo {
-    const memo = this.attachProgressDashboardToMemo(
+    let memo = this.attachProgressDashboardToMemo(
       parseMemo(raw, input.chapterNumber, input.isGoldenOpening),
       input.progressDashboardMemoSection,
     );
@@ -361,7 +397,144 @@ export class PlannerAgent extends BaseAgent {
     if (opts?.enforceRecyclable !== false) {
       validateRecyclableHooksAddressed(memo.body, input.recyclableHooks ?? []);
     }
+    if (opts?.enforceVolumeKr !== false) {
+      memo = this.validateMemoAgainstVolumeKr(memo, input);
+    }
     return memo;
+  }
+
+  private validateMemoAgainstVolumeKr(
+    memo: ChapterMemo,
+    input: {
+      readonly chapterNumber: number;
+      readonly chapterSummariesRaw: string;
+      readonly chapterContext?: string;
+      readonly volumeOkrAnchor?: VolumeOkrChapterAnchor;
+    },
+  ): ChapterMemo {
+    const anchor = input.volumeOkrAnchor;
+    if (!anchor) return memo;
+    if (this.hasExplicitChapterInstruction(input.chapterContext)) return memo;
+
+    const expectedKr = anchor.kr;
+    const memoText = this.renderMemoKrEvidenceText(memo);
+    if (memo.servesKr && !sameKrId(memo.servesKr, expectedKr.id)) {
+      throw new PlannerParseError(
+        `volume KR drift: chapter ${input.chapterNumber} must serve ${expectedKr.id} (${expectedKr.desc}), but memo serves ${memo.servesKr}`,
+      );
+    }
+    const servesExpected = matchesKrSignal(memoText, {
+      id: expectedKr.id,
+      description: expectedKr.desc,
+    });
+    if (!servesExpected) {
+      throw new PlannerParseError(
+        `volume KR drift: chapter ${input.chapterNumber} must serve ${expectedKr.id} (${expectedKr.desc}), but memo serves ${memo.servesKr ?? "null"}`,
+      );
+    }
+
+    const ledger = parseHookLedger(memo.body);
+    const newThreadDescriptors = [
+      ...ledger.newOpenDescriptors,
+      ...ledger.open.map((entry) => entry.descriptor).filter(Boolean),
+    ];
+    const unmappedNewThreads = newThreadDescriptors.filter((descriptor) =>
+      this.isNewThreadDescriptor(descriptor)
+      && !anchor.volume.krs.some((kr) => matchesKrSignal(descriptor, {
+        id: kr.id,
+        description: kr.desc,
+      })),
+    );
+    if (unmappedNewThreads.length > 0) {
+      throw new PlannerParseError(
+        `volume KR drift: new thread/core hook is not mapped to any volume KR: ${unmappedNewThreads.slice(0, 2).join("；")}`,
+      );
+    }
+
+    const summaries = parseChapterSummariesMarkdown(input.chapterSummariesRaw)
+      .filter((summary) =>
+        summary.chapter >= anchor.volume.start_ch
+        && summary.chapter < input.chapterNumber
+        && summary.chapter <= anchor.volume.end_ch,
+      );
+    const currentMemoKrIds = new Set(
+      anchor.volume.krs
+        .filter((kr) => matchesKrSignal(memoText, {
+          id: kr.id,
+          description: kr.desc,
+        }))
+        .map((kr) => normalizeKrIdForCompare(kr.id)),
+    );
+    currentMemoKrIds.add(normalizeKrIdForCompare(expectedKr.id));
+
+    const notAdvanced = anchor.volume.krs.filter((kr) =>
+      !currentMemoKrIds.has(normalizeKrIdForCompare(kr.id))
+      && !summaries.some((summary) => this.summaryMatchesKr(summary, kr)),
+    );
+    const remainingAfterThisChapter = Math.max(0, anchor.volume.end_ch - input.chapterNumber);
+    if (remainingAfterThisChapter < notAdvanced.length) {
+      throw new PlannerParseError(
+        `volume KR drift: only ${remainingAfterThisChapter} chapters remain after this one, but ${notAdvanced.length} volume KR(s) still have no progress: ${notAdvanced.map((kr) => kr.id).join(", ")}`,
+      );
+    }
+
+    const stalled = anchor.volume.krs.filter((kr) => {
+      if (currentMemoKrIds.has(normalizeKrIdForCompare(kr.id))) return false;
+      if (input.chapterNumber < kr.must_advance_by_chapter) return false;
+      return this.countChaptersSinceKrProgress(summaries, kr, input.chapterNumber) >= VOLUME_KR_STALL_LIMIT;
+    });
+    if (stalled.length > 0) {
+      throw new PlannerParseError(
+        `volume KR drift: ${stalled.map((kr) => kr.id).join(", ")} has not moved for ${VOLUME_KR_STALL_LIMIT}+ chapters; this memo must advance one stalled KR`,
+      );
+    }
+
+    return sameKrId(memo.servesKr, expectedKr.id)
+      ? memo
+      : { ...memo, servesKr: expectedKr.id };
+  }
+
+  private hasExplicitChapterInstruction(chapterContext?: string): boolean {
+    return Boolean(chapterContext?.trim());
+  }
+
+  private renderMemoKrEvidenceText(memo: ChapterMemo): string {
+    return [
+      memo.goal,
+      memo.body,
+      ...memo.threadRefs,
+    ].join("\n");
+  }
+
+  private isNewThreadDescriptor(descriptor: string): boolean {
+    const normalized = descriptor.trim();
+    if (!normalized) return false;
+    return !/^(无|none|null|n\/a|na|暂无|待定)$/i.test(normalized);
+  }
+
+  private summaryMatchesKr(summary: StoredSummary, kr: VolumeOkrKr): boolean {
+    return matchesKrSignal([
+      summary.title,
+      summary.events,
+      summary.stateChanges,
+      summary.hookActivity,
+      summary.chapterType,
+    ].join("\n"), {
+      id: kr.id,
+      description: kr.desc,
+    });
+  }
+
+  private countChaptersSinceKrProgress(
+    summaries: ReadonlyArray<StoredSummary>,
+    kr: VolumeOkrKr,
+    currentChapter: number,
+  ): number {
+    const latestProgress = [...summaries]
+      .sort((left, right) => right.chapter - left.chapter)
+      .find((summary) => this.summaryMatchesKr(summary, kr));
+    if (!latestProgress) return summaries.length;
+    return Math.max(0, currentChapter - latestProgress.chapter - 1);
   }
 
   private attachProgressDashboardToMemo(
@@ -382,13 +555,31 @@ export class PlannerAgent extends BaseAgent {
     readonly chapterNumber: number;
     readonly isGoldenOpening: boolean;
     readonly fallbackGoal: string;
+    readonly volumeOkrAnchor?: VolumeOkrChapterAnchor;
+    readonly volumeDeviationReason?: string;
     readonly premiseSignal?: string;
     readonly recyclableHooks?: ReadonlyArray<StoredHook>;
     readonly language: "zh" | "en";
   }): string {
-    const goal = (input.fallbackGoal || (input.language === "en" ? "Continue the current conflict" : "承接当前冲突继续推进"))
+    const krGoal = input.volumeOkrAnchor
+      ? this.renderVolumeOkrGoal(input.volumeOkrAnchor, input.language)
+      : input.fallbackGoal;
+    const goal = (krGoal || (input.language === "en" ? "Continue the current conflict" : "承接当前冲突继续推进"))
       .replace(/\s+/g, "")
       .slice(0, 50);
+    const servesKrLine = input.volumeOkrAnchor
+      ? `servesKr: ${input.volumeOkrAnchor.kr.id}\n`
+      : "servesKr: null\n";
+    const krFallbackLine = input.volumeOkrAnchor
+      ? (input.language === "en"
+          ? `Volume KR fallback: force this chapter back to ${input.volumeOkrAnchor.kr.id} — ${input.volumeOkrAnchor.kr.desc}.`
+          : `卷纲KR兜底：本章强制回到 ${input.volumeOkrAnchor.kr.id} —— ${input.volumeOkrAnchor.kr.desc}。`)
+      : "";
+    const deviationLine = input.volumeDeviationReason
+      ? (input.language === "en"
+          ? `Previous memo drift reason: ${input.volumeDeviationReason}.`
+          : `上一轮 memo 偏离原因：${input.volumeDeviationReason}。`)
+      : "";
     // recyclableHooks 已在 computeRecyclableHooks 处按 RECYCLABLE_HOOK_LIMIT 截断,
     // 这里全量纳入并一律 defer —— 修掉旧 fallback "只 slice(0,3) → 第 4+ 个到期 hook
     // 缺失 → 二次校验抛错把整章写崩" 的崩点;且 fallback 本是应急退路,诚实 defer 比
@@ -409,12 +600,15 @@ export class PlannerAgent extends BaseAgent {
 chapter: ${input.chapterNumber}
 goal: ${goal}
 isGoldenOpening: ${input.isGoldenOpening ? "true" : "false"}
+${servesKrLine.trimEnd()}
 threadRefs:
 ${refs}
 ---
 
 ## Current task
 Continue the current mainline from the previous chapter and turn it into one concrete, visible action on page.
+${krFallbackLine ? `\n${krFallbackLine}` : ""}
+${deviationLine ? `\n${deviationLine}` : ""}
 ${input.premiseSignal ? `\nPremise fidelity: make this core promise visible on page — ${input.premiseSignal}.` : ""}
 
 ## What the reader is waiting for right now
@@ -446,7 +640,7 @@ ${input.premiseSignal ? `\nPremise fidelity: make this core promise visible on p
 
 ## Hook ledger for this chapter
 open:
-- [new] A visible trace left near the ending || Reason: it grows naturally from the failed planner fallback and should not be explained yet.
+- [new] ${input.volumeOkrAnchor ? `${input.volumeOkrAnchor.kr.id} visible trace` : "A visible trace"} left near the ending || Reason: it grows naturally from the failed planner fallback and should not be explained yet.
 
 advance:
 - fallback-mainline -> keep the current conflict visible through one concrete object, place, or choice.
@@ -472,12 +666,15 @@ ${deferBlock}
 chapter: ${input.chapterNumber}
 goal: ${goal}
 isGoldenOpening: ${input.isGoldenOpening ? "true" : "false"}
+${servesKrLine.trimEnd()}
 threadRefs:
 ${refs}
 ---
 
 ## 当前任务
 承接上一章已经形成的现场压力，让主角围绕当前目标做出一个能被看见的具体动作。
+${krFallbackLine ? `\n${krFallbackLine}` : ""}
+${deviationLine ? `\n${deviationLine}` : ""}
 ${input.premiseSignal ? `\n主设定保真：本章必须让这个核心承诺在页面上可见——${input.premiseSignal}。` : ""}
 
 ## 读者此刻在等什么
@@ -509,7 +706,7 @@ ${input.premiseSignal ? `\n主设定保真：本章必须让这个核心承诺�
 
 ## 本章 hook 账
 open:
-- [new] 章尾出现一个可见痕迹 || 理由：从当前冲突自然长出，先不解释。
+- [new] ${input.volumeOkrAnchor ? `${input.volumeOkrAnchor.kr.id} 的可见痕迹` : "章尾出现一个可见痕迹"} || 理由：从当前冲突自然长出，先不解释。
 
 advance:
 - fallback-mainline → 用一个具体物件、地点或选择承接当前冲突，不凭空转场。
@@ -567,24 +764,79 @@ ${deferBlockZh}
       : `Outline node: ${outlineNode}`;
   }
 
-  private deriveGoal(
-    externalContext: string | undefined,
-    currentFocus: string,
-    authorIntent: string,
-    outlineNode: string | undefined,
+  private findVolumeOkrAnchor(
+    volumes: ReadonlyArray<VolumeOkr>,
     chapterNumber: number,
+  ): VolumeOkrChapterAnchor | undefined {
+    const volume = findVolumeOkrForChapter(volumes, chapterNumber);
+    if (!volume) return undefined;
+    const kr = selectVolumeKrForChapter(volume, chapterNumber);
+    return kr ? { volume, kr } : undefined;
+  }
+
+  private renderVolumeOkrGoal(anchor: VolumeOkrChapterAnchor, language: "zh" | "en"): string {
+    if (language === "en") {
+      return `Must advance ${anchor.volume.title} ${anchor.kr.id}: ${anchor.kr.desc}`;
+    }
+    return `必须推进${anchor.volume.title}${anchor.kr.id}：${anchor.kr.desc}`;
+  }
+
+  private renderExternalOverrideGoal(
+    externalGoal: string,
+    okrGoal: string,
+    language: "zh" | "en",
   ): string {
-    const first = this.extractFirstDirective(externalContext);
-    if (first) return first;
-    const localOverride = this.extractLocalOverrideGoal(currentFocus);
+    return language === "en"
+      ? `Explicit user instruction overrides volume KR: ${externalGoal}; trace anchor was ${okrGoal}`
+      : `用户显式指令覆盖卷纲KR：${externalGoal}；留痕锚点：${okrGoal}`;
+  }
+
+  private renderVolumeOkrOutlineNode(anchor: VolumeOkrChapterAnchor): string {
+    return [
+      `卷纲硬锚：${anchor.volume.title}（第${anchor.volume.start_ch}-${anchor.volume.end_ch}章）`,
+      `Objective：${anchor.volume.objective}`,
+      `本章 must_advance KR：${anchor.kr.id} - ${anchor.kr.desc}`,
+      `最迟启动章：第${anchor.kr.must_advance_by_chapter}章`,
+      `目标章节点：${anchor.kr.target_chapters.join(", ")}`,
+    ].join("\n");
+  }
+
+  private deriveGoal(input: {
+    readonly externalContext: string | undefined;
+    readonly currentFocus: string;
+    readonly authorIntent: string;
+    readonly outlineNode: string | undefined;
+    readonly chapterNumber: number;
+    readonly volumeOkrAnchor?: VolumeOkrChapterAnchor;
+    readonly language: "zh" | "en";
+  }): string {
+    const first = this.extractFirstDirective(input.externalContext);
+    const okrGoal = input.volumeOkrAnchor
+      ? this.renderVolumeOkrGoal(input.volumeOkrAnchor, input.language)
+      : undefined;
+    if (first) {
+      return okrGoal
+        ? this.renderExternalOverrideGoal(first, okrGoal, input.language)
+        : first;
+    }
+    if (okrGoal) {
+      const localOverride = this.extractLocalOverrideGoal(input.currentFocus);
+      if (localOverride) {
+        return input.language === "en"
+          ? `${okrGoal}; local override only changes execution detail: ${localOverride}`
+          : `${okrGoal}；局部覆盖只改执行细节：${localOverride}`;
+      }
+      return okrGoal;
+    }
+    const localOverride = this.extractLocalOverrideGoal(input.currentFocus);
     if (localOverride) return localOverride;
-    const outline = this.extractFirstDirective(outlineNode);
+    const outline = this.extractFirstDirective(input.outlineNode);
     if (outline) return outline;
-    const focus = this.extractFocusGoal(currentFocus);
+    const focus = this.extractFocusGoal(input.currentFocus);
     if (focus) return focus;
-    const author = this.extractFirstDirective(authorIntent);
+    const author = this.extractFirstDirective(input.authorIntent);
     if (author) return author;
-    return `Advance chapter ${chapterNumber} with clear narrative focus.`;
+    return `Advance chapter ${input.chapterNumber} with clear narrative focus.`;
   }
 
   private collectMustKeep(currentState: string, storyBible: string): string[] {
@@ -771,7 +1023,15 @@ ${deferBlockZh}
     return /[\u4e00-\u9fff]/.test(content);
   }
 
-  private findOutlineNode(volumeOutline: string, chapterNumber: number): string | undefined {
+  private findOutlineNode(
+    volumeOutline: string,
+    chapterNumber: number,
+    volumeOkrAnchor?: VolumeOkrChapterAnchor,
+  ): string | undefined {
+    if (volumeOkrAnchor) {
+      return this.renderVolumeOkrOutlineNode(volumeOkrAnchor);
+    }
+
     const lines = volumeOutline.split("\n").map((line) => line.trim()).filter(Boolean);
 
     for (let index = 0; index < lines.length; index += 1) {
@@ -1080,4 +1340,12 @@ function appendVolumeCadenceGuidance(
   if (!guidance) return volumeDirection;
   const base = volumeDirection.trim() || "（未匹配到明确卷纲节点）";
   return `${base}\n\n${guidance}`;
+}
+
+function sameKrId(left: string | null | undefined, right: string | null | undefined): boolean {
+  return normalizeKrIdForCompare(left) === normalizeKrIdForCompare(right);
+}
+
+function normalizeKrIdForCompare(value: string | null | undefined): string {
+  return String(value ?? "").trim().toLowerCase();
 }

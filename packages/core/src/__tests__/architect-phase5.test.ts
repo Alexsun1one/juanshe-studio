@@ -72,6 +72,37 @@ const SAMPLE_RESPONSE = [
   "## 节奏意图",
   "前 10 章高压引人。",
   "",
+  "=== SECTION: volume_okr_json ===",
+  JSON.stringify([
+    {
+      volume_index: 1,
+      title: "第1卷：退烧之始",
+      start_ch: 1,
+      end_ch: 20,
+      objective: "林辞决定留下并拿到父亲死因的第一条证据",
+      krs: [
+        {
+          id: "KR1",
+          desc: "拿到父亲笔记本",
+          must_advance_by_chapter: 6,
+          target_chapters: [1, 3, 6],
+        },
+        {
+          id: "KR2",
+          desc: "与沈默建立暂时同盟",
+          must_advance_by_chapter: 12,
+          target_chapters: [7, 9, 12],
+        },
+        {
+          id: "KR3",
+          desc: "确认旧书店不是安全屋",
+          must_advance_by_chapter: 20,
+          target_chapters: [13, 16, 20],
+        },
+      ],
+    },
+  ]),
+  "",
   "=== SECTION: rhythm_principles ===",
   "## 原则 1：高潮间距",
   "每 8-10 章一个大高潮。",
@@ -196,6 +227,8 @@ describe("ArchitectAgent — Phase 5 prose output", () => {
 
     expect(result.storyFrame).toContain("主题与基调");
     expect(result.volumeMap).toContain("第 17 章让他回家");
+    expect(result.volumeOkr?.[0]?.start_ch).toBe(1);
+    expect(result.volumeOkr?.[0]?.krs.map((kr) => kr.id)).toEqual(["KR1", "KR2", "KR3"]);
     expect(result.rhythmPrinciples).toContain("高潮间距");
     expect(result.roles).toBeDefined();
     expect(result.roles).toHaveLength(3);
@@ -222,6 +255,15 @@ describe("ArchitectAgent — Phase 5 prose output", () => {
 
     const volumeMap = await readFile(join(storyDir, "outline/volume_map.md"), "utf-8");
     expect(volumeMap).toContain("第 17 章让他回家");
+
+    const volumeOkr = JSON.parse(await readFile(join(storyDir, "outline/volume_okr.json"), "utf-8")) as Array<{
+      start_ch: number;
+      end_ch: number;
+      krs: Array<{ id: string; desc: string }>;
+    }>;
+    expect(volumeOkr[0]?.start_ch).toBe(1);
+    expect(volumeOkr[0]?.end_ch).toBe(20);
+    expect(volumeOkr[0]?.krs[0]?.desc).toBe("拿到父亲笔记本");
 
     const rhythm = await readFile(join(storyDir, "outline/节奏原则.md"), "utf-8");
     expect(rhythm).toContain("高潮间距");

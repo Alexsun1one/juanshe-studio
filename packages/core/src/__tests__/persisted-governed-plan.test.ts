@@ -50,6 +50,7 @@ function buildPlan(chapter: number): PlanChapterOutput {
       chapter,
       goal: "取回账册离开旧港",
       isGoldenOpening: true,
+      servesKr: null,
       threadRefs: ["H1"],
       body: MEMO_BODY,
     },

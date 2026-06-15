@@ -237,6 +237,7 @@ describe("PipelineRunner", () => {
         chapter: chapterNumber,
         goal,
         isGoldenOpening: false,
+        servesKr: null,
         body: "",
         threadRefs: [] as string[],
       };
@@ -834,6 +835,7 @@ describe("PipelineRunner", () => {
         chapter: input.chapterNumber,
         goal,
         isGoldenOpening: true,
+        servesKr: null,
         body: "",
         threadRefs: [] as string[],
       };
@@ -1511,6 +1513,7 @@ describe("PipelineRunner", () => {
           chapter: input.chapterNumber,
           goal: result.intent.goal,
           isGoldenOpening: true,
+          servesKr: null,
           body: "",
           threadRefs: [],
         },
@@ -1701,6 +1704,7 @@ describe("PipelineRunner", () => {
           chapter: input.chapterNumber,
           goal,
           isGoldenOpening: false,
+          servesKr: null,
           body: "",
           threadRefs: [],
         },

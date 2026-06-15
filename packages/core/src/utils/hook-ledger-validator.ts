@@ -42,6 +42,7 @@ export interface HookLedger {
    * 揭 1 埋 1 floor check.
    */
   readonly newOpenCount: number;
+  readonly newOpenDescriptors: ReadonlyArray<string>;
 }
 
 const LEDGER_HEADING_PATTERNS = [
@@ -64,7 +65,7 @@ const SUBSECTION_WORDS = /^(open|advance|resolve|defer|new)$/i;
 export function parseHookLedger(memoBody: string): HookLedger {
   const section = extractLedgerSection(memoBody);
   if (!section) {
-    return { open: [], advance: [], resolve: [], defer: [], newOpenCount: 0 };
+    return { open: [], advance: [], resolve: [], defer: [], newOpenCount: 0, newOpenDescriptors: [] };
   }
 
   type Subsection = "open" | "advance" | "resolve" | "defer";
@@ -75,6 +76,7 @@ export function parseHookLedger(memoBody: string): HookLedger {
     defer: [],
   };
   let newOpenCount = 0;
+  const newOpenDescriptors: string[] = [];
 
   let current: Subsection | null = null;
   for (const rawLine of section.split(/\r?\n/)) {
@@ -96,6 +98,8 @@ export function parseHookLedger(memoBody: string): HookLedger {
     const cleaned = line.replace(/^-+\s*/, "").trim();
     if (current === "open" && /^\[new\]/i.test(cleaned)) {
       newOpenCount += 1;
+      const descriptor = cleaned.replace(/^\[new\]\s*/i, "").trim();
+      if (descriptor) newOpenDescriptors.push(descriptor);
       continue;
     }
 
@@ -103,7 +107,7 @@ export function parseHookLedger(memoBody: string): HookLedger {
     if (entry) result[current].push(entry);
   }
 
-  return { ...result, newOpenCount };
+  return { ...result, newOpenCount, newOpenDescriptors };
 }
 
 /**

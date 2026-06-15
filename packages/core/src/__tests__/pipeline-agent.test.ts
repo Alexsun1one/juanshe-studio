@@ -70,6 +70,7 @@ describe("agent pipeline tools", () => {
         chapter: chapterNumber,
         goal,
         isGoldenOpening: false,
+        servesKr: null,
         body: "",
         threadRefs: [] as string[],
       };

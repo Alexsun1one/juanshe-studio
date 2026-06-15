@@ -371,6 +371,7 @@ describe("ContinuityAuditor", () => {
           chapter: 42,
           goal: "陆焚抢回残刃并离开",
           isGoldenOpening: false,
+          servesKr: null,
           body: memoBody,
           threadRefs: [],
         },

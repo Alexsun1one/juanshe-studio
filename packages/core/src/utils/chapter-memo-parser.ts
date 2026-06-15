@@ -148,11 +148,16 @@ export function parseMemo(
   const threadRefs = Array.isArray(f.threadRefs)
     ? f.threadRefs.filter((value): value is string => typeof value === "string")
     : [];
+  const rawServesKr = f.servesKr ?? f.serves_kr;
+  const servesKr = typeof rawServesKr === "string" && rawServesKr.trim().length > 0
+    ? rawServesKr.trim()
+    : null;
 
   return ChapterMemoSchema.parse({
     chapter: f.chapter,
     goal: f.goal,
     isGoldenOpening,
+    servesKr,
     body,
     threadRefs,
   });

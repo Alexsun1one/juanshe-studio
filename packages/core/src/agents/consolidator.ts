@@ -43,9 +43,10 @@ export class ConsolidatorAgent extends BaseAgent {
     const summariesPath = join(storyDir, "chapter_summaries.md");
     const volumeSummariesPath = join(storyDir, "volume_summaries.md");
 
-    const [summariesRaw, outlineRaw] = await Promise.all([
+    const [summariesRaw, outlineRaw, volumeOkrRaw] = await Promise.all([
       readFile(summariesPath, "utf-8").catch(() => ""),
       readVolumeMap(bookDir, ""),
+      readFile(join(storyDir, "outline", "volume_okr.json"), "utf-8").catch(() => ""),
     ]);
 
     // Phase 7 hotfix 2: pre-archive re-promotion pass. Runs independently of
@@ -53,7 +54,7 @@ export class ConsolidatorAgent extends BaseAgent {
     // flips the `promoted` flag whenever a seed's advanced_count crosses the
     // threshold.
     const promotedHookCount = await this.rerunAdvancedCountPromotion(storyDir);
-    await this.updateVolumeCadenceFiles(storyDir, outlineRaw, summariesRaw);
+    await this.updateVolumeCadenceFiles(storyDir, outlineRaw, summariesRaw, volumeOkrRaw);
 
     if (!summariesRaw || !outlineRaw) {
       return { volumeSummaries: "", archivedVolumes: 0, retainedChapters: 0, promotedHookCount };
@@ -195,11 +196,13 @@ export class ConsolidatorAgent extends BaseAgent {
     storyDir: string,
     outlineRaw: string,
     summariesRaw: string,
+    volumeOkrRaw: string,
   ): Promise<void> {
     const files = buildVolumeCadenceFileSet({
       volumeMap: outlineRaw,
+      volumeOkrJson: volumeOkrRaw,
       chapterSummaries: summariesRaw,
-      language: /[\u4e00-\u9fff]/.test(outlineRaw) ? "zh" : "en",
+      language: /[\u4e00-\u9fff]/.test(`${outlineRaw}\n${volumeOkrRaw}`) ? "zh" : "en",
     });
     if (!files) return;
     await withStoryTruthWriteLock(storyDir, async () => {

@@ -554,16 +554,18 @@ describe("ChapterMemoSchema", () => {
       chapter: 12,
       goal: "把七号门被动过手脚钉成现场实证",
       isGoldenOpening: true,
+      servesKr: "KR1",
       body: "## 当前任务\n主角进入七号门……\n## 不要做\n不要让对手降智。",
       threadRefs: ["H019", "S004"],
     });
 
     expect(result.isGoldenOpening).toBe(true);
+    expect(result.servesKr).toBe("KR1");
     expect(result.body).toContain("当前任务");
     expect(result.threadRefs).toEqual(["H019", "S004"]);
   });
 
-  it("defaults isGoldenOpening and threadRefs when omitted", () => {
+  it("defaults isGoldenOpening, servesKr and threadRefs when omitted", () => {
     const result = ChapterMemoSchema.parse({
       chapter: 3,
       goal: "让主角做下第一次不可逆选择",
@@ -571,6 +573,7 @@ describe("ChapterMemoSchema", () => {
     });
 
     expect(result.isGoldenOpening).toBe(false);
+    expect(result.servesKr).toBeNull();
     expect(result.threadRefs).toEqual([]);
   });
 

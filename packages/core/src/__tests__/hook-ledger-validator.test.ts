@@ -75,7 +75,14 @@ describe("parseHookLedger", () => {
 
   it("returns empty lists when no ledger section is present", () => {
     const ledger = parseHookLedger("## 当前任务\n正文\n\n## 不要做\n- 无");
-    expect(ledger).toEqual({ open: [], advance: [], resolve: [], defer: [], newOpenCount: 0 });
+    expect(ledger).toEqual({
+      open: [],
+      advance: [],
+      resolve: [],
+      defer: [],
+      newOpenCount: 0,
+      newOpenDescriptors: [],
+    });
   });
 
   it("counts [new] placeholder lines under open as new hooks opened", () => {
@@ -89,6 +96,7 @@ advance:
     const ledger = parseHookLedger(memo);
     expect(ledger.open).toEqual([]); // [new] lines have no id → not in .open
     expect(ledger.newOpenCount).toBe(2);
+    expect(ledger.newOpenDescriptors).toEqual(["下一卷伏笔 || 理由", "第二条埋点 || 理由"]);
   });
 
   it("stops at the next H2 heading and does not pollute across sections", () => {

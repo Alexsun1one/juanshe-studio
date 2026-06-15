@@ -52,6 +52,49 @@ function validMemoRaw(chapter: number): string {
   return `---\nchapter: ${chapter}\ngoal: 把七号门被动过手脚钉成现场实证\nisGoldenOpening: false\nthreadRefs:\n  - H03\n  - S004\n---\n${VALID_BODY}\n`;
 }
 
+function validMemoRawWithKr(chapter: number, krId: string, krLine: string): string {
+  const body = VALID_BODY.replace(
+    "主角进入七号门现场，比对锁芯刮痕与监控时间线，把\"被动过手脚\"从猜测钉成实证。",
+    krLine,
+  ).replace(
+    "advance:\n- H03",
+    `open:\n- [new] ${krId} 的后续可见痕迹 || 理由：围绕本卷 KR 继续加压\nadvance:\n- H03`,
+  );
+  return `---\nchapter: ${chapter}\ngoal: ${krLine.slice(0, 48)}\nisGoldenOpening: false\nservesKr: ${krId}\nthreadRefs:\n  - H03\n  - S004\n---\n${body}\n`;
+}
+
+function volumeOkrJson(): string {
+  return JSON.stringify([
+    {
+      volume_index: 1,
+      title: "第1卷：巷尾灯火",
+      start_ch: 1,
+      end_ch: 10,
+      objective: "第5封亡母悼词线索被正式接住",
+      krs: [
+        {
+          id: "KR1",
+          desc: "代写信第5位客人登场并提出亡母悼词委托",
+          must_advance_by_chapter: 4,
+          target_chapters: [1, 3, 4],
+        },
+        {
+          id: "KR2",
+          desc: "主角确认悼词背后隐藏的母女关系真相",
+          must_advance_by_chapter: 7,
+          target_chapters: [5, 6, 7],
+        },
+        {
+          id: "KR3",
+          desc: "主角公开第5封悼词牵出的旧证据",
+          must_advance_by_chapter: 10,
+          target_chapters: [8, 9, 10],
+        },
+      ],
+    },
+  ]);
+}
+
 const ZERO_USAGE = {
   promptTokens: 0,
   completionTokens: 0,
@@ -138,6 +181,7 @@ describe("PlannerAgent.planChapter memo generation", () => {
     expect(result.memo.chapter).toBe(1);
     expect(result.memo.isGoldenOpening).toBe(true); // ch1 zh → golden opening, authoritative over LLM
     expect(result.memo.goal).toBe("把七号门被动过手脚钉成现场实证");
+    expect(result.memo.servesKr).toBeNull();
     expect(result.memo.threadRefs).toEqual(["H03", "S004"]);
     expect(result.memo.body).toContain("## 全书进度仪表盘");
     expect(result.memo.body).toContain("本章宏观角色");
@@ -181,6 +225,266 @@ describe("PlannerAgent.planChapter memo generation", () => {
     expect(userMsg?.content).toContain("本章用户指令");
     expect(userMsg?.content).toContain("本章标题：雨夜账本");
     expect(userMsg?.content).toContain("当面对质");
+  });
+
+  it("injects volume_okr.json as the hard volume KR anchor when prose outline has no chapter ranges", async () => {
+    const storyDir = join(bookDir, "story");
+    await mkdir(join(storyDir, "outline"), { recursive: true });
+    await Promise.all([
+      writeFile(
+        join(storyDir, "outline", "volume_map.md"),
+        [
+          "# 卷纲地图",
+          "第一卷围绕代写信客人与亡母悼词展开，只写卷级方向，不写章号。",
+        ].join("\n"),
+        "utf-8",
+      ),
+      writeFile(
+        join(storyDir, "outline", "volume_okr.json"),
+        volumeOkrJson(),
+        "utf-8",
+      ),
+      writeFile(
+        join(storyDir, "current_focus.md"),
+        [
+          "# Focus",
+          "## 本章覆盖",
+          "- 临时追一条卷纲外的谍战暗线",
+        ].join("\n"),
+        "utf-8",
+      ),
+    ]);
+    const chatSpy = vi.spyOn(llmProvider, "chatCompletion").mockResolvedValue({
+      content: validMemoRawWithKr(
+        3,
+        "KR1",
+        "第5位客人把亡母悼词委托交给主角，主角当场接下这封代写信。",
+      ),
+      usage: ZERO_USAGE,
+    } as unknown as Awaited<ReturnType<typeof llmProvider.chatCompletion>>);
+
+    const result = await makePlanner().planChapter({
+      book: makeBook(),
+      bookDir,
+      chapterNumber: 3,
+    });
+
+    const callArgs = chatSpy.mock.calls[0]!;
+    const messages = callArgs[2] as ReadonlyArray<{ role: string; content: string }>;
+    const userMsg = messages.find((m) => m.role === "user");
+    expect(userMsg?.content).toContain("卷纲硬锚：第1卷：巷尾灯火");
+    expect(userMsg?.content).toContain("本章 must_advance KR：KR1");
+    expect(userMsg?.content).toContain("代写信第5位客人登场并提出亡母悼词委托");
+    expect(result.plannerInputs).toContain(join(storyDir, "outline", "volume_okr.json"));
+  });
+
+  it("retries when a new branch/core hook is not mapped to the current volume KR", async () => {
+    const storyDir = join(bookDir, "story");
+    await mkdir(join(storyDir, "outline"), { recursive: true });
+    await Promise.all([
+      writeFile(join(storyDir, "outline", "volume_map.md"), "第一卷只写卷级方向。", "utf-8"),
+      writeFile(join(storyDir, "outline", "volume_okr.json"), volumeOkrJson(), "utf-8"),
+    ]);
+    const drifting = validMemoRawWithKr(
+      3,
+      "KR1",
+      "第5位客人把亡母悼词委托交给主角，主角当场接下这封代写信。",
+    ).replace(
+      "- [new] KR1 的后续可见痕迹 || 理由：围绕本卷 KR 继续加压",
+      "- [new] 谍战暗线 core_hook=true || 理由：另开一条跟悼词无关的新主线",
+    );
+    const repaired = validMemoRawWithKr(
+      3,
+      "KR1",
+      "第5位客人把亡母悼词委托交给主角，主角当场接下这封代写信。",
+    );
+    const chatSpy = vi.spyOn(llmProvider, "chatCompletion")
+      .mockResolvedValueOnce({
+        content: drifting,
+        usage: ZERO_USAGE,
+      } as unknown as Awaited<ReturnType<typeof llmProvider.chatCompletion>>)
+      .mockResolvedValueOnce({
+        content: repaired,
+        usage: ZERO_USAGE,
+      } as unknown as Awaited<ReturnType<typeof llmProvider.chatCompletion>>);
+
+    const result = await makePlanner().planChapter({
+      book: makeBook(),
+      bookDir,
+      chapterNumber: 3,
+    });
+
+    expect(chatSpy).toHaveBeenCalledTimes(2);
+    expect(result.memo.servesKr).toBe("KR1");
+    const secondMessages = chatSpy.mock.calls[1]?.[2] as ReadonlyArray<{ role: string; content: string }>;
+    expect(secondMessages.find((m) => m.role === "user")?.content).toContain("new thread/core hook");
+  });
+
+  it("falls back without crashing when volume KR validation keeps failing", async () => {
+    const storyDir = join(bookDir, "story");
+    await mkdir(join(storyDir, "outline"), { recursive: true });
+    await Promise.all([
+      writeFile(join(storyDir, "outline", "volume_map.md"), "第一卷只写卷级方向。", "utf-8"),
+      writeFile(join(storyDir, "outline", "volume_okr.json"), volumeOkrJson(), "utf-8"),
+    ]);
+    const chatSpy = vi.spyOn(llmProvider, "chatCompletion").mockResolvedValue({
+      content: validMemoRaw(3),
+      usage: ZERO_USAGE,
+    } as unknown as Awaited<ReturnType<typeof llmProvider.chatCompletion>>);
+
+    const result = await makePlanner().planChapter({
+      book: makeBook(),
+      bookDir,
+      chapterNumber: 3,
+    });
+
+    expect(chatSpy).toHaveBeenCalledTimes(3);
+    expect(result.memo.servesKr).toBe("KR1");
+    expect(result.memo.body).toContain("卷纲KR兜底");
+    expect(result.memo.body).toContain("代写信第5位客人登场并提出亡母悼词委托");
+  });
+
+  it("does not reject a semantically real KR advance phrased differently", async () => {
+    const storyDir = join(bookDir, "story");
+    await mkdir(join(storyDir, "outline"), { recursive: true });
+    await Promise.all([
+      writeFile(join(storyDir, "outline", "volume_map.md"), "第一卷只写卷级方向。", "utf-8"),
+      writeFile(join(storyDir, "outline", "volume_okr.json"), volumeOkrJson(), "utf-8"),
+    ]);
+    const chatSpy = vi.spyOn(llmProvider, "chatCompletion").mockResolvedValue({
+      content: validMemoRawWithKr(
+        3,
+        "KR1",
+        "第5位客人带着亡母悼词委托上门，主角没有旁观，而是接下代写信并追问死因。",
+      ),
+      usage: ZERO_USAGE,
+    } as unknown as Awaited<ReturnType<typeof llmProvider.chatCompletion>>);
+
+    const result = await makePlanner().planChapter({
+      book: makeBook(),
+      bookDir,
+      chapterNumber: 3,
+    });
+
+    expect(chatSpy).toHaveBeenCalledTimes(1);
+    expect(result.memo.servesKr).toBe("KR1");
+  });
+
+  it("falls back when remaining volume chapters cannot cover untouched KRs", async () => {
+    const storyDir = join(bookDir, "story");
+    await mkdir(join(storyDir, "outline"), { recursive: true });
+    await Promise.all([
+      writeFile(join(storyDir, "outline", "volume_map.md"), "第一卷只写卷级方向。", "utf-8"),
+      writeFile(join(storyDir, "outline", "volume_okr.json"), volumeOkrJson(), "utf-8"),
+      writeFile(
+        join(storyDir, "chapter_summaries.md"),
+        [
+          "| 章节 | 标题 | 出场人物 | 关键事件 | 状态变化 | 伏笔动态 | 情绪基调 | 章节类型 |",
+          "| --- | --- | --- | --- | --- | --- | --- | --- |",
+          "| 1 | 悼词 | 陆青 | 第5位客人带着亡母悼词委托上门 | 主角接下代写信 | H1 | 温沉 | build-up |",
+        ].join("\n"),
+        "utf-8",
+      ),
+    ]);
+    const tooLateKr3 = validMemoRawWithKr(
+      10,
+      "KR3",
+      "主角公开第5封悼词牵出的旧证据，让旧证据第一次进入街坊视野。",
+    );
+    const chatSpy = vi.spyOn(llmProvider, "chatCompletion").mockResolvedValue({
+      content: tooLateKr3,
+      usage: ZERO_USAGE,
+    } as unknown as Awaited<ReturnType<typeof llmProvider.chatCompletion>>);
+
+    const result = await makePlanner().planChapter({
+      book: makeBook(),
+      bookDir,
+      chapterNumber: 10,
+    });
+
+    expect(chatSpy).toHaveBeenCalledTimes(3);
+    expect(result.memo.servesKr).toBe("KR3");
+    expect(result.memo.body).toContain("卷纲KR兜底");
+  });
+
+  it("lets explicit per-chapter user instruction bypass the volume KR gate", async () => {
+    const storyDir = join(bookDir, "story");
+    await mkdir(join(storyDir, "outline"), { recursive: true });
+    await Promise.all([
+      writeFile(join(storyDir, "outline", "volume_map.md"), "第一卷只写卷级方向。", "utf-8"),
+      writeFile(join(storyDir, "outline", "volume_okr.json"), volumeOkrJson(), "utf-8"),
+    ]);
+    const chatSpy = vi.spyOn(llmProvider, "chatCompletion").mockResolvedValue({
+      content: validMemoRaw(3),
+      usage: ZERO_USAGE,
+    } as unknown as Awaited<ReturnType<typeof llmProvider.chatCompletion>>);
+
+    const result = await makePlanner().planChapter({
+      book: makeBook(),
+      bookDir,
+      chapterNumber: 3,
+      externalContext: "本章必须按用户指定写成雨夜对质，不推进悼词委托。",
+    });
+
+    expect(chatSpy).toHaveBeenCalledTimes(1);
+    expect(result.memo.servesKr).toBeNull();
+    const messages = chatSpy.mock.calls[0]?.[2] as ReadonlyArray<{ role: string; content: string }>;
+    expect(messages.find((m) => m.role === "user")?.content).toContain("本章用户指令");
+  });
+
+  it("keeps volume KR ahead of local override but traces explicit user override", () => {
+    const planner = makePlanner() as unknown as {
+      deriveGoal: (input: {
+        externalContext?: string;
+        currentFocus: string;
+        authorIntent: string;
+        outlineNode?: string;
+        chapterNumber: number;
+        volumeOkrAnchor?: unknown;
+        language: "zh" | "en";
+      }) => string;
+    };
+    const volumeOkrAnchor = {
+      volume: {
+        volume_index: 1,
+        title: "第1卷：巷尾灯火",
+        start_ch: 1,
+        end_ch: 10,
+        objective: "接住亡母悼词线索",
+        krs: [],
+      },
+      kr: {
+        id: "KR1",
+        desc: "代写信第5位客人提出亡母悼词委托",
+        must_advance_by_chapter: 4,
+        target_chapters: [1, 3, 4],
+      },
+    };
+
+    const localGoal = planner.deriveGoal({
+      currentFocus: "## 本章覆盖\n- 临时追一条卷纲外的谍战暗线",
+      authorIntent: "",
+      outlineNode: "",
+      chapterNumber: 3,
+      volumeOkrAnchor,
+      language: "zh",
+    });
+    expect(localGoal).toContain("必须推进第1卷：巷尾灯火KR1");
+    expect(localGoal).toContain("局部覆盖只改执行细节");
+    expect(localGoal).toContain("谍战暗线");
+
+    const externalGoal = planner.deriveGoal({
+      externalContext: "本章改写成用户指定的雨夜对质。",
+      currentFocus: "",
+      authorIntent: "",
+      outlineNode: "",
+      chapterNumber: 3,
+      volumeOkrAnchor,
+      language: "zh",
+    });
+    expect(externalGoal).toContain("用户显式指令覆盖卷纲KR");
+    expect(externalGoal).toContain("本章改写成用户指定的雨夜对质");
+    expect(externalGoal).toContain("留痕锚点");
   });
 
   it("injects dormant subplot revival hints and previous audit feedback into the memo prompt", async () => {

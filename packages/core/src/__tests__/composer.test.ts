@@ -71,6 +71,7 @@ describe("ComposerAgent", () => {
         chapter: 4,
         goal: "Bring the focus back to the mentor conflict.",
         isGoldenOpening: false,
+        servesKr: null,
         body: "",
         threadRefs: [],
       },

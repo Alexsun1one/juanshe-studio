@@ -43,6 +43,7 @@ export async function savePersistedPlan(
     chapter: memo.chapter,
     goal: memo.goal,
     isGoldenOpening: memo.isGoldenOpening,
+    servesKr: memo.servesKr,
     threadRefs: memo.threadRefs,
     intent: {
       goal: intent.goal,
@@ -95,6 +96,7 @@ export async function loadPersistedPlan(
     const reconstructed = `---\n${YAML.dump({
       chapter: f.chapter,
       goal: f.goal,
+      servesKr: f.servesKr,
       threadRefs: f.threadRefs,
     })}---\n${match[2]!}`;
     memo = parseMemo(reconstructed, chapterNumber, f.isGoldenOpening);

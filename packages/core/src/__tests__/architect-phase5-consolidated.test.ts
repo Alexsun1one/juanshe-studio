@@ -10,7 +10,7 @@ import {
 import type { BookConfig } from "../models/book.js";
 
 // ---------------------------------------------------------------------------
-// Phase 5 consolidation invariants (7 sections → 5 sections).
+// Phase 5 consolidation invariants (7 sections → 5 prose sections + volume_okr_json).
 //
 // A brief side-trip restored current_state as a 6th "narrow env/era" section,
 // but the bench run showed the LLM emits an empty block for 3 out of 3 books
@@ -20,11 +20,11 @@ import type { BookConfig } from "../models/book.js";
 // current_state.md with a placeholder so the consolidator has a file to
 // append to.
 //
-// These tests lock in the 5-section contract so future edits can't silently
+// These tests lock in the section contract so future edits can't silently
 // regress back to the 7-section layout that was causing gpt-5.4 to drop tail
 // sections:
 //
-//   1. The architect prompt advertises exactly 5 SECTION headers — no
+//   1. The architect prompt advertises exactly 6 SECTION headers — no
 //      current_state, no rhythm_principles.
 //   2. The prompt FORBIDS duplication of protagonist-arc across story_frame
 //      and roles, and forbids re-emitting rhythm_principles / current_state.
@@ -175,8 +175,8 @@ const CONSOLIDATED_RESPONSE = [
   "| H02 | 0 | 初始世界 | 未开启 | 0 | 首卷中段 | 近期 | 无 | 第1卷中段 | 否 | 20 | 初始状态：体制已监视码头 |",
 ].join("\n");
 
-describe("Phase 5 consolidation — 7→5 sections, prompt contract", () => {
-  it("the zh prompt advertises exactly 5 SECTION headers (NO current_state, NO rhythm_principles)", async () => {
+describe("Phase 5 consolidation — 5 prose sections + volume_okr_json, prompt contract", () => {
+  it("the zh prompt advertises exactly 6 SECTION headers (NO current_state, NO rhythm_principles)", async () => {
     const agent = buildAgent();
     const chat = vi.spyOn(agent as unknown as { chat: (...args: unknown[]) => Promise<unknown> }, "chat")
       .mockResolvedValue({ content: CONSOLIDATED_RESPONSE, usage: ZERO_USAGE });
@@ -191,6 +191,7 @@ describe("Phase 5 consolidation — 7→5 sections, prompt contract", () => {
     expect(headers).toEqual([
       "story_frame",
       "volume_map",
+      "volume_okr_json",
       "roles",
       "book_rules",
       "pending_hooks",
@@ -233,6 +234,7 @@ describe("Phase 5 consolidation — 7→5 sections, prompt contract", () => {
 
     expect(system).toContain("story_frame ≤ 3000 chars");
     expect(system).toContain("volume_map ≤ 5000 chars");
+    expect(system).toContain("volume_okr_json ≤ 3500 chars");
     expect(system).toContain("roles 总 ≤ 8000 chars");
     expect(system).toContain("book_rules ≤ 500 chars");
     expect(system).toContain("pending_hooks ≤ 2000 chars");
@@ -258,7 +260,7 @@ describe("Phase 5 consolidation — 7→5 sections, prompt contract", () => {
     expect(system).toContain("具体化 + 通用混合是合法的");
   });
 
-  it("the English prompt also carries the 5-section / dedup / budget rules and rhythm universal allowance", async () => {
+  it("the English prompt also carries the 6-section / dedup / budget rules and rhythm universal allowance", async () => {
     const agent = buildAgent();
     const chat = vi.spyOn(agent as unknown as { chat: (...args: unknown[]) => Promise<unknown> }, "chat")
       .mockResolvedValue({ content: CONSOLIDATED_RESPONSE, usage: ZERO_USAGE });
@@ -272,11 +274,13 @@ describe("Phase 5 consolidation — 7→5 sections, prompt contract", () => {
     expect(headers).toEqual([
       "story_frame",
       "volume_map",
+      "volume_okr_json",
       "roles",
       "book_rules",
       "pending_hooks",
     ]);
     expect(system).toContain("story_frame ≤ 3000 chars");
+    expect(system).toContain("volume_okr_json ≤ 3500 chars");
     expect(system).not.toContain("current_state 500-800 chars");
     expect(system).toContain("YAML only");
     // Rhythm universal allowance
@@ -300,7 +304,7 @@ describe("Phase 5 consolidation — 7→5 sections, prompt contract", () => {
   });
 });
 
-describe("Phase 5 consolidation — parser accepts 5-section output (current_state is optional)", () => {
+describe("Phase 5 consolidation — parser accepts legacy 5-section output (current_state is optional)", () => {
   let bookDir: string;
 
   beforeEach(async () => {
@@ -323,6 +327,8 @@ describe("Phase 5 consolidation — parser accepts 5-section output (current_sta
 
     // Architect output has empty currentState — there's no section to parse.
     expect(out.currentState.trim()).toBe("");
+    expect(out.volumeOkr?.length).toBeGreaterThan(0);
+    await expect(readFile(join(bookDir, "story/outline/volume_okr.json"), "utf-8")).resolves.toContain("volume_index");
 
     // writeFoundationFiles still writes current_state.md, but as a seed
     // placeholder the fallback reader can detect.

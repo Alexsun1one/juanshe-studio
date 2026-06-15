@@ -4,6 +4,7 @@ export const ChapterMemoSchema = z.object({
   chapter: z.number().int().min(1),
   goal: z.string().min(1).max(50),
   isGoldenOpening: z.boolean().default(false),
+  servesKr: z.string().min(1).nullable().default(null),
   body: z.string().min(1),
   threadRefs: z.array(z.string()).default([]),
 });
