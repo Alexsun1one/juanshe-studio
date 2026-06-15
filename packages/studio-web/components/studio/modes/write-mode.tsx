@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useT, useLocale } from "@/lib/i18n"
 import { useStudio } from "@/lib/studio-context"
+import { sanitizeAgentOutput } from "@/lib/sanitize-agent-output"
 import { useWorkspace } from "@/lib/workspace-context"
 import { RunStatePill, type RunState } from "@/components/studio/ds"
 import {
@@ -805,25 +806,39 @@ function EmptyManuscriptState({
   )
 }
 
+// 写手在同一条流式响应里,把正文(CHAPTER_CONTENT)之后紧跟 POST_SETTLEMENT / UPDATED_* 等
+// 机器自检账本一起吐出;结算自检子阶段(settler/observer)又走同一个 onTextDelta 通道。这些
+// 机器块含 === 分隔符、实体id(environment-1987)、钩子id(0317-7)、反引号 token,是引擎内部
+// 噪音,绝不该进"实时生成"正文直播流。在第一个机器尾界标记处截断,从源头堵住泄漏。
+const LIVE_TAIL_MARKER_RE =
+  /={3,}\s*(?:POST_SETTLEMENT|UPDATED_STATE|UPDATED_LEDGER|UPDATED_HOOKS|RUNTIME_[A-Z0-9_]+)\s*={3,}/i
+
 function extractLiveChapterContent(text: string) {
   const trimmed = text.trim()
   if (!trimmed) return ""
 
+  let content: string
   const contentMarker = trimmed.match(/===\s*CHAPTER_CONTENT\s*===/i)
   if (contentMarker?.index !== undefined) {
-    return trimmed.slice(contentMarker.index + contentMarker[0].length).trim()
+    content = trimmed.slice(contentMarker.index + contentMarker[0].length).trim()
+  } else {
+    const titleMarker = trimmed.match(/(?:^|\n)#\s*第\s*\d+\s*章[^\n]*/m)
+    if (titleMarker?.index !== undefined) {
+      content = trimmed.slice(titleMarker.index).trim()
+    } else if (/===\s*PRE_WRITE_CHECK\s*===|===\s*CHAPTER_TITLE\s*===/.test(trimmed)) {
+      return ""
+    } else {
+      content = trimmed
+    }
   }
 
-  const titleMarker = trimmed.match(/(?:^|\n)#\s*第\s*\d+\s*章[^\n]*/m)
-  if (titleMarker?.index !== undefined) {
-    return trimmed.slice(titleMarker.index).trim()
+  // 切尾:POST_SETTLEMENT/UPDATED_* 及其后整段机器账本砍掉,只留正文。
+  const tail = content.match(LIVE_TAIL_MARKER_RE)
+  if (tail?.index !== undefined) {
+    content = content.slice(0, tail.index).trim()
   }
-
-  if (/===\s*PRE_WRITE_CHECK\s*===|===\s*CHAPTER_TITLE\s*===/.test(trimmed)) {
-    return ""
-  }
-
-  return trimmed
+  // 清洗残留机器标记(RUNTIME 块、内部 hook marker),与审稿面板复用同一套。
+  return sanitizeAgentOutput(content)
 }
 
 function buildScopedLiveText(
