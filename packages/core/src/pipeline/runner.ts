@@ -1782,7 +1782,7 @@ export class PipelineRunner {
           const hooks = parsePendingHooksMarkdown(ledgerRaw);
           if (hooks.length > 0) {
             const summariesRaw = await readFile(join(promotionStoryDir, "chapter_summaries.md"), "utf-8").catch(() => "");
-            const promotionResult = rerunPromotionPass(hooks, summariesRaw);
+            const promotionResult = rerunPromotionPass(hooks, summariesRaw, chapterNumber);
             if (promotionResult.updated) {
               const ledgerLang: "zh" | "en" = /[\u4e00-\u9fff]/.test(ledgerRaw) ? "zh" : "en";
               await atomicWriteFile(ledgerPath, renderHookSnapshot([...promotionResult.hooks], ledgerLang));
@@ -3488,6 +3488,8 @@ ${matrix}`,
   }): Promise<void> {
     const storyDir = join(params.bookDir, "story");
     const driftPath = join(storyDir, "audit_drift.md");
+    const runtimeDir = join(storyDir, "runtime");
+    const feedbackPath = join(runtimeDir, "last_audit_feedback.json");
     const statePath = join(storyDir, "current_state.md");
     await withStoryTruthWriteLock(storyDir, async () => {
       const currentState = await readFile(statePath, "utf-8").catch(() => "");
@@ -3499,6 +3501,7 @@ ${matrix}`,
 
       if (params.issues.length === 0) {
         await rm(driftPath, { force: true }).catch(() => undefined);
+        await rm(feedbackPath, { force: true }).catch(() => undefined);
         return;
       }
 
@@ -3521,7 +3524,20 @@ ${matrix}`,
         "",
       ].join("\n");
 
+      await mkdir(runtimeDir, { recursive: true });
       await atomicWriteFile(driftPath, block);
+      await atomicWriteFile(feedbackPath, `${JSON.stringify({
+        schema_version: 1,
+        source_chapter: params.chapterNumber,
+        generated_at: new Date().toISOString(),
+        language: params.language,
+        issues: params.issues.map((issue) => ({
+          severity: issue.severity,
+          category: issue.category,
+          description: issue.description,
+          suggestion: issue.suggestion,
+        })),
+      }, null, 2)}\n`);
     });
   }
 

@@ -8,6 +8,7 @@ import {
 } from "../utils/story-markdown.js";
 import { atomicWriteFile } from "../utils/fs-atomic.js";
 import { withStoryTruthWriteLock } from "../utils/story-truth-writer.js";
+import { buildVolumeCadenceFileSet } from "../utils/volume-cadence-plan.js";
 
 export interface ConsolidationResult {
   readonly volumeSummaries: string;
@@ -52,6 +53,7 @@ export class ConsolidatorAgent extends BaseAgent {
     // flips the `promoted` flag whenever a seed's advanced_count crosses the
     // threshold.
     const promotedHookCount = await this.rerunAdvancedCountPromotion(storyDir);
+    await this.updateVolumeCadenceFiles(storyDir, outlineRaw, summariesRaw);
 
     if (!summariesRaw || !outlineRaw) {
       return { volumeSummaries: "", archivedVolumes: 0, retainedChapters: 0, promotedHookCount };
@@ -186,6 +188,23 @@ export class ConsolidatorAgent extends BaseAgent {
 
       await atomicWriteFile(ledgerPath, renderHookSnapshot([...result.hooks], language));
       return result.flippedCount;
+    });
+  }
+
+  private async updateVolumeCadenceFiles(
+    storyDir: string,
+    outlineRaw: string,
+    summariesRaw: string,
+  ): Promise<void> {
+    const files = buildVolumeCadenceFileSet({
+      volumeMap: outlineRaw,
+      chapterSummaries: summariesRaw,
+      language: /[\u4e00-\u9fff]/.test(outlineRaw) ? "zh" : "en",
+    });
+    if (!files) return;
+    await withStoryTruthWriteLock(storyDir, async () => {
+      await atomicWriteFile(join(storyDir, "volume_chapter_cadence.md"), files.cadenceMarkdown);
+      await atomicWriteFile(join(storyDir, "progress_against_volume_kr.json"), files.krProgressJson);
     });
   }
 

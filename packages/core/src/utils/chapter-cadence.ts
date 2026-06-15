@@ -2,6 +2,7 @@ import {
   CADENCE_PRESSURE_THRESHOLDS,
   CADENCE_WINDOW_DEFAULTS,
   resolveCadencePressure,
+  resolveCadenceSummaryLookback,
 } from "./cadence-policy.js";
 
 export interface CadenceSummaryRow {
@@ -54,10 +55,16 @@ const ENGLISH_STOP_WORDS = new Set([
 export function analyzeChapterCadence(params: {
   readonly rows: ReadonlyArray<CadenceSummaryRow>;
   readonly language: "zh" | "en";
+  readonly currentChapter?: number;
+  readonly krCycleChapters?: number;
 }): ChapterCadenceAnalysis {
+  const lookback = resolveCadenceSummaryLookback({
+    currentChapter: params.currentChapter,
+    krCycleChapters: params.krCycleChapters,
+  });
   const recentRows = [...params.rows]
     .sort((left, right) => left.chapter - right.chapter)
-    .slice(-CADENCE_WINDOW_DEFAULTS.summaryLookback);
+    .slice(-lookback);
 
   return {
     scenePressure: analyzeScenePressure(recentRows),

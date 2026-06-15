@@ -16,12 +16,13 @@ import {
   gatherPlanningMaterials,
   loadPlanningSeedMaterials,
 } from "../utils/planning-materials.js";
-import { parseMemo, PlannerParseError } from "../utils/chapter-memo-parser.js";
+import { parseMemo, PlannerParseError, validateRecyclableHooksAddressed } from "../utils/chapter-memo-parser.js";
 import {
   buildPlannerUserMessage,
   getPlannerMemoSystemPrompt,
 } from "./planner-prompts.js";
 import {
+  buildDormantSubplotRevivalHints,
   composeCurrentArcProse,
   extractCollaboratorRows,
   extractOpponentRows,
@@ -29,15 +30,20 @@ import {
   extractRelevantThreads,
   formatRecentSummaries,
   formatRecyclableHooks,
+  clearLastAuditFeedback,
+  readLastAuditFeedback,
   readBookRules,
   readCharacterMatrix,
   readEmotionalArcs,
   readPendingHooks,
+  readVolumeCadenceGuidance,
   readSubplotBoard,
 } from "./planner-context.js";
 import type { StoredHook } from "../state/memory-db.js";
 import { DEFAULT_CHAPTER_CADENCE_WINDOW } from "../utils/chapter-cadence.js";
 import { buildOpeningLedgerBrief } from "../utils/opening-ledger.js";
+import { buildNarrativeProgressDashboard } from "../utils/narrative-progress-dashboard.js";
+import { maybeRenewCoreHooks } from "../utils/hook-renewal.js";
 
 export interface PlanChapterInput {
   readonly book: BookConfig;
@@ -111,9 +117,27 @@ export class PlannerAgent extends BaseAgent {
       seed: seedMaterials,
     });
     const memorySelection = materials.memorySelection;
+    await maybeRenewCoreHooks({
+      storyDir,
+      chapterNumber: input.chapterNumber,
+      targetChapters: input.book.targetChapters,
+      volumeMap: seedMaterials.volumeOutline,
+      activeHooks: memorySelection.activeHooks,
+      currentFocus: seedMaterials.currentFocus,
+      storyFrame: seedMaterials.storyBible,
+      authorIntent: seedMaterials.authorIntent,
+      language: input.book.language ?? "zh",
+    });
     const activeHookCount = memorySelection.activeHooks.filter(
       (hook) => hook.status !== "resolved" && hook.status !== "deferred",
     ).length;
+    const progressDashboard = buildNarrativeProgressDashboard({
+      chapterNumber: input.chapterNumber,
+      targetChapters: input.book.targetChapters,
+      volumeMap: seedMaterials.volumeOutline,
+      overdueHookCount: memorySelection.recyclableHooks.length,
+      language: input.book.language ?? "zh",
+    });
 
     const arcContext = this.buildArcContext(
       input.book.language,
@@ -146,6 +170,8 @@ export class PlannerAgent extends BaseAgent {
       currentFocus: seedMaterials.currentFocus,
       storyFrame: seedMaterials.storyBible,
       recyclableHooks: memorySelection.recyclableHooks,
+      progressDashboardPrompt: progressDashboard.promptBlock,
+      progressDashboardMemoSection: progressDashboard.memoSection,
       // P1-6: 把"语义召回的历史相关章"和"当前卷纲节点"喂进 memo —— planner 原来只看最近 3 章,
       // 导致长线被遗忘、爽点/冲突跨卷重复、跑题。现在它能看到早年埋的线和本卷该往哪收。
       recalledSummaries: renderSummarySnapshot(memorySelection.summaries, input.book.language ?? "zh"),
@@ -169,6 +195,7 @@ export class PlannerAgent extends BaseAgent {
       renderHookSnapshot(memorySelection.hooks, input.book.language ?? "zh"),
       renderSummarySnapshot(memorySelection.summaries, input.book.language ?? "zh"),
       activeHookCount,
+      progressDashboard.memoSection,
     );
     await writeFile(runtimePath, intentMarkdown, "utf-8");
 
@@ -200,11 +227,13 @@ export class PlannerAgent extends BaseAgent {
     readonly currentFocus?: string;
     readonly storyFrame?: string;
     readonly recyclableHooks?: ReadonlyArray<StoredHook>;
+    readonly progressDashboardPrompt?: string;
+    readonly progressDashboardMemoSection?: string;
     readonly recalledSummaries?: string;
     readonly volumeDirection?: string;
     readonly language?: "zh" | "en";
   }): Promise<ChapterMemo> {
-    const [characterMatrix, subplotBoard, emotionalArcs, pendingHooks, bookRulesRaw, openingLedgerBrief] = await Promise.all([
+    const [characterMatrix, subplotBoard, emotionalArcs, pendingHooks, bookRulesRaw, openingLedgerBrief, auditFeedback, volumeCadenceGuidance] = await Promise.all([
       readCharacterMatrix(input.storyDir),
       readSubplotBoard(input.storyDir),
       readEmotionalArcs(input.storyDir),
@@ -216,6 +245,8 @@ export class PlannerAgent extends BaseAgent {
         keepRecent: DEFAULT_CHAPTER_CADENCE_WINDOW,
         language: input.language ?? "zh",
       }),
+      readLastAuditFeedback(input.storyDir),
+      readVolumeCadenceGuidance(input.storyDir, input.language ?? "zh"),
     ]);
 
     const language = input.language ?? "zh";
@@ -237,9 +268,11 @@ export class PlannerAgent extends BaseAgent {
       previousChapterEndingExcerpt: input.previousEndingExcerpt?.trim()
         ? input.previousEndingExcerpt.trim()
         : noPriorChapter,
-      recentSummaries: formatRecentSummaries(input.chapterSummariesRaw, input.chapterNumber, 3),
+      recentSummaries: formatRecentSummaries(input.chapterSummariesRaw, input.chapterNumber, 8),
+      progressDashboard: input.progressDashboardPrompt ?? "",
       openingLedgerBrief: openingLedgerBrief ?? "",
       currentArcProse: composeCurrentArcProse(subplotBoard, emotionalArcs, input.chapterNumber),
+      dormantSubplotRevivalHints: buildDormantSubplotRevivalHints(subplotBoard, input.chapterNumber, language),
       protagonistMatrixRow: extractProtagonistRow(characterMatrix),
       opponentRows: extractOpponentRows(characterMatrix, 3),
       collaboratorRows: extractCollaboratorRows(characterMatrix, 3),
@@ -249,8 +282,9 @@ export class PlannerAgent extends BaseAgent {
         input.chapterNumber,
         language,
       ),
+      auditFeedback,
       recalledSummaries: input.recalledSummaries ?? "",
-      volumeDirection: input.volumeDirection ?? "",
+      volumeDirection: appendVolumeCadenceGuidance(input.volumeDirection ?? "", volumeCadenceGuidance),
       isGoldenOpening: input.isGoldenOpening,
       bookRulesRelevant: bookRulesRaw.trim().length > 0 ? bookRulesRaw.trim() : noBookRules,
       brief: input.brief ?? "",
@@ -276,7 +310,11 @@ export class PlannerAgent extends BaseAgent {
       );
 
       try {
-        return parseMemo(response.content, input.chapterNumber, input.isGoldenOpening);
+        const memo = this.parseAndValidateMemo(response.content, input);
+        if (auditFeedback.trim()) {
+          await clearLastAuditFeedback(input.storyDir);
+        }
+        return memo;
       } catch (error) {
         if (!(error instanceof PlannerParseError)) {
           throw error;
@@ -296,7 +334,48 @@ export class PlannerAgent extends BaseAgent {
       language,
     });
     this.log?.warn(`[planner] using deterministic memo fallback for chapter ${input.chapterNumber}: ${lastError?.message ?? "unknown parse error"}`);
-    return parseMemo(fallback, input.chapterNumber, input.isGoldenOpening);
+    const memo = this.parseAndValidateMemo(fallback, input, { enforceRecyclable: false });
+    if (auditFeedback.trim()) {
+      await clearLastAuditFeedback(input.storyDir);
+    }
+    return memo;
+  }
+
+  private parseAndValidateMemo(
+    raw: string,
+    input: {
+      readonly chapterNumber: number;
+      readonly isGoldenOpening: boolean;
+      readonly recyclableHooks?: ReadonlyArray<StoredHook>;
+      readonly progressDashboardMemoSection?: string;
+    },
+    opts?: { readonly enforceRecyclable?: boolean },
+  ): ChapterMemo {
+    const memo = this.attachProgressDashboardToMemo(
+      parseMemo(raw, input.chapterNumber, input.isGoldenOpening),
+      input.progressDashboardMemoSection,
+    );
+    // 兜底 fallback 路径传 enforceRecyclable:false —— 它是最后退路,绝不能因为到期 hook
+    // 校验再抛错逃出 planChapterMemo 把整章写崩(fallback 内容已把到期 hook 全部 defer,
+    // 本就满足校验,这里是双保险)。LLM 主路径仍强制校验以驱动重试。
+    if (opts?.enforceRecyclable !== false) {
+      validateRecyclableHooksAddressed(memo.body, input.recyclableHooks ?? []);
+    }
+    return memo;
+  }
+
+  private attachProgressDashboardToMemo(
+    memo: ChapterMemo,
+    progressDashboardMemoSection?: string,
+  ): ChapterMemo {
+    const section = progressDashboardMemoSection?.trim();
+    if (!section || memo.body.includes("## 全书进度仪表盘") || memo.body.includes("## Whole-book progress dashboard")) {
+      return memo;
+    }
+    return {
+      ...memo,
+      body: `${section}\n\n${memo.body}`,
+    };
   }
 
   private buildDeterministicMemoFallback(input: {
@@ -310,18 +389,22 @@ export class PlannerAgent extends BaseAgent {
     const goal = (input.fallbackGoal || (input.language === "en" ? "Continue the current conflict" : "承接当前冲突继续推进"))
       .replace(/\s+/g, "")
       .slice(0, 50);
-    const hookIds = (input.recyclableHooks ?? [])
+    // recyclableHooks 已在 computeRecyclableHooks 处按 RECYCLABLE_HOOK_LIMIT 截断,
+    // 这里全量纳入并一律 defer —— 修掉旧 fallback "只 slice(0,3) → 第 4+ 个到期 hook
+    // 缺失 → 二次校验抛错把整章写崩" 的崩点;且 fallback 本是应急退路,诚实 defer 比
+    // 假装 advance 更不污染下游 hook 账。
+    const recyclableIds = (input.recyclableHooks ?? [])
       .map((hook) => hook.hookId)
-      .filter(Boolean)
-      .slice(0, 3);
-    const refs = hookIds.length > 0
-      ? hookIds.map((hookId) => `  - ${hookId}`).join("\n")
+      .filter(Boolean);
+    const refs = recyclableIds.length > 0
+      ? recyclableIds.map((hookId) => `  - ${hookId}`).join("\n")
       : "  - fallback-mainline";
 
     if (input.language === "en") {
-      const hookLine = hookIds[0]
-        ? `- ${hookIds[0]} -> keep it visible through a concrete object, place, or choice without resolving it early.`
-        : "- fallback-mainline -> keep the current conflict visible through one concrete object, place, or choice.";
+      const deferBlock = [
+        ...recyclableIds.map((hookId) => `- ${hookId} -> emergency fallback planning round; deliberately held this chapter, will advance it next round.`),
+        "- deeper mastermind/cause -> not enough reliable memo structure this round, keep it for later repair.",
+      ].join("\n");
       return `---
 chapter: ${input.chapterNumber}
 goal: ${goal}
@@ -366,13 +449,13 @@ open:
 - [new] A visible trace left near the ending || Reason: it grows naturally from the failed planner fallback and should not be explained yet.
 
 advance:
-${hookLine}
+- fallback-mainline -> keep the current conflict visible through one concrete object, place, or choice.
 
 resolve:
 - none -> no full resolution during fallback planning; preserve continuity first.
 
 defer:
-- deeper mastermind/cause -> not enough reliable memo structure this round, keep it for later repair.
+${deferBlock}
 
 ## Do not
 - Do not introduce an unrelated new subplot to escape the current conflict.
@@ -381,9 +464,10 @@ defer:
 - Do not resolve the whole mystery in a single explanatory paragraph.`;
     }
 
-    const hookLine = hookIds[0]
-      ? `- ${hookIds[0]} → 用一个具体物件、地点或选择让它继续可见，但不提前彻底揭开。`
-      : "- fallback-mainline → 用一个具体物件、地点或选择承接当前冲突，不凭空转场。";
+    const deferBlockZh = [
+      ...recyclableIds.map((hookId) => `- ${hookId} → 兜底规划轮，刻意按住本章，下一轮稳定后再正式推进。`),
+      "- 幕后完整原因 → 等下一轮结构化 memo 稳定后再处理，避免乱揭。",
+    ].join("\n");
     return `---
 chapter: ${input.chapterNumber}
 goal: ${goal}
@@ -428,13 +512,13 @@ open:
 - [new] 章尾出现一个可见痕迹 || 理由：从当前冲突自然长出，先不解释。
 
 advance:
-${hookLine}
+- fallback-mainline → 用一个具体物件、地点或选择承接当前冲突，不凭空转场。
 
 resolve:
 - 无 → 本轮是兜底规划，不强行彻底解决旧谜团。
 
 defer:
-- 幕后完整原因 → 等下一轮结构化 memo 稳定后再处理，避免乱揭。
+${deferBlockZh}
 
 ## 不要做
 - 不要新增与当前冲突无关的新支线来逃避断点。
@@ -907,6 +991,7 @@ defer:
     pendingHooks: string,
     chapterSummaries: string,
     activeHookCount: number,
+    progressDashboard: string,
   ): string {
     const mustKeep = intent.mustKeep.length > 0
       ? intent.mustKeep.map((item) => `- ${item}`).join("\n")
@@ -936,6 +1021,9 @@ defer:
       "",
       "## Arc Context",
       intent.arcContext ?? "(none)",
+      "",
+      "## Whole-book Progress Dashboard",
+      progressDashboard || "(none)",
       "",
       "## Must Keep",
       mustKeep,
@@ -982,4 +1070,14 @@ defer:
       return "(文件尚未创建)";
     }
   }
+}
+
+function appendVolumeCadenceGuidance(
+  volumeDirection: string,
+  cadenceGuidance: string,
+): string {
+  const guidance = cadenceGuidance.trim();
+  if (!guidance) return volumeDirection;
+  const base = volumeDirection.trim() || "（未匹配到明确卷纲节点）";
+  return `${base}\n\n${guidance}`;
 }

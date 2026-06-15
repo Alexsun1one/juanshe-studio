@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseMemo, PlannerParseError } from "../utils/chapter-memo-parser.js";
+import { parseMemo, PlannerParseError, validateRecyclableHooksAddressed } from "../utils/chapter-memo-parser.js";
 
 const SECTIONS = `
 ## 当前任务
@@ -243,5 +243,63 @@ describe("parseMemo", () => {
       expect(() => parseMemo(makeRaw({ body }), 12, false))
         .toThrow(/empty sections.*不要做/);
     });
+  });
+});
+
+describe("validateRecyclableHooksAddressed", () => {
+  const dueHook = {
+    hookId: "H99",
+    startChapter: 2,
+    type: "core",
+    status: "pressured",
+    lastAdvancedChapter: 8,
+    expectedPayoff: "旧誓约必须回收",
+    notes: "",
+  };
+
+  it("accepts a memo that defers a due recyclable hook with an explicit reason (defer = 合法处置)", () => {
+    // prompt(formatRecyclableHooks)允许把过期 hook 放进 advance/resolve/defer 三档,
+    // defer-with-reason 是合法账目;强逼一章 advance/resolve 掉所有到期 hook = 炮灰式交代。
+    const body = SECTIONS.replace(
+      /defer:\n- H07[\s\S]*?\n\n## 不要做/,
+      "defer:\n- H99 \"旧誓约\" → 先压着，等第 20 章再回收\n\n## 不要做",
+    );
+
+    expect(() => validateRecyclableHooksAddressed(body, [dueHook]))
+      .not.toThrow();
+  });
+
+  it("accepts a memo that explicitly advances a due recyclable hook", () => {
+    const body = SECTIONS.replace(
+      /advance:\n- H03/,
+      "advance:\n- H99 \"旧誓约\" → 本章让誓约代价显形\n- H03",
+    );
+
+    expect(() => validateRecyclableHooksAddressed(body, [dueHook]))
+      .not.toThrow();
+  });
+
+  it("no-ops when there are no due recyclable hooks (short / early-chapter safe path)", () => {
+    expect(() => validateRecyclableHooksAddressed(SECTIONS, [])).not.toThrow();
+  });
+
+  it("blocks only a due hook that appears in none of advance/resolve/defer", () => {
+    // SECTIONS 的 hook 账里根本没提 H99(advance/resolve/defer 都没有)→ 真未处置才拦
+    expect(() => validateRecyclableHooksAddressed(SECTIONS, [dueHook]))
+      .toThrow(/H99/);
+  });
+
+  it("accepts multiple due hooks split across advance and defer (不逼一章硬塞回收)", () => {
+    const dueHookB = { ...dueHook, hookId: "H88", expectedPayoff: "旧债显形" };
+    const body = SECTIONS.replace(
+      /advance:\n- H03/,
+      "advance:\n- H99 \"旧誓约\" → 本章让誓约代价显形\n- H03",
+    ).replace(
+      /defer:\n- H07[\s\S]*?\n\n## 不要做/,
+      "defer:\n- H88 \"旧债\" → 先压着，下一章再处理\n\n## 不要做",
+    );
+
+    expect(() => validateRecyclableHooksAddressed(body, [dueHook, dueHookB]))
+      .not.toThrow();
   });
 });

@@ -6,6 +6,24 @@ export const CADENCE_WINDOW_DEFAULTS = {
   recentBoundaryPatternBodies: 2,
 } as const;
 
+export function resolveCadenceSummaryLookback(params: {
+  readonly currentChapter?: number;
+  readonly krCycleChapters?: number;
+} = {}): number {
+  const cycleLookback = params.krCycleChapters && params.krCycleChapters > 0
+    ? Math.ceil(params.krCycleChapters)
+    : 0;
+  const longFormLookback = params.currentChapter && params.currentChapter >= 80
+    ? 24
+    : params.currentChapter && params.currentChapter >= 50
+      ? 16
+      : CADENCE_WINDOW_DEFAULTS.summaryLookback;
+  return Math.max(
+    CADENCE_WINDOW_DEFAULTS.summaryLookback,
+    Math.min(30, Math.max(longFormLookback, cycleLookback)),
+  );
+}
+
 export const CADENCE_PRESSURE_THRESHOLDS = {
   scene: {
     highCount: 3,

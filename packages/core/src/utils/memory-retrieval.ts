@@ -19,6 +19,11 @@ import {
   parseCurrentStateFacts,
   parsePendingHooksMarkdown,
 } from "./story-markdown.js";
+
+const SUMMARY_SELECTION_LIMIT = 8;
+const SUMMARY_RECENT_WINDOW = 8;
+const SEMANTIC_SUMMARY_POOL_WINDOW = 30;
+const SEMANTIC_SUMMARY_POOL_LIMIT = 48;
 export {
   isFuturePlannedHook,
   isHookWithinChapterWindow,
@@ -225,6 +230,14 @@ function selectEntityCards(db: MemoryDB, focusText: string, chapterNumber: numbe
     .filter((c): c is EntityCard => Boolean(c));
 }
 
+/**
+ * 单批"到期待回收 hook"的硬上限。prompt 展示(formatRecyclableHooks)、校验
+ * (validateRecyclableHooksAddressed)、planner 兜底 fallback 三处必须用同一上限,
+ * 才不会出现"校验器要求处理 LLM 从没在 prompt 见过的第 7+ 个 hook"这种不可赢校验。
+ * 按沉默时长倒序,只取最紧迫的前 N 个;其余到期 hook 下一章再进入窗口。
+ */
+export const RECYCLABLE_HOOK_LIMIT = 6;
+
 export function computeRecyclableHooks(
   hooks: ReadonlyArray<StoredHook>,
   chapterNumber: number,
@@ -235,7 +248,8 @@ export function computeRecyclableHooks(
     .map((hook) => ({ hook, silence: hookSilence(hook, chapterNumber) }))
     .filter(({ hook, silence }) => silence >= recycleThreshold(hook))
     .sort((a, b) => b.silence - a.silence || a.hook.startChapter - b.hook.startChapter)
-    .map(({ hook }) => hook);
+    .map(({ hook }) => hook)
+    .slice(0, RECYCLABLE_HOOK_LIMIT);
 }
 
 function isRecycleTerminalStatus(status: string): boolean {
@@ -407,7 +421,7 @@ async function pickSummaries(
   const lexical = selectRelevantSummaries(rawSummaries, chapterNumber, queryTerms);
   if (!embed || !queryText.trim()) return lexical;
   try {
-    const reranked = await semanticRerankSummaries(rawSummaries, chapterNumber, queryTerms, queryText, embed, 4);
+    const reranked = await semanticRerankSummaries(rawSummaries, chapterNumber, queryTerms, queryText, embed, SUMMARY_SELECTION_LIMIT);
     return reranked ?? lexical;
   } catch {
     return lexical; // 语义层任何异常都不许影响写作主链
@@ -422,7 +436,9 @@ async function semanticRerankSummaries(
   embed: (texts: ReadonlyArray<string>) => Promise<number[][]>,
   limit: number,
 ): Promise<StoredSummary[] | null> {
-  // 词面候选池(比最终注入更宽,给语义重排留空间):过去章 + (命中 OR 最近 6 章),按词面分取前 16。
+  // 词面候选池(比最终注入更宽,给语义重排留空间):过去章 + (命中 OR 最近 30 章),按词面分取前 48。
+  // 最终仍只注入摘要级 8 条,避免把长篇历史正文灌进 prompt。
+  const poolFloor = Math.max(1, chapterNumber - SEMANTIC_SUMMARY_POOL_WINDOW);
   const pool = rawSummaries
     .filter((summary) => summary.chapter < chapterNumber)
     .map((summary) => {
@@ -431,12 +447,9 @@ async function semanticRerankSummaries(
         .join(" ");
       return { summary, lex: scoreSummary(summary, chapterNumber, queryTerms), text, matched: matchesAny(text, queryTerms) };
     })
-    .filter((entry) => entry.matched || entry.summary.chapter >= chapterNumber - 6)
+    .filter((entry) => entry.matched || entry.summary.chapter >= poolFloor)
     .sort((left, right) => right.lex - left.lex || right.summary.chapter - left.summary.chapter)
-    .slice(0, 16);
-  if (pool.length <= limit) {
-    return pool.slice(0, limit).map((entry) => entry.summary).sort((a, b) => a.chapter - b.chapter);
-  }
+    .slice(0, SEMANTIC_SUMMARY_POOL_LIMIT);
   const vectors = await embed([queryText, ...pool.map((entry) => entry.text)]);
   const queryVec = vectors[0];
   if (!queryVec || queryVec.length === 0) return null; // embedding 不可用 → 上层退回词面
@@ -487,7 +500,6 @@ async function semanticRerankFacts(
     })
     .sort((a, b) => b.lex - a.lex)
     .slice(0, 24);
-  if (pool.length <= limit) return pool.slice(0, limit).map((e) => e.fact);
   const vectors = await embed([queryText, ...pool.map((e) => e.text)]);
   const queryVec = vectors[0];
   if (!queryVec || queryVec.length === 0) return null; // embedding 不可用 → 上层退回词面
@@ -506,6 +518,7 @@ function selectRelevantSummaries(
   chapterNumber: number,
   queryTerms: ReadonlyArray<string>,
 ): StoredSummary[] {
+  const recentFloor = Math.max(1, chapterNumber - SUMMARY_RECENT_WINDOW);
   return summaries
     .filter((summary) => summary.chapter < chapterNumber)
     .map((summary) => ({
@@ -520,9 +533,9 @@ function selectRelevantSummaries(
         summary.chapterType,
       ].join(" "), queryTerms),
     }))
-    .filter((entry) => entry.matched || entry.summary.chapter >= chapterNumber - 3)
+    .filter((entry) => entry.matched || entry.summary.chapter >= recentFloor)
     .sort((left, right) => right.score - left.score || right.summary.chapter - left.summary.chapter)
-    .slice(0, 4)
+    .slice(0, SUMMARY_SELECTION_LIMIT)
     .map((entry) => entry.summary)
     .sort((left, right) => left.chapter - right.chapter);
 }

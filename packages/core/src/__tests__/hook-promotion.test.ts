@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { StoredHook } from "../state/memory-db.js";
 import {
   defaultHalfLifeChapters,
+  rerunPromotionPass,
   resolveHalfLifeChapters,
   shouldPromoteHook,
   type PromotionContext,
@@ -57,6 +58,22 @@ describe("shouldPromoteHook — Phase 7 four-rule promotion", () => {
     const decision = shouldPromoteHook(hook, makeContext({ volumeBoundaries: VOL_MAP }));
     expect(decision.promote).toBe(true);
     expect(decision.reasons).toContain("advanced_count");
+  });
+
+  it("promotes an overdue hook once silence exceeds 1.2x expected payoff deadline", () => {
+    const hook = makeHook({
+      hookId: "H09",
+      startChapter: 1,
+      lastAdvancedChapter: 5,
+      halfLifeChapters: 10,
+    });
+    const decision = shouldPromoteHook(
+      hook,
+      makeContext({ currentChapter: 17, volumeBoundaries: VOL_MAP }),
+    );
+
+    expect(decision.promote).toBe(true);
+    expect(decision.reasons).toContain("payoff_deadline_overdue");
   });
 
   it("reads advancedCount from context when hook itself has none", () => {
@@ -188,5 +205,23 @@ describe("shouldPromoteHook — Phase 7 four-rule promotion", () => {
 
     const derived = makeHook({ payoffTiming: "mid-arc" });
     expect(resolveHalfLifeChapters(derived)).toBe(30);
+  });
+});
+
+describe("rerunPromotionPass — payoff deadline promotion", () => {
+  it("flips overdue unpromoted hooks to promoted=true even without advanced_count", () => {
+    const result = rerunPromotionPass([
+      makeHook({
+        hookId: "H88",
+        startChapter: 1,
+        lastAdvancedChapter: 1,
+        halfLifeChapters: 5,
+        promoted: false,
+      }),
+    ], "", 8);
+
+    expect(result.updated).toBe(true);
+    expect(result.flippedCount).toBe(1);
+    expect(result.hooks[0]!.promoted).toBe(true);
   });
 });

@@ -4,6 +4,7 @@ import { analyzeChapterCadence } from "./chapter-cadence.js";
 import {
   CADENCE_WINDOW_DEFAULTS,
   LONG_SPAN_FATIGUE_THRESHOLDS,
+  resolveCadenceSummaryLookback,
 } from "./cadence-policy.js";
 
 export interface LongSpanFatigueIssue {
@@ -128,10 +129,11 @@ async function buildEnglishVarianceBriefFromBodies(params: {
   readonly chapterBodies: ReadonlyArray<string>;
 }): Promise<VarianceBrief> {
   const summaryRows = await loadSummaryRows(join(params.bookDir, "story", "chapter_summaries.md"));
+  const cadenceLookback = resolveCadenceSummaryLookback({ currentChapter: params.chapterNumber });
   const recentRows = summaryRows
     .filter((row) => row.chapter < params.chapterNumber)
     .sort((left, right) => left.chapter - right.chapter)
-    .slice(-CADENCE_WINDOW_DEFAULTS.summaryLookback);
+    .slice(-cadenceLookback);
 
   const highFrequencyPhrases = collectRepeatedEnglishPhrases(params.chapterBodies);
   const repeatedOpeningPatterns = collectRepeatedBoundaryPatterns(params.chapterBodies, "opening");
@@ -139,6 +141,7 @@ async function buildEnglishVarianceBriefFromBodies(params: {
   const cadence = analyzeChapterCadence({
     rows: recentRows,
     language: "en",
+    currentChapter: params.chapterNumber,
   });
   const sceneObligation = chooseSceneObligation(cadence, repeatedOpeningPatterns, repeatedEndingShapes);
 
@@ -166,10 +169,11 @@ async function buildChineseVarianceBrief(params: {
   readonly chapterBodies: ReadonlyArray<string>;
 }): Promise<VarianceBrief> {
   const summaryRows = await loadSummaryRows(join(params.bookDir, "story", "chapter_summaries.md"));
+  const cadenceLookback = resolveCadenceSummaryLookback({ currentChapter: params.chapterNumber });
   const recentRows = summaryRows
     .filter((row) => row.chapter < params.chapterNumber)
     .sort((left, right) => left.chapter - right.chapter)
-    .slice(-CADENCE_WINDOW_DEFAULTS.summaryLookback);
+    .slice(-cadenceLookback);
 
   const highFrequencyPhrases = collectRepeatedChinesePhrases(params.chapterBodies);
   const repeatedOpeningPatterns = collectRepeatedChineseBoundaryPatterns(params.chapterBodies, "opening");
@@ -177,6 +181,7 @@ async function buildChineseVarianceBrief(params: {
   const cadence = analyzeChapterCadence({
     rows: recentRows,
     language: "zh",
+    currentChapter: params.chapterNumber,
   });
   const sceneObligation = chooseChineseSceneObligation(cadence, repeatedOpeningPatterns, repeatedEndingShapes);
 
@@ -207,13 +212,15 @@ export async function analyzeLongSpanFatigue(
 
   const summaryRows = await loadSummaryRows(join(input.bookDir, "story", "chapter_summaries.md"));
   const mergedRows = mergeCurrentSummary(summaryRows, input.chapterSummary);
+  const cadenceLookback = resolveCadenceSummaryLookback({ currentChapter: input.chapterNumber });
   const recentRows = mergedRows
     .filter((row) => row.chapter <= input.chapterNumber)
     .sort((left, right) => left.chapter - right.chapter)
-    .slice(-CADENCE_WINDOW_DEFAULTS.summaryLookback);
+    .slice(-cadenceLookback);
   const cadence = analyzeChapterCadence({
     rows: recentRows,
     language,
+    currentChapter: input.chapterNumber,
   });
 
   const chapterTypeIssue = buildChapterTypeIssue(cadence, language);

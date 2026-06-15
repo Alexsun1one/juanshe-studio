@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
+  buildDormantSubplotRevivalHints,
   composeCurrentArcProse,
   extractCollaboratorRows,
   extractOpponentRows,
   extractProtagonistRow,
   extractRelevantThreads,
+  readLastAuditFeedback,
+  readVolumeCadenceGuidance,
 } from "../agents/planner-context.js";
 
 // Real column layouts match the production truth-file schemas under story/.
@@ -133,5 +139,141 @@ describe("extractRelevantThreads", () => {
     expect(threads).not.toContain("H002");
     expect(threads).toContain("S001");
     expect(threads).not.toContain("S007");
+  });
+});
+
+describe("buildDormantSubplotRevivalHints", () => {
+  it("surfaces top dormant subplot candidates only when active subplot count is low", () => {
+    const board = `
+| id | 支线 | 负责人 | 起始 | 最近推进 | 沉寂 | 状态 | 备注 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| S001 | 主线追查 | 主角 | ch1 | ch20 | 0 | 推进 | 当前压力 |
+| S007 | 货款线 | 主角 | ch3 | ch4 | 30 | 暂挂 | 可接回账本 |
+| S008 | 师债线 | 主角 | ch8 | ch18 | 16 | dormant | 可接回信物 |
+`;
+    const hints = buildDormantSubplotRevivalHints(board, 35);
+
+    expect(hints).toContain("当前活跃支线 1 条");
+    expect(hints).toContain("S007");
+    expect(hints).toContain("沉寂 30 章");
+    expect(hints).toContain("S008");
+  });
+
+  it("does not prompt revival while active subplot budget is already full", () => {
+    const board = `
+| id | 支线 | 状态 |
+| --- | --- | --- |
+| S001 | 主线追查 | 推进 |
+| S002 | 对手交易 | 高压 |
+| S007 | 货款线 | 暂挂 |
+`;
+    const hints = buildDormantSubplotRevivalHints(board, 35);
+
+    expect(hints).toContain("暂无需要复活");
+  });
+});
+
+describe("readLastAuditFeedback", () => {
+  it("formats runtime JSON feedback for planner repair constraints", async () => {
+    const root = await mkdtemp(join(tmpdir(), "planner-audit-feedback-"));
+    try {
+      const storyDir = join(root, "story");
+      await mkdir(join(storyDir, "runtime"), { recursive: true });
+      await writeFile(
+        join(storyDir, "runtime", "last_audit_feedback.json"),
+        JSON.stringify({
+          schema_version: 1,
+          source_chapter: 34,
+          issues: [{
+            severity: "critical",
+            category: "节奏单调",
+            description: "连续六章只复述调查，没有硬变化。",
+            suggestion: "下一章必须让证据易手或关系破裂。",
+          }],
+        }),
+        "utf-8",
+      );
+
+      const feedback = await readLastAuditFeedback(storyDir);
+
+      expect(feedback).toContain("第 34 章");
+      expect(feedback).toContain("[critical] 节奏单调");
+      expect(feedback).toContain("证据易手");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to legacy audit_drift.md when JSON is absent", async () => {
+    const root = await mkdtemp(join(tmpdir(), "planner-audit-drift-"));
+    try {
+      const storyDir = join(root, "story");
+      await mkdir(storyDir, { recursive: true });
+      await writeFile(
+        join(storyDir, "audit_drift.md"),
+        [
+          "# 审计纠偏",
+          "",
+          "> - [warning] 支线停滞: S007 沉寂太久。",
+        ].join("\n"),
+        "utf-8",
+      );
+
+      const feedback = await readLastAuditFeedback(storyDir);
+
+      expect(feedback).toContain("legacy audit_drift.md");
+      expect(feedback).toContain("支线停滞");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("readVolumeCadenceGuidance", () => {
+  it("compresses lagging KR progress and upcoming beat rows for planner", async () => {
+    const root = await mkdtemp(join(tmpdir(), "planner-volume-cadence-"));
+    try {
+      const storyDir = join(root, "story");
+      await mkdir(storyDir, { recursive: true });
+      await Promise.all([
+        writeFile(
+          join(storyDir, "progress_against_volume_kr.json"),
+          JSON.stringify({
+            schema_version: 1,
+            current_volume: { name: "第一卷：起航" },
+            next_chapter: 14,
+            kr_progress: [
+              {
+                kr_id: "KR2",
+                description: "与灵安峰结成稳定盟约",
+                expected_chapters: 6,
+                elapsed_chapters: 9,
+                content_progress_percent: 20,
+                status: "lagging",
+              },
+            ],
+          }),
+          "utf-8",
+        ),
+        writeFile(
+          join(storyDir, "volume_chapter_cadence.md"),
+          [
+            "| 章节 | 宏观角色 | KR 焦点 | 必须发生的推进 |",
+            "| --- | --- | --- | --- |",
+            "| 14 | build-up | KR2 | 加速补 KR：耗章超标但内容进度滞后 |",
+          ].join("\n"),
+          "utf-8",
+        ),
+      ]);
+
+      const guidance = await readVolumeCadenceGuidance(storyDir, "zh");
+
+      expect(guidance).toContain("卷内章级节奏 / KR 进度");
+      expect(guidance).toContain("KR2 [lagging]");
+      expect(guidance).toContain("本章要加速");
+      expect(guidance).toContain("ch14");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

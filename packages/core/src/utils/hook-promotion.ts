@@ -52,7 +52,8 @@ export type PromotionReason =
   | "cross_volume"
   | "advanced_count"
   | "depends_on"
-  | "core_hook";
+  | "core_hook"
+  | "payoff_deadline_overdue";
 
 export function shouldPromoteHook(
   hook: StoredHook,
@@ -77,6 +78,10 @@ export function shouldPromoteHook(
 
   if (isCrossVolume(hook, context)) {
     reasons.push("cross_volume");
+  }
+
+  if (isPayoffDeadlineOverdue(hook, context.currentChapter)) {
+    reasons.push("payoff_deadline_overdue");
   }
 
   return {
@@ -190,6 +195,28 @@ export function resolveHalfLifeChapters(hook: StoredHook): number {
   return hook.halfLifeChapters ?? defaultHalfLifeChapters(hook.payoffTiming);
 }
 
+export function resolveExpectedPayoffDeadlineChapters(hook: StoredHook): number {
+  return resolveHalfLifeChapters(hook);
+}
+
+function isPayoffDeadlineOverdue(hook: StoredHook, currentChapter: number): boolean {
+  if (currentChapter <= 0 || isTerminalStatus(hook.status) || isFutureHook(hook, currentChapter)) {
+    return false;
+  }
+  const deadline = resolveExpectedPayoffDeadlineChapters(hook);
+  const lastTouch = Math.max(hook.startChapter, hook.lastAdvancedChapter);
+  const silence = Math.max(0, currentChapter - lastTouch);
+  return silence >= Math.ceil(deadline * 1.2);
+}
+
+function isTerminalStatus(status: string): boolean {
+  return /^(resolved|closed|done|已回收|已解决|deferred|paused|hold|延后|延期|搁置|暂缓)$/i.test(status.trim());
+}
+
+function isFutureHook(hook: StoredHook, currentChapter: number): boolean {
+  return hook.lastAdvancedChapter <= 0 && hook.startChapter > currentChapter;
+}
+
 // ---------------------------------------------------------------------------
 // Shared advanced_count promotion pass (used by both consolidator and runner)
 // ---------------------------------------------------------------------------
@@ -284,6 +311,7 @@ function extractColumn(row: string, index: number): string | null {
 export function rerunPromotionPass(
   hooks: ReadonlyArray<StoredHook>,
   summariesRaw: string,
+  currentChapter = inferCurrentChapterFromSummaries(summariesRaw),
 ): PromotionPassResult {
   if (hooks.length === 0) {
     return { updated: false, hooks, flippedCount: 0 };
@@ -298,7 +326,7 @@ export function rerunPromotionPass(
   const nextHooks: StoredHook[] = hooks.map((hook) => {
     if (hook.promoted === true) return hook;
     const advanced = hook.advancedCount ?? derivedCounts.get(hook.hookId) ?? 0;
-    if (advanced >= 2) {
+    if (advanced >= 2 || isPayoffDeadlineOverdue(hook, currentChapter)) {
       flipped += 1;
       return { ...hook, promoted: true };
     }
@@ -310,4 +338,15 @@ export function rerunPromotionPass(
     hooks: nextHooks,
     flippedCount: flipped,
   };
+}
+
+function inferCurrentChapterFromSummaries(summariesRaw: string): number {
+  let maxChapter = 0;
+  for (const line of summariesRaw.split("\n")) {
+    if (!line.startsWith("|")) continue;
+    const firstCell = line.split("|")[1]?.trim() ?? "";
+    if (!/^\d+$/.test(firstCell)) continue;
+    maxChapter = Math.max(maxChapter, Number(firstCell));
+  }
+  return maxChapter;
 }

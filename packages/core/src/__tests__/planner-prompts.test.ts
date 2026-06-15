@@ -5,6 +5,7 @@ import {
   buildPlannerUserMessage,
   buildGoldenOpeningGuidance,
 } from "../agents/planner-prompts.js";
+import { formatRecentSummaries } from "../agents/planner-context.js";
 
 describe("PLANNER_MEMO_SYSTEM_PROMPT", () => {
   it("contains key methodology phrases from new.txt", () => {
@@ -21,14 +22,38 @@ describe("PLANNER_MEMO_SYSTEM_PROMPT", () => {
   });
 });
 
+describe("formatRecentSummaries", () => {
+  it("keeps the latest 8 chapter summaries as compressed history", () => {
+    const rows = Array.from({ length: 12 }, (_value, index) => {
+      const chapter = index + 1;
+      return `| ${chapter} | Title ${chapter} | Lin Yue | Event ${chapter} | State ${chapter} | Hook ${chapter} | tense | mainline |`;
+    });
+    const raw = [
+      "| chapter | title | characters | events | stateChanges | hookActivity | mood | chapterType |",
+      "|---|---|---|---|---|---|---|---|",
+      ...rows,
+    ].join("\n");
+
+    const out = formatRecentSummaries(raw, 13, 8);
+
+    expect(out).not.toContain("Title 4");
+    expect(out).toContain("Title 5");
+    expect(out).toContain("Title 12");
+    expect(out.match(/\| \d+ \|/g)?.length).toBe(8);
+  });
+});
+
 describe("PLANNER_MEMO_USER_TEMPLATE", () => {
   it("contains all placeholders", () => {
     const placeholders = [
       "{{chapterNumber}}",
       "{{premise_fidelity_block}}",
+      "{{progress_dashboard_block}}",
       "{{previous_chapter_ending_excerpt}}",
       "{{recent_summaries}}",
       "{{current_arc_prose}}",
+      "{{dormant_subplot_revival_hints}}",
+      "{{audit_feedback}}",
       "{{protagonist_matrix_row}}",
       "{{opponent_rows}}",
       "{{collaborator_rows}}",
@@ -49,7 +74,10 @@ describe("buildPlannerUserMessage", () => {
       chapterNumber: 12,
       previousChapterEndingExcerpt: "上一屏结尾原文",
       recentSummaries: "| ch9 | ... |",
+      progressDashboard: "## 全书进度仪表盘\n- 本章宏观角色：build-up。",
       currentArcProse: "主线推进七号门",
+      dormantSubplotRevivalHints: "- S007: 货款线可服务本章对质",
+      auditFeedback: "- [critical] 节奏单调: 下一章必须有硬变化",
       protagonistMatrixRow: "| 阿泽 | 主角 | ... |",
       opponentRows: "| 老李 | 对手 | ... |",
       collaboratorRows: "| 小白 | 盟友 | ... |",
@@ -62,7 +90,10 @@ describe("buildPlannerUserMessage", () => {
     expect(out).toContain("# 第 12 章 memo 请求");
     expect(out).toContain("上一屏结尾原文");
     expect(out).toContain("| ch9 | ... |");
+    expect(out).toContain("本章宏观角色：build-up");
     expect(out).toContain("主线推进七号门");
+    expect(out).toContain("S007: 货款线");
+    expect(out).toContain("节奏单调");
     expect(out).toContain("| 阿泽 | 主角 | ... |");
     expect(out).toContain("| 老李 | 对手 | ... |");
     expect(out).toContain("| 小白 | 盟友 | ... |");

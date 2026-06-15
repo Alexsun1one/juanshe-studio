@@ -28,6 +28,9 @@ describe("ConsolidatorAgent.consolidate (端到端 · 桩化 LLM)", () => {
         "",
         "## 第一卷：退烧之始",
         "- 范围：第 1-2 章",
+        "- KR1：陆星河重生归位",
+        "- KR2：沈清禾获得安全感",
+        "- KR3：第一个钩子完成首轮兑现",
         "- 第 1 章：退烧",
         "",
         "## 第二卷：更大的风暴",
@@ -81,5 +84,15 @@ describe("ConsolidatorAgent.consolidate (端到端 · 桩化 LLM)", () => {
     expect(trimmed).toContain("| 3 |");
     expect(trimmed).not.toContain("| 1 |");
     expect(trimmed).not.toContain("| 2 |");
+
+    const cadence = await readFile(join(bookDir, "story", "volume_chapter_cadence.md"), "utf-8");
+    expect(cadence).toContain("卷内章级节奏细纲");
+    expect(cadence).toContain("| 4 |");
+    const krProgress = JSON.parse(await readFile(join(bookDir, "story", "progress_against_volume_kr.json"), "utf-8")) as {
+      next_chapter: number;
+      kr_progress: Array<{ kr_id: string }>;
+    };
+    expect(krProgress.next_chapter).toBe(4);
+    expect(krProgress.kr_progress.map((kr) => kr.kr_id)).toEqual(["KR1", "KR2", "KR3"]);
   });
 });

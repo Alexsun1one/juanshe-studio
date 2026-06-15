@@ -1895,11 +1895,17 @@ describe("PipelineRunner", () => {
       await runner.writeNextChapter(bookId, 220);
 
       const driftFile = await readFile(join(state.bookDir(bookId), "story", "audit_drift.md"), "utf-8");
+      const auditFeedback = JSON.parse(await readFile(join(state.bookDir(bookId), "story", "runtime", "last_audit_feedback.json"), "utf-8")) as {
+        readonly source_chapter: number;
+        readonly issues: ReadonlyArray<{ readonly category: string; readonly description: string }>;
+      };
       const currentState = await readFile(join(state.bookDir(bookId), "story", "current_state.md"), "utf-8");
       expect(driftFile).toContain("## Audit Drift Correction");
       expect(driftFile).toContain("> Chapter 1 audit found the following issues");
       expect(driftFile).not.toContain("## 审计纠偏");
       expect(driftFile).not.toContain("下一章写作前参照");
+      expect(auditFeedback.source_chapter).toBe(1);
+      expect(auditFeedback.issues[0]?.description).toContain("berth timing");
       expect(currentState).not.toContain("Audit Drift Correction");
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -4171,10 +4177,14 @@ describe("PipelineRunner", () => {
     try {
       const result = await runner.writeNextChapter(bookId);
       const driftFile = await readFile(join(storyDir, "audit_drift.md"), "utf-8");
+      const auditFeedback = JSON.parse(await readFile(join(storyDir, "runtime", "last_audit_feedback.json"), "utf-8")) as {
+        readonly issues: ReadonlyArray<{ readonly category: string }>;
+      };
       const currentState = await readFile(join(storyDir, "current_state.md"), "utf-8");
 
       expect(result.auditResult.issues.some((issue) => issue.category === "节奏单调")).toBe(true);
       expect(driftFile).toContain("节奏单调");
+      expect(auditFeedback.issues.some((issue) => issue.category === "节奏单调")).toBe(true);
       expect(currentState).not.toContain("节奏单调");
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -4232,11 +4242,15 @@ describe("PipelineRunner", () => {
     try {
       const result = await runner.writeNextChapter(bookId);
       const driftFile = await readFile(join(storyDir, "audit_drift.md"), "utf-8");
+      const auditFeedback = JSON.parse(await readFile(join(storyDir, "runtime", "last_audit_feedback.json"), "utf-8")) as {
+        readonly issues: ReadonlyArray<{ readonly category: string; readonly description: string }>;
+      };
       const currentState = await readFile(join(storyDir, "current_state.md"), "utf-8");
       const savedIndex = await state.loadChapterIndex(bookId);
 
       expect(result.auditResult.issues.some((issue) => issue.category === "伏笔债务")).toBe(true);
       expect(driftFile).toContain("伏笔债务");
+      expect(auditFeedback.issues.some((issue) => issue.description.includes("活跃伏笔过多"))).toBe(true);
       expect(currentState).not.toContain("伏笔债务");
       expect(savedIndex[0]?.auditIssues).toEqual(
         expect.arrayContaining([

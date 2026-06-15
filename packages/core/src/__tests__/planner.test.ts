@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PlannerAgent } from "../agents/planner.js";
@@ -139,6 +139,8 @@ describe("PlannerAgent.planChapter memo generation", () => {
     expect(result.memo.isGoldenOpening).toBe(true); // ch1 zh → golden opening, authoritative over LLM
     expect(result.memo.goal).toBe("把七号门被动过手脚钉成现场实证");
     expect(result.memo.threadRefs).toEqual(["H03", "S004"]);
+    expect(result.memo.body).toContain("## 全书进度仪表盘");
+    expect(result.memo.body).toContain("本章宏观角色");
     expect(result.memo.body).toContain("## 当前任务");
   });
 
@@ -179,6 +181,93 @@ describe("PlannerAgent.planChapter memo generation", () => {
     expect(userMsg?.content).toContain("本章用户指令");
     expect(userMsg?.content).toContain("本章标题：雨夜账本");
     expect(userMsg?.content).toContain("当面对质");
+  });
+
+  it("injects dormant subplot revival hints and previous audit feedback into the memo prompt", async () => {
+    const storyDir = join(bookDir, "story");
+    await mkdir(join(storyDir, "runtime"), { recursive: true });
+    await Promise.all([
+      writeFile(
+        join(storyDir, "subplot_board.md"),
+        [
+          "| id | 支线 | 负责人 | 起始 | 最近推进 | 沉寂 | 状态 | 备注 |",
+          "| --- | --- | --- | --- | --- | --- | --- | --- |",
+          "| S001 | 主线追查 | 阿泽 | ch1 | ch30 | 0 | 推进 | 当前压力 |",
+          "| S007 | 货款旧账 | 阿泽 | ch3 | ch4 | 30 | 暂挂 | 可接回七号门账本 |",
+        ].join("\n"),
+        "utf-8",
+      ),
+      writeFile(
+        join(storyDir, "runtime", "last_audit_feedback.json"),
+        JSON.stringify({
+          schema_version: 1,
+          source_chapter: 34,
+          issues: [{
+            severity: "critical",
+            category: "节奏单调",
+            description: "连续六章没有硬变化。",
+            suggestion: "下一章让证据易手。",
+          }],
+        }),
+        "utf-8",
+      ),
+    ]);
+    const chatSpy = vi.spyOn(llmProvider, "chatCompletion").mockResolvedValue({
+      content: validMemoRaw(35),
+      usage: ZERO_USAGE,
+    } as unknown as Awaited<ReturnType<typeof llmProvider.chatCompletion>>);
+
+    await makePlanner().planChapter({
+      book: makeBook(),
+      bookDir,
+      chapterNumber: 35,
+    });
+
+    const callArgs = chatSpy.mock.calls[0]!;
+    const messages = callArgs[2] as ReadonlyArray<{ role: string; content: string }>;
+    const userMsg = messages.find((m) => m.role === "user");
+    expect(userMsg?.content).toContain("dormant 支线复活提示");
+    expect(userMsg?.content).toContain("S007");
+    expect(userMsg?.content).toContain("上轮审计反馈");
+    expect(userMsg?.content).toContain("[critical] 节奏单调");
+    expect(userMsg?.content).toContain("证据易手");
+    await expect(readFile(join(storyDir, "runtime", "last_audit_feedback.json"), "utf-8"))
+      .rejects.toThrow();
+  });
+
+  it("retries when a due recyclable hook is missing from the memo hook ledger", async () => {
+    const storyDir = join(bookDir, "story");
+    await writeFile(
+      join(storyDir, "pending_hooks.md"),
+      [
+        "| hook_id | start_chapter | type | status | last_advanced | expected_payoff | payoff_timing | depends_on | pays_off_in_arc | core_hook | half_life | promoted | notes |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| H99 | 1 | core | pressured | 1 | 旧誓约必须在本卷回收 | near-term | none | 第一卷 | true | 5 | true | stale core promise |",
+      ].join("\n"),
+      "utf-8",
+    );
+    const repaired = validMemoRaw(20).replace(
+      /advance:\n- H03/,
+      "advance:\n- H99 \"旧誓约\" → 本章让誓约代价显形\n- H03",
+    );
+    const chatSpy = vi.spyOn(llmProvider, "chatCompletion")
+      .mockResolvedValueOnce({
+        content: validMemoRaw(20),
+        usage: ZERO_USAGE,
+      } as unknown as Awaited<ReturnType<typeof llmProvider.chatCompletion>>)
+      .mockResolvedValueOnce({
+        content: repaired,
+        usage: ZERO_USAGE,
+      } as unknown as Awaited<ReturnType<typeof llmProvider.chatCompletion>>);
+
+    const result = await makePlanner().planChapter({
+      book: makeBook(),
+      bookDir,
+      chapterNumber: 20,
+    });
+
+    expect(chatSpy).toHaveBeenCalledTimes(2);
+    expect(result.memo.body).toContain("H99");
   });
 
   it("retries when the first response is malformed and succeeds on retry", async () => {

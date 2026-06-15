@@ -1,5 +1,7 @@
 import YAML from "js-yaml";
 import { ChapterMemoSchema, type ChapterMemo } from "../models/input-governance.js";
+import type { StoredHook } from "../state/memory-db.js";
+import { parseHookLedger } from "./hook-ledger-validator.js";
 
 export class PlannerParseError extends Error {
   constructor(message: string) {
@@ -154,4 +156,31 @@ export function parseMemo(
     body,
     threadRefs,
   });
+}
+
+export function validateRecyclableHooksAddressed(
+  memoBody: string,
+  recyclableHooks: ReadonlyArray<StoredHook>,
+): void {
+  const dueHookIds = recyclableHooks
+    .map((hook) => hook.hookId.trim())
+    .filter(Boolean);
+  if (dueHookIds.length === 0) return;
+
+  const ledger = parseHookLedger(memoBody);
+  // defer 也算"已处置":prompt(formatRecyclableHooks)明确允许把过期 hook 放进
+  // advance / resolve / defer 三档,runner 侧 validateHookLedger 也不校验 defer
+  // (deferred = 刻意不动)。强逼一章 advance/resolve 掉所有到期 hook 会造成"炮灰式
+  // 交代",违反"不一次交代过多";deadline+promotion 机制保证真陈旧的不会被永久遗忘。
+  const handled = new Set([
+    ...ledger.advance.map((entry) => entry.id),
+    ...ledger.resolve.map((entry) => entry.id),
+    ...ledger.defer.map((entry) => entry.id),
+  ]);
+  const missing = dueHookIds.filter((id) => !handled.has(id));
+  if (missing.length === 0) return;
+
+  throw new PlannerParseError(
+    `recyclable hooks not addressed (advance/resolve/defer) in memo hook ledger: ${missing.join(", ")}`,
+  );
 }
