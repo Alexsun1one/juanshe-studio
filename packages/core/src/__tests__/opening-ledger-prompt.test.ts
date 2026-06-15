@@ -44,6 +44,7 @@ describe("opening ledger prompt injection", () => {
         readonly lengthSpec: ReturnType<typeof buildLengthSpec>;
         readonly language?: "zh" | "en";
         readonly openingLedgerBrief?: string;
+        readonly textDiversityBrief?: string;
       }): string;
     }).buildGovernedUserPrompt({
       chapterNumber: 6,
@@ -64,11 +65,15 @@ describe("opening ledger prompt injection", () => {
       lengthSpec: buildLengthSpec(1200, "zh"),
       language: "zh",
       openingLedgerBrief: "## 已用开篇/意象账本（硬避让）\n最近已用招牌意象：抹布、积水、路灯、便利店\n本章要求：必须换一种开篇类型。",
+      textDiversityBrief: "## 文本多样性 / 结尾账本（软 cadence 压力）\n本章文本气质目标：register=温暖 / 明快 / 对话密；tempo=快 / 对话驱动。\n本章要求：结尾换一种形状，主角情绪不要再靠擦柜台外化。",
     });
 
     expect(prompt).toContain("已用开篇/意象账本");
     expect(prompt).toContain("抹布、积水、路灯、便利店");
     expect(prompt).toContain("必须换一种开篇类型");
+    expect(prompt).toContain("文本多样性 / 结尾账本");
+    expect(prompt).toContain("register=温暖");
+    expect(prompt).toContain("结尾换一种形状");
   });
 
   it("injects the same opening ledger facts into planner user messages", () => {
@@ -77,6 +82,7 @@ describe("opening ledger prompt injection", () => {
       previousChapterEndingExcerpt: "上一章停在沈砚看见巷尾灯火。",
       recentSummaries: "| 5 | 雨停以前 | 沈砚 | 擦柜台时看见巷尾灯火 | 怀疑加深 | H03 planted | 阴郁 | transition |",
       openingLedgerBrief: "## 已用开篇/意象账本（硬避让）\n最近已用招牌意象：抹布、积水、路灯、便利店",
+      textDiversityBrief: "## 文本多样性 / 结尾账本（软 cadence 压力）\n本章文本气质目标：register=对话密；tempo=快。\n重复小动作压力：擦柜台",
       currentArcProse: "H03 正在推进。",
       protagonistMatrixRow: "沈砚 | 谨慎 | 被旧账本牵住",
       opponentRows: "无",
@@ -91,5 +97,8 @@ describe("opening ledger prompt injection", () => {
     expect(message).toContain("开篇多样化");
     expect(message).toContain("已用开篇/意象账本");
     expect(message).toContain("抹布、积水、路灯、便利店");
+    expect(message).toContain("文本气质多样化");
+    expect(message).toContain("register=对话密");
+    expect(message).toContain("重复小动作压力：擦柜台");
   });
 });

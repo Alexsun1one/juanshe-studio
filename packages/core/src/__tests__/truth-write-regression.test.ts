@@ -193,8 +193,11 @@ describe("opening ledger", () => {
 
     const summaries = await readFile(join(bookDir, "story", "chapter_summaries.md"), "utf-8");
     const ledger = await readFile(join(bookDir, "story", "opening_ledger.md"), "utf-8");
+    const endingLedger = await readFile(join(bookDir, "story", "ending_ledger.md"), "utf-8");
     expect(summaries).toContain("| 6 | 巷尾灯火");
     expect(ledger).toContain("| 6 | 动作切入");
     expect(ledger).toContain("抹布、柜台");
+    expect(endingLedger).toContain("| 6 |");
+    expect(endingLedger).toContain("Register");
   });
 });

@@ -521,6 +521,19 @@ describe("ComposerAgent", () => {
         "# Fanfic Canon\n\nMara may diverge from the archive route, but the oath debt logic must stay intact.\n",
         "utf-8",
       ),
+      writeFile(
+        join(storyDir, "ending_ledger.md"),
+        [
+          "# Ending Ledger",
+          "",
+          "| Chapter | Ending Shape | Ending Signature | Register | Tempo | Protagonist Actions | Side Portraits | Excerpt |",
+          "| --- | --- | --- | --- | --- | --- | --- | --- |",
+          "| 1 | Fragment silence | Fragment silence: He said nothing. | gloomy introspective | slow-observational | silent watching | workwear/oil/savings | He said nothing. |",
+          "| 2 | Fragment silence | Fragment silence: He never looked back. | gloomy introspective | slow-observational | silent watching | workwear/oil/savings | He never looked back. |",
+          "",
+        ].join("\n"),
+        "utf-8",
+      ),
     ]);
 
     const composer = new ComposerAgent({
@@ -540,6 +553,7 @@ describe("ComposerAgent", () => {
     const selectedSources = result.contextPackage.selectedContext.map((entry) => entry.source);
     expect(selectedSources).toContain("story/chapter_summaries.md#recent_titles");
     expect(selectedSources).toContain("story/chapter_summaries.md#recent_mood_type_trail");
+    expect(selectedSources).toContain("story/ending_ledger.md#text_diversity");
     expect(selectedSources).toContain("story/parent_canon.md");
     expect(selectedSources).toContain("story/fanfic_canon.md");
 
@@ -552,12 +566,17 @@ describe("ComposerAgent", () => {
     const parentCanonEntry = result.contextPackage.selectedContext.find((entry) =>
       entry.source === "story/parent_canon.md",
     );
+    const textDiversityEntry = result.contextPackage.selectedContext.find((entry) =>
+      entry.source === "story/ending_ledger.md#text_diversity",
+    );
     const fanficCanonEntry = result.contextPackage.selectedContext.find((entry) =>
       entry.source === "story/fanfic_canon.md",
     );
 
     expect(titleEntry?.excerpt).toContain("Ledger in Rain");
     expect(moodEntry?.excerpt).toContain("tight / investigation");
+    expect(textDiversityEntry?.excerpt).toContain("文本多样性 / 结尾账本");
+    expect(textDiversityEntry?.excerpt).toContain("温暖 / 明快 / 对话密");
     expect(parentCanonEntry?.excerpt).toContain("archive fire");
     expect(fanficCanonEntry?.excerpt).toContain("oath debt logic");
   });

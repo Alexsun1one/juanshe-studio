@@ -144,6 +144,7 @@ function buildGovernedInputContract(language: "zh" | "en", governed: boolean): s
 - Keep hard guardrails compact: canon, continuity facts, and explicit prohibitions still win.
 - If the composed context package includes author intent, story frame, or role cards, treat them as premise-fidelity constraints: every chapter must visibly carry at least one core-promise signal through action, limitation, payoff, cost, or long-range mystery movement. Do not let local scene mechanics hide the book's defining premise.
 - If a Variance Brief is provided, obey it: avoid the listed phrase/opening/ending patterns and satisfy the scene obligation.
+- If a Text Diversity / Ending Ledger brief is provided, obey its register/tempo target. Change the ending shape, avoid repeating the same protagonist tic, and do not introduce the next side character with the same portrait template.
 - If Hook Debt Briefs are provided, they contain the ORIGINAL SEED TEXT from the chapter where each hook was planted. Use this text to write a continuation or payoff that feels connected to what the reader already saw — not a vague mention, but a scene that builds on the specific promise.
 - When the explicit hook agenda names an eligible resolve target, land a concrete payoff beat that answers the reader's original question from the seed chapter.
 - When stale debt is present, do not open sibling hooks casually; clear pressure from old promises before minting fresh debt.
@@ -158,6 +159,7 @@ function buildGovernedInputContract(language: "zh" | "en", governed: boolean): s
 - 真正不能突破的只有硬护栏：世界设定、连续性事实、显式禁令。
 - 如果 composed context package 里有 author intent、story frame、角色卡或全书承诺，必须把它当作主设定保真约束：每章至少显化一个核心承诺信号（主角身份反差、核心能力/能力限制、爽点收益与代价、长期谜团推进之一）。不得只写局部事件而让本书主设定隐身。
 - 如果提供了 Variance Brief / 中文变体简报，必须主动避开其中列出的高频短语、重复开头和重复结尾模式，并完成本章结构义务。
+- 如果提供了「文本多样性 / 结尾账本」，必须服从其中的 register/tempo 目标；结尾换形状，主角外化动作换一种，不要继续用同一套客人/配角画像模板。
 - 如果提供了 Hook Debt 简报，里面包含每个伏笔种下时的**原始文本片段**。用这些原文来写延续或兑现场景——不是模糊地提一嘴，而是接着读者已经看到的具体承诺来写。
 - 如果显式 hook agenda 里出现了可回收目标，本章必须写出具体兑现片段，回答种子章节中读者的原始疑问。
 - 如果存在 stale debt，先消化旧承诺的压力，再决定是否开新坑；同类 sibling hook 不得随手再开。

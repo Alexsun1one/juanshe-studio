@@ -41,6 +41,14 @@ export const CADENCE_PRESSURE_THRESHOLDS = {
     mediumCount: 2,
     mediumWindowFloor: 4,
   },
+  textDiversity: {
+    lookback: 6,
+    endingShapeHighCount: 3,
+    registerHighCount: 3,
+    tempoHighCount: 3,
+    repeatedActionCount: 2,
+    repeatedPortraitCount: 2,
+  },
 } as const;
 
 export const LONG_SPAN_FATIGUE_THRESHOLDS = {

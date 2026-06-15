@@ -6,6 +6,7 @@ import {
   LONG_SPAN_FATIGUE_THRESHOLDS,
   resolveCadenceSummaryLookback,
 } from "./cadence-policy.js";
+import { analyzeTextDiversityFatigue } from "./ending-ledger.js";
 
 export interface LongSpanFatigueIssue {
   readonly severity: "warning";
@@ -268,6 +269,14 @@ export async function analyzeLongSpanFatigue(
   if (endingSceneIssue) {
     issues.push(endingSceneIssue);
   }
+
+  const textDiversity = await analyzeTextDiversityFatigue({
+    storyDir: join(input.bookDir, "story"),
+    chapterNumber: input.chapterNumber,
+    chapterContent: input.chapterContent,
+    language,
+  }).catch(() => ({ issues: [] }));
+  issues.push(...textDiversity.issues);
 
   return { issues };
 }

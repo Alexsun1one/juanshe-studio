@@ -22,6 +22,7 @@ import { writeGovernedRuntimeArtifacts } from "../utils/runtime-writer.js";
 import { readCharacterContext, readCurrentStateWithFallback } from "../utils/outline-paths.js";
 import { DEFAULT_CHAPTER_CADENCE_WINDOW } from "../utils/chapter-cadence.js";
 import { buildOpeningLedgerBrief } from "../utils/opening-ledger.js";
+import { buildTextDiversityBrief } from "../utils/ending-ledger.js";
 
 const DEFAULT_CONTEXT_EXCERPT_CHARS = 1600;
 
@@ -179,6 +180,7 @@ async function collectSelectedContext(
     ]);
     const trailEntries = await buildRecentChapterTrailEntries(storyDir, plan.intent.chapter);
     const openingLedgerEntry = await buildOpeningLedgerContextEntry(storyDir, plan.intent.chapter, language);
+    const textDiversityEntry = await buildTextDiversityContextEntry(storyDir, plan.intent.chapter, language);
 
     const memorySelection = await retrieveMemorySelection({
       bookDir: dirname(storyDir),
@@ -242,6 +244,7 @@ async function collectSelectedContext(
       ...entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null),
       ...trailEntries,
       ...openingLedgerEntry,
+      ...textDiversityEntry,
       ...hookDebtEntries,
       ...entityCardEntries,
       ...factEntries,
@@ -268,6 +271,27 @@ async function buildOpeningLedgerContextEntry(
       reason: language === "en"
         ? "Keep used opening types and imagery visible so the writer changes the next opening."
         : "把已用开篇类型和招牌意象显式喂给写手，避免下一章复刻开场。",
+      excerpt: brief,
+    }];
+}
+
+async function buildTextDiversityContextEntry(
+  storyDir: string,
+  chapterNumber: number,
+  language: "zh" | "en",
+): Promise<ContextPackage["selectedContext"]> {
+    const brief = await buildTextDiversityBrief({
+      storyDir,
+      currentChapter: chapterNumber,
+      keepRecent: DEFAULT_CHAPTER_CADENCE_WINDOW,
+      language,
+    });
+    if (!brief) return [];
+    return [{
+      source: "story/ending_ledger.md#text_diversity",
+      reason: language === "en"
+        ? "Keep ending shape, register/tempo, protagonist tic, and side-character portrait cadence visible."
+        : "把结尾形状、register/tempo、主角小动作和配角画像 cadence 显式喂给写手/修稿，避免每章一个味。",
       excerpt: brief,
     }];
 }

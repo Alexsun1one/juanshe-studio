@@ -42,6 +42,7 @@ import {
 import type { StoredHook, StoredSummary } from "../state/memory-db.js";
 import { DEFAULT_CHAPTER_CADENCE_WINDOW } from "../utils/chapter-cadence.js";
 import { buildOpeningLedgerBrief } from "../utils/opening-ledger.js";
+import { buildTextDiversityBrief } from "../utils/ending-ledger.js";
 import { buildNarrativeProgressDashboard } from "../utils/narrative-progress-dashboard.js";
 import { maybeRenewCoreHooks } from "../utils/hook-renewal.js";
 import { parseHookLedger } from "../utils/hook-ledger-validator.js";
@@ -253,18 +254,25 @@ export class PlannerAgent extends BaseAgent {
     readonly recyclableHooks?: ReadonlyArray<StoredHook>;
     readonly progressDashboardPrompt?: string;
     readonly progressDashboardMemoSection?: string;
+    readonly textDiversityMemoSection?: string;
     readonly recalledSummaries?: string;
     readonly volumeDirection?: string;
     readonly volumeOkrAnchor?: VolumeOkrChapterAnchor;
     readonly language?: "zh" | "en";
   }): Promise<ChapterMemo> {
-    const [characterMatrix, subplotBoard, emotionalArcs, pendingHooks, bookRulesRaw, openingLedgerBrief, auditFeedback, volumeCadenceGuidance] = await Promise.all([
+    const [characterMatrix, subplotBoard, emotionalArcs, pendingHooks, bookRulesRaw, openingLedgerBrief, textDiversityBrief, auditFeedback, volumeCadenceGuidance] = await Promise.all([
       readCharacterMatrix(input.storyDir),
       readSubplotBoard(input.storyDir),
       readEmotionalArcs(input.storyDir),
       readPendingHooks(input.storyDir),
       readBookRules(input.storyDir),
       buildOpeningLedgerBrief({
+        storyDir: input.storyDir,
+        currentChapter: input.chapterNumber,
+        keepRecent: DEFAULT_CHAPTER_CADENCE_WINDOW,
+        language: input.language ?? "zh",
+      }),
+      buildTextDiversityBrief({
         storyDir: input.storyDir,
         currentChapter: input.chapterNumber,
         keepRecent: DEFAULT_CHAPTER_CADENCE_WINDOW,
@@ -296,6 +304,7 @@ export class PlannerAgent extends BaseAgent {
       recentSummaries: formatRecentSummaries(input.chapterSummariesRaw, input.chapterNumber, 8),
       progressDashboard: input.progressDashboardPrompt ?? "",
       openingLedgerBrief: openingLedgerBrief ?? "",
+      textDiversityBrief: textDiversityBrief ?? "",
       currentArcProse: composeCurrentArcProse(subplotBoard, emotionalArcs, input.chapterNumber),
       dormantSubplotRevivalHints: buildDormantSubplotRevivalHints(subplotBoard, input.chapterNumber, language),
       protagonistMatrixRow: extractProtagonistRow(characterMatrix),
@@ -335,7 +344,10 @@ export class PlannerAgent extends BaseAgent {
       );
 
       try {
-        const memo = this.parseAndValidateMemo(response.content, input);
+        const memo = this.parseAndValidateMemo(response.content, {
+          ...input,
+          textDiversityMemoSection: textDiversityBrief,
+        });
         if (auditFeedback.trim()) {
           await clearLastAuditFeedback(input.storyDir);
         }
@@ -361,7 +373,10 @@ export class PlannerAgent extends BaseAgent {
       language,
     });
     this.log?.warn(`[planner] using deterministic memo fallback for chapter ${input.chapterNumber}: ${lastError?.message ?? "unknown parse error"}`);
-    const memo = this.parseAndValidateMemo(fallback, input, {
+    const memo = this.parseAndValidateMemo(fallback, {
+      ...input,
+      textDiversityMemoSection: textDiversityBrief,
+    }, {
       enforceRecyclable: false,
       enforceVolumeKr: false,
     });
@@ -378,6 +393,7 @@ export class PlannerAgent extends BaseAgent {
       readonly isGoldenOpening: boolean;
       readonly recyclableHooks?: ReadonlyArray<StoredHook>;
       readonly progressDashboardMemoSection?: string;
+      readonly textDiversityMemoSection?: string;
       readonly volumeOkrAnchor?: VolumeOkrChapterAnchor;
       readonly chapterSummariesRaw: string;
       readonly chapterContext?: string;
@@ -391,6 +407,7 @@ export class PlannerAgent extends BaseAgent {
       parseMemo(raw, input.chapterNumber, input.isGoldenOpening),
       input.progressDashboardMemoSection,
     );
+    memo = this.attachTextDiversityToMemo(memo, input.textDiversityMemoSection);
     // 兜底 fallback 路径传 enforceRecyclable:false —— 它是最后退路,绝不能因为到期 hook
     // 校验再抛错逃出 planChapterMemo 把整章写崩(fallback 内容已把到期 hook 全部 defer,
     // 本就满足校验,这里是双保险)。LLM 主路径仍强制校验以驱动重试。
@@ -543,6 +560,20 @@ export class PlannerAgent extends BaseAgent {
   ): ChapterMemo {
     const section = progressDashboardMemoSection?.trim();
     if (!section || memo.body.includes("## 全书进度仪表盘") || memo.body.includes("## Whole-book progress dashboard")) {
+      return memo;
+    }
+    return {
+      ...memo,
+      body: `${section}\n\n${memo.body}`,
+    };
+  }
+
+  private attachTextDiversityToMemo(
+    memo: ChapterMemo,
+    textDiversityMemoSection?: string,
+  ): ChapterMemo {
+    const section = textDiversityMemoSection?.trim();
+    if (!section || memo.body.includes("## 文本多样性 / 结尾账本") || memo.body.includes("## Text Diversity / Ending Ledger")) {
       return memo;
     }
     return {

@@ -44,6 +44,11 @@ import {
   upsertOpeningLedgerFileUnlocked,
 } from "../utils/opening-ledger.js";
 import {
+  buildTextDiversityBrief,
+  extractEndingSignature,
+  upsertEndingLedgerFileUnlocked,
+} from "../utils/ending-ledger.js";
+import {
   buildNarrativeIntentBrief,
   renderMemoAsNarrativeBlock,
   renderNarrativeSelectedContext,
@@ -354,6 +359,12 @@ export class WriterAgent extends BaseAgent {
       keepRecent: DEFAULT_CHAPTER_CADENCE_WINDOW,
       language: resolvedLanguage,
     });
+    const textDiversityBrief = await buildTextDiversityBrief({
+      storyDir: join(bookDir, "story"),
+      currentChapter: chapterNumber,
+      keepRecent: DEFAULT_CHAPTER_CADENCE_WINDOW,
+      language: resolvedLanguage,
+    });
 
     // Build fanfic context if fanfic_canon.md exists
     const fanficContext: FanficContext | undefined = hasFanficCanon && bookRules?.fanficMode
@@ -386,6 +397,7 @@ export class WriterAgent extends BaseAgent {
           language: book.language ?? genreProfile.language,
           varianceBrief: varianceBrief?.text,
           openingLedgerBrief,
+          textDiversityBrief,
           selectedEvidenceBlock: this.joinGovernedEvidenceBlocks(governedMemoryBlocks),
           // governed 路径此前不带角色矩阵 → 写手看不到「说话」卡原文,全员同腔的源头之一。
           // 按本章意图/memo 点名的角色选卡注入;legacy 路径的矩阵块本就含说话字段,不重复注入。
@@ -435,6 +447,7 @@ export class WriterAgent extends BaseAgent {
             language: book.language ?? genreProfile.language,
             varianceBrief: varianceBrief?.text,
             openingLedgerBrief,
+            textDiversityBrief,
           });
         })();
 
@@ -996,6 +1009,23 @@ export class WriterAgent extends BaseAgent {
         language,
         logger: this.ctx.logger,
       });
+      await upsertEndingLedgerFileUnlocked({
+        storyDir,
+        signature: extractEndingSignature({
+          chapterNumber: output.chapterNumber,
+          title: output.title,
+          content: chapterContent,
+          language,
+        }),
+        language,
+        logger: this.ctx.logger,
+      }).catch((error) => {
+        this.ctx.logger?.warn?.(
+          language === "en"
+            ? `[truth-write] ending_ledger.md skipped for chapter ${output.chapterNumber}: ${error instanceof Error ? error.message : String(error)}`
+            : `[truth-write] ending_ledger.md 第${output.chapterNumber}章写入失败，已跳过不阻断正文落盘：${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
     });
   }
 
@@ -1042,6 +1072,7 @@ export class WriterAgent extends BaseAgent {
     readonly language?: "zh" | "en";
     readonly varianceBrief?: string;
     readonly openingLedgerBrief?: string;
+    readonly textDiversityBrief?: string;
   }): string {
     const continuityGuard = this.buildContinuityGuardBlock(params.lockedFacts ?? "", params.auditDrift ?? "", params.language ?? "zh");
     const contextBlock = params.externalContext
@@ -1088,6 +1119,9 @@ ${params.parentCanon}\n`
     const openingLedgerBlock = params.openingLedgerBrief
       ? `\n${params.openingLedgerBrief}\n`
       : "";
+    const textDiversityBlock = params.textDiversityBrief
+      ? `\n${params.textDiversityBrief}\n`
+      : "";
 
     if (params.language === "en") {
       return `Write chapter ${params.chapterNumber}.
@@ -1101,7 +1135,7 @@ ${summariesBlock}${subplotBlock}${emotionalBlock}${matrixBlock}${fingerprintBloc
 ## Recent Chapters
 ${params.recentChapters || "(This is the first chapter, no previous text)"}
 
-${openingLedgerBlock}
+${openingLedgerBlock}${textDiversityBlock}
 ## Worldbuilding
 ${params.storyBible}
 
@@ -1122,7 +1156,7 @@ ${summariesBlock}${subplotBlock}${emotionalBlock}${matrixBlock}${fingerprintBloc
 ## 最近章节
 ${params.recentChapters || "(这是第一章，无前文)"}
 
-${openingLedgerBlock}
+${openingLedgerBlock}${textDiversityBlock}
 ## 世界观设定
 ${params.storyBible}
 
@@ -1146,6 +1180,7 @@ ${lengthRequirementBlock}
     readonly varianceBrief?: string;
     readonly selectedEvidenceBlock?: string;
     readonly openingLedgerBrief?: string;
+    readonly textDiversityBrief?: string;
     /** 人物声音卡(「说话」原文)块,空串表示本章无可注入卡。 */
     readonly voiceCardBlock?: string;
   }): string {
@@ -1172,6 +1207,9 @@ ${lengthRequirementBlock}
     const openingLedgerBlock = params.openingLedgerBrief
       ? `\n${params.openingLedgerBrief}\n`
       : "";
+    const textDiversityBlock = params.textDiversityBrief
+      ? `\n${params.textDiversityBrief}\n`
+      : "";
 
     const voiceCardBlock = params.voiceCardBlock ?? "";
 
@@ -1181,7 +1219,7 @@ ${lengthRequirementBlock}
 ${chapterContextBlock}
 
 ${briefNarrative}
-${continuityGuard}${openingLedgerBlock}${voiceCardBlock}
+${continuityGuard}${openingLedgerBlock}${textDiversityBlock}${voiceCardBlock}
 ## Selected Context
 ${contextSections || "(none)"}
 ${selectedEvidenceBlock}
@@ -1202,7 +1240,7 @@ ${lengthRequirementBlock}
 ${chapterContextBlock}
 
 ${briefNarrative}
-${continuityGuard}${openingLedgerBlock}${voiceCardBlock}
+${continuityGuard}${openingLedgerBlock}${textDiversityBlock}${voiceCardBlock}
 ## 已选上下文
 ${contextSections || "(无)"}
 ${selectedEvidenceBlock}

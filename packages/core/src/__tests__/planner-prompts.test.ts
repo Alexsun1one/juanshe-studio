@@ -51,6 +51,8 @@ describe("PLANNER_MEMO_USER_TEMPLATE", () => {
       "{{progress_dashboard_block}}",
       "{{previous_chapter_ending_excerpt}}",
       "{{recent_summaries}}",
+      "{{opening_ledger_brief}}",
+      "{{text_diversity_brief}}",
       "{{current_arc_prose}}",
       "{{dormant_subplot_revival_hints}}",
       "{{audit_feedback}}",
