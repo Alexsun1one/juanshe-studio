@@ -2,6 +2,7 @@ import type { BookConfig, FanficMode } from "../models/book.js";
 import type { GenreProfile } from "../models/genre-profile.js";
 import type { BookRules } from "../models/book-rules.js";
 import type { LengthSpec } from "../models/length-governance.js";
+import type { ChapterHeatTarget, ChapterRegister, ChapterTempo } from "../models/input-governance.js";
 import { buildFanficCanonSection, buildCharacterVoiceProfiles, buildFanficModeInstructions } from "./fanfic-prompt-sections.js";
 import { buildEnglishCoreRules, buildEnglishGenreIntro } from "./en-prompt-sections.js";
 import { buildLengthSpec } from "../utils/length-metrics.js";
@@ -30,10 +31,13 @@ export function buildWriterSystemPrompt(
   languageOverride?: "zh" | "en",
   inputProfile: "legacy" | "governed" = "legacy",
   lengthSpec?: LengthSpec,
+  register: ChapterRegister = "neutral",
+  tempo: ChapterTempo = "medium",
 ): string {
   const isEnglish = (languageOverride ?? genreProfile.language) === "en";
   const governed = inputProfile === "governed";
   const resolvedLengthSpec = lengthSpec ?? buildLengthSpec(book.chapterWordCount, isEnglish ? "en" : "zh");
+  const chapterHeat: ChapterHeatTarget = { register, tempo };
 
   const outputSection = mode === "creative"
     ? buildCreativeOutputFormat(book, genreProfile, resolvedLengthSpec)
@@ -44,10 +48,11 @@ export function buildWriterSystemPrompt(
         buildEnglishGenreIntro(book, genreProfile),
         buildPremiseAnchor(book, "en"),
         buildEnglishCoreRules(book),
+        buildChapterHeatPrioritySection(chapterHeat, "en"),
         buildGovernedInputContract("en", governed),
         buildChapterMemoContract("en", governed),
         buildLengthGuidance(resolvedLengthSpec, "en"),
-        buildWritingCraftCard("en"),
+        buildWritingCraftCard("en", chapterHeat),
         buildCreativeConstitution("en"),
         buildImmersionPillars("en"),
         buildGoldenOpeningDiscipline(chapterNumber, "en"),
@@ -65,11 +70,12 @@ export function buildWriterSystemPrompt(
     : [
         buildGenreIntro(book, genreProfile),
         buildPremiseAnchor(book, "zh"),
-        buildCoreRules(resolvedLengthSpec),
+        buildCoreRules(resolvedLengthSpec, chapterHeat),
+        buildChapterHeatPrioritySection(chapterHeat, "zh"),
         buildGovernedInputContract("zh", governed),
         buildChapterMemoContract("zh", governed),
         buildLengthGuidance(resolvedLengthSpec, "zh"),
-        buildWritingCraftCard("zh"),
+        buildWritingCraftCard("zh", chapterHeat),
         buildCreativeConstitution("zh"),
         buildImmersionPillars("zh"),
         buildGoldenOpeningDiscipline(chapterNumber, "zh"),
@@ -226,7 +232,7 @@ function buildLengthGuidance(lengthSpec: LengthSpec, language: "zh" | "en"): str
 // Core rules (~25 universal rules)
 // ---------------------------------------------------------------------------
 
-function buildCoreRules(lengthSpec: LengthSpec): string {
+function buildCoreRules(lengthSpec: LengthSpec, chapterHeat: ChapterHeatTarget): string {
   return `## 核心规则
 
 1. 以简体中文工作，句子长短交替，段落适合手机阅读（3-5行/段）
@@ -323,7 +329,46 @@ function buildCoreRules(lengthSpec: LengthSpec): string {
 
 - 【硬性禁令】全文严禁出现"不是……而是……""不是……，是……""不是A，是B"句式，出现即判定违规。改用直述句
 - 【硬性禁令】全文严禁出现破折号"——"，用逗号或句号断句
-- 正文中禁止出现hook_id/账本式数据（如"余量由X%降到Y%"），数值结算只放POST_SETTLEMENT`;
+- 正文中禁止出现hook_id/账本式数据（如"余量由X%降到Y%"），数值结算只放POST_SETTLEMENT${buildChineseCoreHeatRules(chapterHeat)}`;
+}
+
+function buildChapterHeatPrioritySection(
+  heat: ChapterHeatTarget,
+  language: "zh" | "en",
+): string {
+  if (isDefaultHeat(heat)) return "";
+  if (language === "en") {
+    return `## Chapter Register / Tempo Priority
+
+This chapter's register/tempo target is **register=${heat.register}, tempo=${heat.tempo}**. This target outranks the book-level style_guide and style fingerprint. If they conflict, execute the chapter target while preserving canon, continuity, explicit prohibitions, and length bounds.`;
+  }
+  return `## 本章 register/tempo 优先级裁决
+
+本章火候目标是 **register=${heat.register}, tempo=${heat.tempo}**。本章 register/tempo 目标高于全书 style_guide / style fingerprint；两者冲突时执行本章目标，同时保留设定、连续性事实、显式禁令和字数边界。`;
+}
+
+function buildChineseCoreHeatRules(heat: ChapterHeatTarget): string {
+  if (isDefaultHeat(heat)) return "";
+  const lines: string[] = [];
+  if (heat.register === "warm") {
+    lines.push("温暖章允许情绪更直接、对话更柔软，实际照料、靠近、触碰、温度和气味可以承担关系推进；不要被全书克制风格压回冷腔。");
+  } else if (heat.register === "tense") {
+    lines.push("紧张/爆发章放松过度克制，允许冲突外显、台词带刺、动作更狠；信息仍克制，但情绪和威胁必须在台面上发生。");
+  } else if (heat.register === "bright") {
+    lines.push("明快章减少阴郁内省，给动作、反馈和局面变化更清楚的光感；允许更快揭晓局部结果。");
+  } else if (heat.register === "dialogue") {
+    lines.push("对话密章由台词推动冲突和转向，角色声音差异优先；每 3-4 句对白必须落地一个动作、感官锚点或即时反应。");
+  } else if (heat.register === "gloomy") {
+    lines.push("阴郁/勘验章才使用感官微观慢镜，允许冷、暗、静、物证细看，但每段都要带来新信息或内心位移。");
+  }
+  if (heat.tempo === "fast") {
+    lines.push("fast tempo 下短句、强动词、行动密度和段落变化优先；削减铺陈与解释，把冲突直接推到页面上。");
+  } else if (heat.tempo === "slow") {
+    lines.push("slow tempo 下可以停驻，但停驻必须服务互动、物证或关系变化，不能纯心理独白原地打转。");
+  }
+  return lines.length > 0
+    ? `\n\n## 本章火候分支规则\n${lines.map((line) => `- ${line}`).join("\n")}`
+    : "";
 }
 
 // ---------------------------------------------------------------------------
@@ -331,7 +376,7 @@ function buildCoreRules(lengthSpec: LengthSpec): string {
 // Full methodology is in style_guide.md; this is the always-on reminder.
 // ---------------------------------------------------------------------------
 
-function buildWritingCraftCard(language: "zh" | "en"): string {
+function buildWritingCraftCard(language: "zh" | "en", chapterHeat: ChapterHeatTarget): string {
   if (language === "en") {
     return `## Writing Craft Rules
 
@@ -353,7 +398,7 @@ function buildWritingCraftCard(language: "zh" | "en"): string {
 - **Cycle awareness**: If currently in build-up phase, lay new obstacles and information; if climax phase, write payoff that exceeds expectations; if aftermath phase, write consequences — who lost what, who gained what, how relationships changed
 - **Post-climax impact**: After a climax, never jump straight to new build-up. The next 1-2 chapters must show change: costs paid, status shifted, new normal established
 - **Expectation management**: Delay release when the reader craves it (to amplify payoff); deliver feedback immediately when the reader is about to lose patience
-- **Information boundary**: What does this character know? What don't they know? What are they wrong about? Characters must act only on information they possess`;
+- **Information boundary**: What does this character know? What don't they know? What are they wrong about? Characters must act only on information they possess${buildEnglishCraftHeatLine(chapterHeat)}`;
   }
 
   return `## 写作铁律
@@ -376,7 +421,47 @@ function buildWritingCraftCard(language: "zh" | "en"): string {
 - **小目标周期意识**：如果当前处于蓄压阶段，铺新阻力新信息；如果是爆发阶段，写兑现超预期；如果是后效阶段，写改变和代价
 - **高潮后影响**：爆发后不能直接跳到下一个蓄压。紧接着的 1-2 章必须写出改变——谁失去了什么、谁得到了什么、关系怎么变了
 - **期待管理**：读者期待释放时适当延迟以增强快感；读者即将失去耐心时立即给反馈
-- **信息边界**：角色此刻知道什么？不知道什么？对局势有什么误判？角色只能基于已掌握的信息行动`;
+- **信息边界**：角色此刻知道什么？不知道什么？对局势有什么误判？角色只能基于已掌握的信息行动${buildChineseCraftHeatLine(chapterHeat)}`;
+}
+
+function buildChineseCraftHeatLine(heat: ChapterHeatTarget): string {
+  if (isDefaultHeat(heat)) return "";
+  const register = {
+    warm: "温暖目标：多用对话、照料、触碰、温度与气味词承载情感，允许直接情绪，不把所有情感都压回克制。",
+    tense: "紧张目标：短促、悬停、信息克制，高潮/炸裂段允许冲突外显，不用慢镜把爆点磨平。",
+    bright: "明快目标：节奏轻、留白少，动作和反馈更干脆，少用阴郁内省压低火候。",
+    dialogue: "对话密目标：冲突由台词推进，每 3-4 句对白落一个感官锚点或即时反应。",
+    gloomy: "阴郁目标：只在勘验/观察段使用微观慢镜，每段带新信息，不把慢写成空转。",
+    neutral: "中性目标：按 memo 执行，不额外改变火候。",
+  }[heat.register];
+  const tempo = {
+    fast: "fast：短句、强动词、行动密度高，打散段落长度，削减铺陈。",
+    medium: "medium：推进事件同时落后果与反应，保持长短段呼吸。",
+    slow: "slow：允许停驻，但必须落在互动、物证或关系位移上。",
+  }[heat.tempo];
+  return `\n- **本章火候执行**：${register} ${tempo}`;
+}
+
+function buildEnglishCraftHeatLine(heat: ChapterHeatTarget): string {
+  if (isDefaultHeat(heat)) return "";
+  const register = {
+    warm: "Warm target: carry feeling through dialogue, care, touch, warmth, and smell; direct emotion is allowed and should not be flattened back into restraint.",
+    tense: "Tense target: clipped suspension and restrained information; climax/explosion beats may show conflict openly instead of sanding it down.",
+    bright: "Bright target: lighter rhythm, less withholding, cleaner action and feedback; avoid dragging the chapter back into gloomy introspection.",
+    dialogue: "Dialogue target: dialogue carries conflict; every 3-4 exchanges land a sensory anchor or immediate reaction.",
+    gloomy: "Gloomy target: use micro slow-motion only for investigation/observation, with new information in every paragraph.",
+    neutral: "Neutral target: follow the memo without extra heat shifts.",
+  }[heat.register];
+  const tempo = {
+    fast: "fast: shorter sentences, stronger verbs, high action density, varied paragraph length, reduced setup.",
+    medium: "medium: advance events while landing consequence and reaction.",
+    slow: "slow: pauses are allowed only when anchored in interaction, evidence, or relationship movement.",
+  }[heat.tempo];
+  return `\n- **Chapter heat execution**: ${register} ${tempo}`;
+}
+
+function isDefaultHeat(heat: ChapterHeatTarget): boolean {
+  return heat.register === "neutral" && heat.tempo === "medium";
 }
 
 // ---------------------------------------------------------------------------

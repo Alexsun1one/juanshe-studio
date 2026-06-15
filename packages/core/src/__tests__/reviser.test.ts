@@ -708,6 +708,83 @@ describe("ReviserAgent", () => {
     }
   });
 
+  it("adds chapter heat protection to revision prompts when register/tempo is non-default", async () => {
+    const root = await mkdtemp(join(tmpdir(), "autow-reviser-heat-test-"));
+    const bookDir = join(root, "book");
+    await mkdir(join(bookDir, "story"), { recursive: true });
+
+    const agent = new ReviserAgent({
+      client: {
+        provider: "openai",
+        apiFormat: "chat",
+        stream: false,
+        defaults: {
+          temperature: 0.7,
+          maxTokens: 4096,
+          thinkingBudget: 0,
+          extra: {},
+        },
+      },
+      model: "test-model",
+      projectRoot: root,
+    });
+
+    const chatSpy = vi.spyOn(ReviserAgent.prototype as never, "chat" as never).mockResolvedValue({
+      content: [
+        "=== FIXED_ISSUES ===",
+        "- repaired",
+        "",
+        "=== PATCHES ===",
+        "--- PATCH 1 ---",
+        "TARGET_TEXT:",
+        "原始正文。",
+        "REPLACEMENT_TEXT:",
+        "修订后的正文。",
+        "--- END PATCH ---",
+        "",
+        "=== UPDATED_STATE ===",
+        "状态卡",
+        "",
+        "=== UPDATED_HOOKS ===",
+        "伏笔池",
+      ].join("\n"),
+      usage: ZERO_USAGE,
+    });
+
+    try {
+      await agent.reviseChapter(
+        bookDir,
+        "原始正文。",
+        7,
+        [CRITICAL_ISSUE],
+        "spot-fix",
+        "xuanhuan",
+        {
+          chapterMemo: {
+            chapter: 7,
+            goal: "把当面对质推到明处",
+            isGoldenOpening: false,
+            servesKr: null,
+            threadRefs: [],
+            register: "dialogue",
+            tempo: "fast",
+            body: "## 当前任务\n让对话承载冲突。",
+          },
+        },
+      );
+
+      const systemPrompt = flat((chatSpy.mock.calls[0]?.[0] as ReadonlyArray<{ content: string }> | undefined)?.[0]);
+      expect(systemPrompt).toContain("本章火候保护");
+      expect(systemPrompt).toContain("register: dialogue");
+      expect(systemPrompt).toContain("tempo: fast");
+      expect(systemPrompt).toContain("不得把温暖、炸裂、明快或对话密的场面按全书克制宪法修回统一腔");
+      expect(systemPrompt).toContain("对话承载冲突");
+      expect(systemPrompt).toContain("短句、强动词、高行动密度");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("routes structural issues to REVISED_CONTENT (rewrite-only) and rejects stray PATCHES", async () => {
     const root = await mkdtemp(join(tmpdir(), "autow-reviser-route-structural-"));
     const bookDir = join(root, "book");

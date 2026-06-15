@@ -73,6 +73,8 @@ describe("agent pipeline tools", () => {
         servesKr: null,
         body: "",
         threadRefs: [] as string[],
+        register: "neutral" as const,
+        tempo: "medium" as const,
       };
       const intentMarkdown = [
         "# Chapter Intent",
@@ -92,6 +94,8 @@ describe("agent pipeline tools", () => {
           mustKeep: [],
           mustAvoid: [],
           styleEmphasis: [],
+          register: "neutral",
+          tempo: "medium",
         },
         memo,
         intentMarkdown,

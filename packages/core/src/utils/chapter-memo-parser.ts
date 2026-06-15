@@ -1,5 +1,10 @@
 import YAML from "js-yaml";
-import { ChapterMemoSchema, type ChapterMemo } from "../models/input-governance.js";
+import {
+  ChapterMemoSchema,
+  ChapterRegisterSchema,
+  ChapterTempoSchema,
+  type ChapterMemo,
+} from "../models/input-governance.js";
 import type { StoredHook } from "../state/memory-db.js";
 import { parseHookLedger } from "./hook-ledger-validator.js";
 
@@ -152,15 +157,35 @@ export function parseMemo(
   const servesKr = typeof rawServesKr === "string" && rawServesKr.trim().length > 0
     ? rawServesKr.trim()
     : null;
+  const register = parseOptionalHeatField(f.register, "register", ChapterRegisterSchema);
+  const tempo = parseOptionalHeatField(f.tempo, "tempo", ChapterTempoSchema);
 
   return ChapterMemoSchema.parse({
     chapter: f.chapter,
     goal: f.goal,
     isGoldenOpening,
     servesKr,
+    ...(register ? { register } : {}),
+    ...(tempo ? { tempo } : {}),
     body,
     threadRefs,
   });
+}
+
+function parseOptionalHeatField<T extends string>(
+  value: unknown,
+  field: string,
+  schema: { safeParse: (input: unknown) => { success: true; data: T } | { success: false } },
+): T | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") {
+    throw new PlannerParseError(`${field} must be a controlled enum string`);
+  }
+  const parsed = schema.safeParse(value.trim());
+  if (!parsed.success) {
+    throw new PlannerParseError(`${field} has invalid value: ${value}`);
+  }
+  return parsed.data;
 }
 
 export function validateRecyclableHooksAddressed(

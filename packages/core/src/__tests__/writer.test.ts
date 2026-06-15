@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { WriterAgent } from "../agents/writer.js";
+import { WriterAgent, resolveCreativeTemperatureForTempo } from "../agents/writer.js";
 import { buildLengthSpec } from "../utils/length-metrics.js";
 
 const ZERO_USAGE = {
@@ -37,6 +37,14 @@ describe("WriterAgent", () => {
     vi.restoreAllMocks();
   });
 
+  it("modulates creative temperature by chapter tempo unless explicitly overridden", () => {
+    expect(resolveCreativeTemperatureForTempo("fast")).toBe(0.85);
+    expect(resolveCreativeTemperatureForTempo("medium")).toBe(0.7);
+    expect(resolveCreativeTemperatureForTempo("slow")).toBe(0.55);
+    expect(resolveCreativeTemperatureForTempo(undefined)).toBe(0.7);
+    expect(resolveCreativeTemperatureForTempo("fast", 0.42)).toBe(0.42);
+  });
+
   it("renders per-chapter user context in governed creative prompts", () => {
     const agent = new WriterAgent({
       client: {
@@ -63,6 +71,20 @@ describe("WriterAgent", () => {
           readonly isGoldenOpening: boolean;
           readonly body: string;
           readonly threadRefs: readonly string[];
+          readonly register: "dialogue";
+          readonly tempo: "fast";
+          readonly servesKr: null;
+        };
+        readonly chapterIntentData?: {
+          readonly chapter: number;
+          readonly goal: string;
+          readonly outlineNode?: string;
+          readonly arcContext?: string;
+          readonly mustKeep: readonly string[];
+          readonly mustAvoid: readonly string[];
+          readonly styleEmphasis: readonly string[];
+          readonly register: "dialogue";
+          readonly tempo: "fast";
         };
         readonly contextPackage: { readonly chapter: number; readonly selectedContext: readonly [] };
         readonly ruleStack: {
@@ -83,6 +105,20 @@ describe("WriterAgent", () => {
         isGoldenOpening: false,
         body: "## 当前任务\n围绕账本线推进。",
         threadRefs: [],
+        register: "dialogue",
+        tempo: "fast",
+        servesKr: null,
+      },
+      chapterIntentData: {
+        chapter: 7,
+        goal: "推进账本线",
+        outlineNode: "Chapter 7",
+        arcContext: "当面对质",
+        mustKeep: [],
+        mustAvoid: [],
+        styleEmphasis: ["减少铺陈，让对话承载冲突"],
+        register: "dialogue",
+        tempo: "fast",
       },
       contextPackage: { chapter: 7, selectedContext: [] },
       ruleStack: {
@@ -99,6 +135,13 @@ describe("WriterAgent", () => {
     expect(prompt).toContain("本章用户指令");
     expect(prompt).toContain("本章标题：雨夜账本");
     expect(prompt).toContain("当面对质");
+    expect(prompt).toContain("## 风格强调");
+    expect(prompt).toContain("减少铺陈，让对话承载冲突");
+    expect(prompt).toContain("## 本章火候 / 场景级 craft");
+    expect(prompt).toContain("register: dialogue");
+    expect(prompt).toContain("tempo: fast");
+    expect(prompt).toContain("对话承载冲突");
+    expect(prompt).toContain("短句、强动词、高行动密度");
   });
 
   it("uses compact summary context plus selected long-range evidence during governed settlement", async () => {
@@ -1066,6 +1109,8 @@ describe("WriterAgent", () => {
           servesKr: null,
           body: "",
           threadRefs: ["ledger-fragment"],
+          register: "neutral",
+          tempo: "medium",
         },
         contextPackage: {
           chapter: 4,
@@ -1197,6 +1242,8 @@ describe("WriterAgent", () => {
           servesKr: null,
           body: "",
           threadRefs: ["ledger-fragment"],
+          register: "neutral",
+          tempo: "medium",
         },
         contextPackage: {
           chapter: 4,
@@ -1347,6 +1394,8 @@ describe("WriterAgent", () => {
           servesKr: null,
           body: "本章要做的是推进 ledger-fragment tension at the archive.",
           threadRefs: ["mentor-oath", "ledger-fragment"],
+          register: "neutral",
+          tempo: "medium",
         },
         contextPackage: {
           chapter: 4,

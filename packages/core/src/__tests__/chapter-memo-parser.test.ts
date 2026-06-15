@@ -50,6 +50,8 @@ function makeRaw(
     isGoldenOpening?: boolean | string;
     servesKr?: string | null;
     threadRefs?: ReadonlyArray<string> | null | unknown;
+    register?: string;
+    tempo?: string;
     body?: string;
     dropFrontmatter?: boolean;
   } = {},
@@ -70,6 +72,8 @@ function makeRaw(
     `chapter: ${opts.chapter ?? 12}`,
     `goal: ${opts.goal ?? "把七号门被动过手脚钉成现场实证"}`,
     `isGoldenOpening: ${opts.isGoldenOpening ?? false}`,
+    opts.register === undefined ? undefined : `register: ${opts.register}`,
+    opts.tempo === undefined ? undefined : `tempo: ${opts.tempo}`,
     opts.servesKr === undefined ? undefined : `servesKr: ${opts.servesKr ?? "null"}`,
     threadRefsText,
   ].filter((line): line is string => Boolean(line)).join("\n");
@@ -85,8 +89,21 @@ describe("parseMemo", () => {
     expect(memo.isGoldenOpening).toBe(false);
     expect(memo.threadRefs).toEqual(["H03", "S004"]);
     expect(memo.servesKr).toBeNull();
+    expect(memo.register).toBe("neutral");
+    expect(memo.tempo).toBe("medium");
     expect(memo.body).toContain("## 当前任务");
     expect(memo.body).toContain("## 不要做");
+  });
+
+  it("parses controlled register and tempo frontmatter as forward heat fields", () => {
+    const memo = parseMemo(makeRaw({ register: "warm", tempo: "slow" }), 12, false);
+    expect(memo.register).toBe("warm");
+    expect(memo.tempo).toBe("slow");
+  });
+
+  it("rejects uncontrolled register and tempo labels", () => {
+    expect(() => parseMemo(makeRaw({ register: "温暖", tempo: "medium" }), 12, false)).toThrow(/register/);
+    expect(() => parseMemo(makeRaw({ register: "warm", tempo: "quick" }), 12, false)).toThrow(/tempo/);
   });
 
   it("parses optional servesKr from frontmatter", () => {

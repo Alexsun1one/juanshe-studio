@@ -44,6 +44,8 @@ export async function savePersistedPlan(
     goal: memo.goal,
     isGoldenOpening: memo.isGoldenOpening,
     servesKr: memo.servesKr,
+    register: memo.register,
+    tempo: memo.tempo,
     threadRefs: memo.threadRefs,
     intent: {
       goal: intent.goal,
@@ -52,6 +54,8 @@ export async function savePersistedPlan(
       mustKeep: intent.mustKeep,
       mustAvoid: intent.mustAvoid,
       styleEmphasis: intent.styleEmphasis,
+      register: intent.register,
+      tempo: intent.tempo,
     },
     plannerInputs: [...plannerInputs],
     plannerInputSnapshots: await snapshotPlannerInputs(bookDir, plannerInputs),
@@ -97,6 +101,8 @@ export async function loadPersistedPlan(
       chapter: f.chapter,
       goal: f.goal,
       servesKr: f.servesKr,
+      register: f.register,
+      tempo: f.tempo,
       threadRefs: f.threadRefs,
     })}---\n${match[2]!}`;
     memo = parseMemo(reconstructed, chapterNumber, f.isGoldenOpening);

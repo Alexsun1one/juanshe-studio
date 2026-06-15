@@ -353,4 +353,31 @@ describe("buildWriterSystemPrompt", () => {
     expect(prompt).toContain("醒来/静听 → 独自探查 → 发现物件 → 章尾新线索");
     expect(prompt).toContain("禁止批量模板章");
   });
+
+  it("lets chapter register and tempo outrank the book style guide", () => {
+    const prompt = buildWriterSystemPrompt(
+      BOOK,
+      GENRE,
+      null,
+      "# Book Rules",
+      "# Genre Body",
+      "# Style Guide\n\n保持克制。",
+      undefined,
+      8,
+      "creative",
+      undefined,
+      "zh",
+      "governed",
+      undefined,
+      "warm",
+      "slow",
+    );
+
+    expect(prompt).toContain("本章 register/tempo 优先级裁决");
+    expect(prompt).toContain("register=warm, tempo=slow");
+    expect(prompt).toContain("本章 register/tempo 目标高于全书 style_guide / style fingerprint");
+    expect(prompt).toContain("温暖章允许情绪更直接");
+    expect(prompt).toContain("slow tempo 下可以停驻");
+    expect(prompt).toContain("本章火候执行");
+  });
 });

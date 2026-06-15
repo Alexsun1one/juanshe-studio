@@ -85,6 +85,8 @@ describe("ending ledger / text diversity engine", () => {
     expect(result.issues.some((issue) => issue.category === "结尾形状重复")).toBe(true);
     expect(result.issues.some((issue) => issue.category === "文本气质单调")).toBe(true);
     expect(result.issues.some((issue) => issue.category === "节奏档位单调")).toBe(true);
+    expect(result.issues).not.toHaveLength(0);
+    expect(result.issues.every((issue) => issue.severity === "warning")).toBe(true);
   });
 
   it("raises soft cadence pressure when the protagonist tic repeats", async () => {

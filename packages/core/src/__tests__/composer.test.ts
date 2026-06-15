@@ -66,6 +66,8 @@ describe("ComposerAgent", () => {
         ],
         mustAvoid: ["Do not reveal the mastermind."],
         styleEmphasis: ["character conflict", "tight POV"],
+        register: "neutral",
+        tempo: "medium",
       },
       memo: {
         chapter: 4,
@@ -74,6 +76,8 @@ describe("ComposerAgent", () => {
         servesKr: null,
         body: "",
         threadRefs: [],
+        register: "neutral",
+        tempo: "medium",
       },
       intentMarkdown: "# Chapter Intent\n",
       plannerInputs: [

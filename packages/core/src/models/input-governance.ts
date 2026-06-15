@@ -1,10 +1,28 @@
 import { z } from "zod";
 
+export const ChapterRegisterSchema = z.enum(["warm", "tense", "bright", "dialogue", "gloomy", "neutral"]);
+export type ChapterRegister = z.infer<typeof ChapterRegisterSchema>;
+
+export const ChapterTempoSchema = z.enum(["fast", "medium", "slow"]);
+export type ChapterTempo = z.infer<typeof ChapterTempoSchema>;
+
+export interface ChapterHeatTarget {
+  readonly register: ChapterRegister;
+  readonly tempo: ChapterTempo;
+}
+
+export const DEFAULT_CHAPTER_HEAT_TARGET: ChapterHeatTarget = {
+  register: "neutral",
+  tempo: "medium",
+};
+
 export const ChapterMemoSchema = z.object({
   chapter: z.number().int().min(1),
   goal: z.string().min(1).max(50),
   isGoldenOpening: z.boolean().default(false),
   servesKr: z.string().min(1).nullable().default(null),
+  register: ChapterRegisterSchema.default(DEFAULT_CHAPTER_HEAT_TARGET.register),
+  tempo: ChapterTempoSchema.default(DEFAULT_CHAPTER_HEAT_TARGET.tempo),
   body: z.string().min(1),
   threadRefs: z.array(z.string()).default([]),
 });
@@ -19,6 +37,8 @@ export const ChapterIntentSchema = z.object({
   mustKeep: z.array(z.string()).default([]),
   mustAvoid: z.array(z.string()).default([]),
   styleEmphasis: z.array(z.string()).default([]),
+  register: ChapterRegisterSchema.default(DEFAULT_CHAPTER_HEAT_TARGET.register),
+  tempo: ChapterTempoSchema.default(DEFAULT_CHAPTER_HEAT_TARGET.tempo),
 });
 
 export type ChapterIntent = z.infer<typeof ChapterIntentSchema>;

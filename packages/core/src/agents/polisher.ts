@@ -1,5 +1,6 @@
 import { BaseAgent } from "./base.js";
-import type { ChapterMemo } from "../models/input-governance.js";
+import type { ChapterHeatTarget, ChapterMemo } from "../models/input-governance.js";
+import { renderChapterHeatCraftBlock, resolveChapterHeatTarget } from "../utils/narrative-control.js";
 import { applySpotFixPatches, parseSpotFixPatches } from "../utils/spot-fix-patches.js";
 
 export type PolisherMode = "patch" | "rewrite";
@@ -61,11 +62,13 @@ export class PolisherAgent extends BaseAgent {
     const language = input.language ?? "zh";
     const isEnglish = language === "en";
     const mode: PolisherMode = input.mode ?? "patch";
+    const chapterHeat = resolveChapterHeatTarget(input.chapterMemo);
+    const heatGuard = buildPolisherHeatGuard(chapterHeat, isEnglish, Boolean(input.deAiFocus));
 
     const memoBlock = input.chapterMemo
       ? isEnglish
-        ? `\n\n## Chapter Memo (do NOT let polish drift from this goal)\nGoal: ${input.chapterMemo.goal}\n\n${input.chapterMemo.body}`
-        : `\n\n## 章节备忘（润色不得偏离此目标）\ngoal：${input.chapterMemo.goal}\n\n${input.chapterMemo.body}`
+        ? `\n\n## Chapter Memo (do NOT let polish drift from this goal)\nGoal: ${input.chapterMemo.goal}\nregister: ${input.chapterMemo.register}\ntempo: ${input.chapterMemo.tempo}\n\n${input.chapterMemo.body}`
+        : `\n\n## 章节备忘（润色不得偏离此目标）\ngoal：${input.chapterMemo.goal}\nregister：${input.chapterMemo.register}\ntempo：${input.chapterMemo.tempo}\n\n${input.chapterMemo.body}`
       : "";
 
     const systemPrompt = mode === "patch"
@@ -82,16 +85,16 @@ export class PolisherAgent extends BaseAgent {
     // 去 AI 味专项指令:仅在 deAiFocus 时插入,告诉 LLM 本轮重点是清痕迹而非常规润色。
     const deAiBlock = input.deAiFocus
       ? (isEnglish
-          ? `\n\n**This pass is AI-tell removal first.** The chapter still reads machine-written. Prioritize: break up same-length paragraphs (vary rhythm), delete hedge/filler words and formulaic transitions (however/meanwhile…), convert "named emotions" (felt fear/anger) into observable action or sensory detail, and replace cliché imagery with concrete specifics. Keep plot/character/mainline frozen.`
-          : `\n\n**本轮以去 AI 味为第一优先。** 这一章仍然读起来像机器写的。重点清理:把等长段落打散(制造节奏差)、删掉套话与公式化转折词(然而/与此同时/不禁/仿佛…)、把"直白命名情绪"(感到恐惧/心头涌起愤怒)改成可观察的动作或感官、把陈词意象(空气凝固/闪过一丝)换成此刻具体细节。情节/人物/主线保持冻结。`)
+          ? `\n\n**This pass is AI-tell removal first.** The chapter still reads machine-written. Prioritize: break up same-length paragraphs (vary rhythm), delete hedge/filler words and formulaic transitions (however/meanwhile…), convert "named emotions" (felt fear/anger) into observable action or sensory detail, and replace cliché imagery with concrete specifics. Keep plot/character/mainline frozen. Do not treat the chapter register/tempo itself as an AI tell.`
+          : `\n\n**本轮以去 AI 味为第一优先。** 这一章仍然读起来像机器写的。重点清理:把等长段落打散(制造节奏差)、删掉套话与公式化转折词(然而/与此同时/不禁/仿佛…)、把"直白命名情绪"(感到恐惧/心头涌起愤怒)改成可观察的动作或感官、把陈词意象(空气凝固/闪过一丝)换成此刻具体细节。情节/人物/主线保持冻结。不要把本章 register/tempo 火候本身当成 AI 味清掉。`)
       : "";
     const instructionBlock = mode === "patch"
       ? (isEnglish
-          ? `\n\nPolish chapter ${input.chapterNumber}. Output PATCHES only — short surgical replacements, never the whole chapter. Each patch has TARGET_TEXT (verbatim slice from the chapter) → REPLACEMENT_TEXT.${deAiBlock}${memoBlock}`
-          : `\n\n请润色第${input.chapterNumber}章。只输出 PATCHES——逐处定点替换,绝不返回整章。每条 patch:TARGET_TEXT(原章节里的逐字片段) → REPLACEMENT_TEXT(润色后的版本)。${deAiBlock}${memoBlock}`)
+          ? `\n\nPolish chapter ${input.chapterNumber}. Output PATCHES only — short surgical replacements, never the whole chapter. Each patch has TARGET_TEXT (verbatim slice from the chapter) → REPLACEMENT_TEXT.${deAiBlock}${heatGuard}${memoBlock}`
+          : `\n\n请润色第${input.chapterNumber}章。只输出 PATCHES——逐处定点替换,绝不返回整章。每条 patch:TARGET_TEXT(原章节里的逐字片段) → REPLACEMENT_TEXT(润色后的版本)。${deAiBlock}${heatGuard}${memoBlock}`)
       : (isEnglish
-          ? `\n\nPolish chapter ${input.chapterNumber}. Return the polished chapter in full, nothing else — no JSON, no headers, no commentary.${deAiBlock}${memoBlock}`
-          : `\n\n请润色第${input.chapterNumber}章。只返回完整的润色后正文,不要 JSON、不要标题、不要解释。${deAiBlock}${memoBlock}`);
+          ? `\n\nPolish chapter ${input.chapterNumber}. Return the polished chapter in full, nothing else — no JSON, no headers, no commentary.${deAiBlock}${heatGuard}${memoBlock}`
+          : `\n\n请润色第${input.chapterNumber}章。只返回完整的润色后正文,不要 JSON、不要标题、不要解释。${deAiBlock}${heatGuard}${memoBlock}`);
 
     const response = await this.chat(
       [
@@ -165,6 +168,25 @@ export class PolisherAgent extends BaseAgent {
 function stripWrappingFence(text: string): string {
   const fence = text.match(/^```[a-zA-Z]*\n([\s\S]*?)\n```\s*$/);
   return fence?.[1]?.trim() ?? text;
+}
+
+function buildPolisherHeatGuard(
+  heat: ChapterHeatTarget,
+  isEnglish: boolean,
+  deAiFocus: boolean,
+): string {
+  if (heat.register === "neutral" && heat.tempo === "medium") return "";
+  const craft = renderChapterHeatCraftBlock(heat, isEnglish ? "en" : "zh");
+  if (isEnglish) {
+    return `\n\n## Chapter Register / Tempo Preservation
+Preserve register=${heat.register}, tempo=${heat.tempo}. Polish wording, rhythm, paragraph shape, and AI-tell residue, but do not normalize this chapter back to the book-level restrained house voice. ${deAiFocus ? "AI-tell removal deletes cliches and formulaic phrasing; it does not delete the chapter heat target." : ""}
+
+${craft}`;
+  }
+  return `\n\n## 本章火候保护
+保留 register=${heat.register}, tempo=${heat.tempo}。润色只改句式、段落、用词、排版、五感和对话自然度，不得把本章修回全书统一的克制腔。${deAiFocus ? "去 AI 味清套话、公式化转折和机器解释腔，不清本章火候。" : ""}
+
+${craft}`;
 }
 
 // ─── prompts ─────────────────────────────────────────────────────────────

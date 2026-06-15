@@ -1,4 +1,4 @@
-import type { ChapterIntent, ChapterMemo, ContextPackage } from "../models/input-governance.js";
+import type { ChapterHeatTarget, ChapterIntent, ChapterMemo, ContextPackage } from "../models/input-governance.js";
 
 const HOOK_ID_PATTERN = /\bH\d+\b/gi;
 const HOOK_SLUG_PATTERN = /\b[a-z]+(?:-[a-z]+){1,3}\b/g;
@@ -74,6 +74,18 @@ export function renderMemoAsNarrativeBlock(
     );
   }
 
+  const styleEmphasis = intent?.styleEmphasis ?? [];
+  if (styleEmphasis.length > 0) {
+    sections.push(
+      `## ${isEn ? "Style Emphasis" : "风格强调"}\n${styleEmphasis.map((item) => `- ${s(item)}`).join("\n")}`,
+    );
+  }
+
+  const chapterHeat = resolveChapterHeatTarget(memo, intent);
+  if (!isDefaultChapterHeat(chapterHeat)) {
+    sections.push(renderChapterHeatCraftBlock(chapterHeat, language));
+  }
+
   // Emit the 7-section memo body at top level so each heading is a task.
   if (memo.body.trim().length > 0) {
     sections.push(s(memo.body));
@@ -92,6 +104,7 @@ export function buildNarrativeIntentBrief(
     { heading: "## Must Keep", label: language === "en" ? "Keep" : "保留" },
     { heading: "## Must Avoid", label: language === "en" ? "Avoid" : "避免" },
     { heading: "## Style Emphasis", label: language === "en" ? "Style" : "风格" },
+    { heading: "## Register / Tempo", label: language === "en" ? "Register / Tempo" : "本章火候" },
     { heading: "## Structured Directives", label: language === "en" ? "Directives" : "指令" },
   ] as const;
 
@@ -119,6 +132,109 @@ export function buildNarrativeIntentBrief(
     .filter((section): section is string => Boolean(section));
 
   return rendered.join("\n\n");
+}
+
+export function resolveChapterHeatTarget(
+  memo?: ChapterMemo,
+  intent?: ChapterIntent,
+): ChapterHeatTarget {
+  return {
+    register: memo?.register ?? intent?.register ?? "neutral",
+    tempo: memo?.tempo ?? intent?.tempo ?? "medium",
+  };
+}
+
+export function renderChapterHeatCraftBlock(
+  heat: ChapterHeatTarget,
+  language: "zh" | "en" = "zh",
+): string {
+  const isEn = language === "en";
+  const registerLine = isEn
+    ? renderEnglishRegisterDirective(heat.register)
+    : renderChineseRegisterDirective(heat.register);
+  const tempoLine = isEn
+    ? renderEnglishTempoDirective(heat.tempo)
+    : renderChineseTempoDirective(heat.tempo);
+
+  if (isEn) {
+    return [
+      "## Chapter Register / Tempo Craft",
+      `- register: ${heat.register}`,
+      `- tempo: ${heat.tempo}`,
+      "- Priority: this chapter's register/tempo target outranks the book-level style guide and style fingerprint. If they conflict, execute this chapter target.",
+      `- Register execution: ${registerLine}`,
+      `- Tempo execution: ${tempoLine}`,
+    ].join("\n");
+  }
+
+  return [
+    "## 本章火候 / 场景级 craft",
+    `- register: ${heat.register}`,
+    `- tempo: ${heat.tempo}`,
+    "- 优先级裁决：本章 register/tempo 目标高于全书 style_guide / style fingerprint；两者冲突时执行本章目标。",
+    `- register 执行：${registerLine}`,
+    `- tempo 执行：${tempoLine}`,
+  ].join("\n");
+}
+
+function isDefaultChapterHeat(heat: ChapterHeatTarget): boolean {
+  return heat.register === "neutral" && heat.tempo === "medium";
+}
+
+function renderChineseRegisterDirective(register: ChapterHeatTarget["register"]): string {
+  switch (register) {
+    case "warm":
+      return "温暖章允许直接情感与人物靠近；多用对话、实际照料、肢体接触、温度与气味词，慢镜让位给互动和关系位移。";
+    case "tense":
+      return "紧张章短促、悬停、信息克制；威胁靠动作和选择逼近，不用大段铺陈解释压力。";
+    case "bright":
+      return "明快章节奏轻、留白少，动作和结果更干脆；允许更外显的反馈、翻盘感和公开变化。";
+    case "dialogue":
+      return "对话密章让对话承载冲突、误会、试探或交易；每 3-4 句对白落一个感官锚点或即时身体反应，避免话头悬浮。";
+    case "gloomy":
+      return "阴郁/勘验章才使用感官微观慢镜；观察、物证、冷光、静默可以多一点，但每段必须带来新信息或内心位移。";
+    case "neutral":
+      return "中性章按 memo 执行，不额外升温或降温；只保持必要的场景差异。";
+  }
+}
+
+function renderChineseTempoDirective(tempo: ChapterHeatTarget["tempo"]): string {
+  switch (tempo) {
+    case "fast":
+      return "快节奏用短句、强动词、高行动密度和更碎的段落变化；削减铺陈，优先让冲突在台面上发生。";
+    case "medium":
+      return "中速保留清楚因果与后果段，段落长短交替，既推进事件也落人物反应。";
+    case "slow":
+      return "慢节奏允许停驻和余味，但必须把停驻压在互动、物证或关系变化上，避免纯内省原地打转。";
+  }
+}
+
+function renderEnglishRegisterDirective(register: ChapterHeatTarget["register"]): string {
+  switch (register) {
+    case "warm":
+      return "Allow direct feeling and closeness; use more dialogue, practical care, touch, warmth, smell, and relationship movement instead of lingering slow-motion description.";
+    case "tense":
+      return "Keep beats clipped, suspended, and information-restrained; pressure should approach through action and choices, not explanatory buildup.";
+    case "bright":
+      return "Keep the chapter lighter, cleaner, and less withheld; allow visible feedback, public consequence, and decisive movement.";
+    case "dialogue":
+      return "Let dialogue carry conflict, misunderstanding, probing, or bargaining; every 3-4 exchanges must land a sensory anchor or immediate physical reaction.";
+    case "gloomy":
+      return "Use micro sensory observation only for investigation/inspection beats; silence, cold light, and evidence can slow the scene, but each paragraph must add information or inner movement.";
+    case "neutral":
+      return "Follow the memo without extra heating or cooling; preserve only the necessary scene variation.";
+  }
+}
+
+function renderEnglishTempoDirective(tempo: ChapterHeatTarget["tempo"]): string {
+  switch (tempo) {
+    case "fast":
+      return "Use shorter sentences, stronger verbs, higher action density, and varied short/medium paragraphs; cut setup and let conflict happen on page.";
+    case "medium":
+      return "Keep causal clarity and consequence beats, alternating paragraph length while advancing both event and reaction.";
+    case "slow":
+      return "Allow pause and aftertaste, but anchor pauses in interaction, evidence, or relationship change, never static introspection.";
+  }
 }
 
 export function renderNarrativeSelectedContext(

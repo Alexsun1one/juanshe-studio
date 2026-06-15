@@ -183,9 +183,21 @@ describe("PlannerAgent.planChapter memo generation", () => {
     expect(result.memo.goal).toBe("把七号门被动过手脚钉成现场实证");
     expect(result.memo.servesKr).toBeNull();
     expect(result.memo.threadRefs).toEqual(["H03", "S004"]);
+    expect(result.memo.register).toBe("tense");
+    expect(result.memo.tempo).toBe("fast");
+    expect(result.intent.register).toBe("tense");
+    expect(result.intent.tempo).toBe("fast");
+    expect(result.intentMarkdown).toContain("## Register / Tempo");
+    expect(result.intentMarkdown).toContain("- register: tense");
     expect(result.memo.body).toContain("## 全书进度仪表盘");
     expect(result.memo.body).toContain("本章宏观角色");
     expect(result.memo.body).toContain("## 当前任务");
+
+    const messages = chatSpy.mock.calls[0]?.[2] as ReadonlyArray<{ role: string; content: string }>;
+    const userMsg = messages.find((m) => m.role === "user");
+    expect(userMsg?.content).toContain("本章 register/tempo 前向目标");
+    expect(userMsg?.content).toContain("register: tense");
+    expect(userMsg?.content).toContain("tempo: fast");
   });
 
   it("does not hard-cap memo generation below the configured model output budget", async () => {

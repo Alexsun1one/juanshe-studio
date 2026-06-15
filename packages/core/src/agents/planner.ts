@@ -5,6 +5,9 @@ import type { BookConfig } from "../models/book.js";
 import { readBookRules as readAuthoritativeBookRules } from "./rules-reader.js";
 import {
   ChapterIntentSchema,
+  ChapterRegisterSchema,
+  ChapterTempoSchema,
+  type ChapterHeatTarget,
   type ChapterIntent,
   type ChapterMemo,
 } from "../models/input-governance.js";
@@ -73,6 +76,7 @@ export interface PlanChapterOutput {
 
 const MEMO_RETRY_LIMIT = 3;
 const VOLUME_KR_STALL_LIMIT = 3;
+const RECENT_HEAT_TARGET_LOOKBACK = 4;
 
 interface VolumeOkrChapterAnchor {
   readonly volume: VolumeOkr;
@@ -129,6 +133,7 @@ export class PlannerAgent extends BaseAgent {
     const mustKeep = this.collectMustKeep(seedMaterials.currentState, seedMaterials.storyBible);
     const mustAvoid = this.collectMustAvoid(seedMaterials.currentFocus, prohibitions);
     const styleEmphasis = this.collectStyleEmphasis(seedMaterials.authorIntent, seedMaterials.currentFocus);
+    const isGoldenOpening = this.isGoldenOpeningChapter(input.book.language, input.chapterNumber);
     const materials = await gatherPlanningMaterials({
       bookDir: input.bookDir,
       chapterNumber: input.chapterNumber,
@@ -168,6 +173,20 @@ export class PlannerAgent extends BaseAgent {
       seedMaterials.volumeOutline,
       outlineNode,
     );
+    const recentHeatTargets = await this.loadRecentPlannedHeatTargets(runtimeDir, input.chapterNumber);
+    const chapterHeat = this.selectChapterHeatTarget({
+      chapterNumber: input.chapterNumber,
+      isGoldenOpening,
+      goal,
+      outlineNode,
+      arcContext,
+      authorIntent: seedMaterials.authorIntent,
+      currentFocus: seedMaterials.currentFocus,
+      chapterSummariesRaw: seedMaterials.chapterSummariesRaw,
+      volumeOkrAnchor,
+      recentHeatTargets,
+      language: input.book.language ?? "zh",
+    });
 
     const intent = ChapterIntentSchema.parse({
       chapter: input.chapterNumber,
@@ -177,9 +196,10 @@ export class PlannerAgent extends BaseAgent {
       mustKeep,
       mustAvoid,
       styleEmphasis,
+      register: chapterHeat.register,
+      tempo: chapterHeat.tempo,
     });
 
-    const isGoldenOpening = this.isGoldenOpeningChapter(input.book.language, input.chapterNumber);
     const memo = await this.planChapterMemo({
       storyDir,
       bookDir: input.bookDir,
@@ -201,6 +221,7 @@ export class PlannerAgent extends BaseAgent {
       recalledSummaries: renderSummarySnapshot(memorySelection.summaries, input.book.language ?? "zh"),
       volumeDirection: String(outlineNode ?? ""),
       volumeOkrAnchor,
+      chapterHeat,
       // Phase hotfix 4: thread book language through so the planner uses
       // English prompts (system + user template + golden opening guidance)
       // for English books instead of always-Chinese.
@@ -211,6 +232,8 @@ export class PlannerAgent extends BaseAgent {
     // Overwrite intent.goal so downstream composer/retrieval gets the
     // concrete task statement instead of the outline-derived fallback.
     intent.goal = memo.goal;
+    intent.register = memo.register;
+    intent.tempo = memo.tempo;
 
     const runtimePath = join(runtimeDir, `chapter-${String(input.chapterNumber).padStart(4, "0")}.intent.md`);
     const intentMarkdown = this.renderIntentMarkdown(
@@ -258,6 +281,7 @@ export class PlannerAgent extends BaseAgent {
     readonly recalledSummaries?: string;
     readonly volumeDirection?: string;
     readonly volumeOkrAnchor?: VolumeOkrChapterAnchor;
+    readonly chapterHeat?: ChapterHeatTarget;
     readonly language?: "zh" | "en";
   }): Promise<ChapterMemo> {
     const [characterMatrix, subplotBoard, emotionalArcs, pendingHooks, bookRulesRaw, openingLedgerBrief, textDiversityBrief, auditFeedback, volumeCadenceGuidance] = await Promise.all([
@@ -305,6 +329,10 @@ export class PlannerAgent extends BaseAgent {
       progressDashboard: input.progressDashboardPrompt ?? "",
       openingLedgerBrief: openingLedgerBrief ?? "",
       textDiversityBrief: textDiversityBrief ?? "",
+      chapterHeatTarget: this.renderPlannerHeatTargetBlock(
+        input.chapterHeat ?? { register: "neutral", tempo: "medium" },
+        language,
+      ),
       currentArcProse: composeCurrentArcProse(subplotBoard, emotionalArcs, input.chapterNumber),
       dormantSubplotRevivalHints: buildDormantSubplotRevivalHints(subplotBoard, input.chapterNumber, language),
       protagonistMatrixRow: extractProtagonistRow(characterMatrix),
@@ -370,6 +398,7 @@ export class PlannerAgent extends BaseAgent {
       volumeDeviationReason: lastError?.message,
       premiseSignal: this.extractPremiseSignal(input.authorIntent, input.currentFocus, input.storyFrame, language),
       recyclableHooks: input.recyclableHooks,
+      chapterHeat: input.chapterHeat,
       language,
     });
     this.log?.warn(`[planner] using deterministic memo fallback for chapter ${input.chapterNumber}: ${lastError?.message ?? "unknown parse error"}`);
@@ -386,6 +415,188 @@ export class PlannerAgent extends BaseAgent {
     return memo;
   }
 
+  private renderPlannerHeatTargetBlock(
+    heat: ChapterHeatTarget,
+    language: "zh" | "en",
+  ): string {
+    if (language === "en") {
+      return [
+        "## Chapter register/tempo forward target",
+        `- register: ${heat.register}`,
+        `- tempo: ${heat.tempo}`,
+        "- This is a forward planning control from the volume/arc role and active variation strategy, not a post-hoc ending-ledger classifier. Copy these two enum values into memo frontmatter.",
+      ].join("\n");
+    }
+    return [
+      "## 本章 register/tempo 前向目标",
+      `- register: ${heat.register}`,
+      `- tempo: ${heat.tempo}`,
+      "- 这是 planner 根据卷纲/弧线功能位与主动变奏策略给出的前向火候，不是 ending-ledger 事后正则反推。memo frontmatter 必须照填这两个枚举值。",
+    ].join("\n");
+  }
+
+  private async loadRecentPlannedHeatTargets(
+    runtimeDir: string,
+    chapterNumber: number,
+  ): Promise<ChapterHeatTarget[]> {
+    const targets: ChapterHeatTarget[] = [];
+    for (
+      let chapter = chapterNumber - 1;
+      chapter >= Math.max(1, chapterNumber - RECENT_HEAT_TARGET_LOOKBACK);
+      chapter -= 1
+    ) {
+      const padded = String(chapter).padStart(4, "0");
+      const candidates = await Promise.all([
+        readFile(join(runtimeDir, `chapter-${padded}.intent.md`), "utf-8").catch(() => ""),
+        readFile(join(runtimeDir, `chapter-${padded}.plan.md`), "utf-8").catch(() => ""),
+      ]);
+      const target = candidates
+        .map((text) => this.extractHeatTargetFromText(text))
+        .find((value): value is ChapterHeatTarget => Boolean(value));
+      if (target) targets.push(target);
+    }
+    return targets;
+  }
+
+  private extractHeatTargetFromText(text: string): ChapterHeatTarget | undefined {
+    if (!text.trim()) return undefined;
+    const register = this.extractControlledHeatField(text, "register", ChapterRegisterSchema);
+    const tempo = this.extractControlledHeatField(text, "tempo", ChapterTempoSchema);
+    return register && tempo ? { register, tempo } : undefined;
+  }
+
+  private extractControlledHeatField<T extends string>(
+    text: string,
+    field: "register" | "tempo",
+    schema: { safeParse: (input: unknown) => { success: true; data: T } | { success: false } },
+  ): T | undefined {
+    const match = text.match(new RegExp(`(?:^|\\n)\\s*-?\\s*${field}\\s*[:=]\\s*([a-z]+)`, "i"));
+    const value = match?.[1]?.trim().toLowerCase();
+    if (!value) return undefined;
+    const parsed = schema.safeParse(value);
+    return parsed.success ? parsed.data : undefined;
+  }
+
+  private selectChapterHeatTarget(input: {
+    readonly chapterNumber: number;
+    readonly isGoldenOpening: boolean;
+    readonly goal: string;
+    readonly outlineNode?: string;
+    readonly arcContext?: string;
+    readonly authorIntent?: string;
+    readonly currentFocus?: string;
+    readonly chapterSummariesRaw: string;
+    readonly volumeOkrAnchor?: VolumeOkrChapterAnchor;
+    readonly recentHeatTargets: ReadonlyArray<ChapterHeatTarget>;
+    readonly language: "zh" | "en";
+  }): ChapterHeatTarget {
+    const latestSummary = this.latestSummaryText(input.chapterSummariesRaw, input.chapterNumber);
+    const planningText = [
+      input.goal,
+      input.outlineNode ?? "",
+      input.arcContext ?? "",
+      input.currentFocus ?? "",
+      input.authorIntent ?? "",
+      input.volumeOkrAnchor?.volume.objective ?? "",
+      input.volumeOkrAnchor?.kr.desc ?? "",
+      latestSummary,
+    ].join("\n").toLowerCase();
+
+    const targetChapters = input.volumeOkrAnchor?.kr.target_chapters ?? [];
+    const lastTargetChapter = targetChapters.length > 0 ? Math.max(...targetChapters) : undefined;
+    const isPayoffSlot = /兑现|爆发|高潮|结清|揭|摊牌|反击|翻盘|payoff|climax|reveal|settle|showdown/i.test(planningText)
+      || (lastTargetChapter !== undefined && input.chapterNumber >= lastTargetChapter)
+      || (input.volumeOkrAnchor !== undefined && input.chapterNumber >= input.volumeOkrAnchor.volume.end_ch - 1);
+    const isAftermathSlot = /后效|后果|余波|代价|善后|fallout|aftermath|consequence/i.test(planningText);
+    const isInvestigationSlot = /勘验|核验|查验|调查|线索|证据|观察|搜查|investigat|inspect|evidence|clue/i.test(planningText);
+    const isDialogueSlot = /对话|交锋|谈判|审问|当面对质|问答|dialogue|conversation|interrogate|negotiate/i.test(planningText);
+    const isPressureSlot = /蓄压|加压|威胁|追|逃|对峙|危险|deadline|pressure|threat|chase|danger|confront/i.test(planningText);
+    const recentHasBreather = input.recentHeatTargets.slice(0, 3).some((target) =>
+      target.register === "warm" || target.register === "bright" || target.register === "dialogue",
+    );
+    const breatherDue = input.chapterNumber > 3
+      && (input.chapterNumber % 4 === 0 || (!recentHasBreather && input.recentHeatTargets.length >= 3));
+
+    let target: ChapterHeatTarget;
+    if (input.isGoldenOpening) {
+      target = { register: "tense", tempo: "fast" };
+    } else if (isPayoffSlot) {
+      target = /公开|当场|翻盘|奖赏|reward|public|win/i.test(planningText)
+        ? { register: "bright", tempo: "fast" }
+        : { register: "tense", tempo: "fast" };
+    } else if (isAftermathSlot) {
+      target = /失去|死|伤|代价|破裂|loss|death|cost|wound/i.test(planningText)
+        ? { register: "gloomy", tempo: "slow" }
+        : { register: "warm", tempo: "medium" };
+    } else if (breatherDue && !isPressureSlot) {
+      target = input.chapterNumber % 8 === 0
+        ? { register: "dialogue", tempo: "medium" }
+        : { register: "warm", tempo: "slow" };
+    } else if (isDialogueSlot) {
+      target = { register: "dialogue", tempo: "medium" };
+    } else if (isInvestigationSlot) {
+      target = { register: "gloomy", tempo: "slow" };
+    } else if (isPressureSlot) {
+      target = { register: "tense", tempo: "fast" };
+    } else {
+      target = { register: "neutral", tempo: "medium" };
+    }
+
+    return this.avoidRepeatedHeatTarget(target, input.recentHeatTargets, input.chapterNumber);
+  }
+
+  private latestSummaryText(markdown: string, chapterNumber: number): string {
+    const latest = parseChapterSummariesMarkdown(markdown)
+      .filter((summary) => summary.chapter < chapterNumber)
+      .sort((left, right) => right.chapter - left.chapter)[0];
+    if (!latest) return "";
+    return [
+      latest.title,
+      latest.characters,
+      latest.events,
+      latest.stateChanges,
+      latest.hookActivity,
+      latest.mood,
+      latest.chapterType,
+    ].join("\n");
+  }
+
+  private avoidRepeatedHeatTarget(
+    target: ChapterHeatTarget,
+    recentHeatTargets: ReadonlyArray<ChapterHeatTarget>,
+    chapterNumber: number,
+  ): ChapterHeatTarget {
+    const recentPair = recentHeatTargets.slice(0, 2);
+    const register = recentPair.length >= 2 && recentPair.every((item) => item.register === target.register)
+      ? this.alternateRegister(target.register, chapterNumber)
+      : target.register;
+    const tempo = recentPair.length >= 2 && recentPair.every((item) => item.tempo === target.tempo)
+      ? this.alternateTempo(target.tempo, chapterNumber)
+      : target.tempo;
+    return { register, tempo };
+  }
+
+  private alternateRegister(
+    register: ChapterHeatTarget["register"],
+    chapterNumber: number,
+  ): ChapterHeatTarget["register"] {
+    if (register === "warm") return "dialogue";
+    if (register === "dialogue") return "bright";
+    if (register === "bright") return "warm";
+    if (register === "gloomy") return "dialogue";
+    if (register === "tense") return chapterNumber % 2 === 0 ? "bright" : "dialogue";
+    return chapterNumber % 2 === 0 ? "bright" : "warm";
+  }
+
+  private alternateTempo(
+    tempo: ChapterHeatTarget["tempo"],
+    chapterNumber: number,
+  ): ChapterHeatTarget["tempo"] {
+    if (tempo === "fast") return "medium";
+    if (tempo === "slow") return "medium";
+    return chapterNumber % 2 === 0 ? "fast" : "slow";
+  }
+
   private parseAndValidateMemo(
     raw: string,
     input: {
@@ -395,6 +606,7 @@ export class PlannerAgent extends BaseAgent {
       readonly progressDashboardMemoSection?: string;
       readonly textDiversityMemoSection?: string;
       readonly volumeOkrAnchor?: VolumeOkrChapterAnchor;
+      readonly chapterHeat?: ChapterHeatTarget;
       readonly chapterSummariesRaw: string;
       readonly chapterContext?: string;
     },
@@ -405,6 +617,7 @@ export class PlannerAgent extends BaseAgent {
   ): ChapterMemo {
     let memo = this.attachProgressDashboardToMemo(
       parseMemo(raw, input.chapterNumber, input.isGoldenOpening),
+      input.chapterHeat,
       input.progressDashboardMemoSection,
     );
     memo = this.attachTextDiversityToMemo(memo, input.textDiversityMemoSection);
@@ -556,15 +769,19 @@ export class PlannerAgent extends BaseAgent {
 
   private attachProgressDashboardToMemo(
     memo: ChapterMemo,
+    chapterHeat?: ChapterHeatTarget,
     progressDashboardMemoSection?: string,
   ): ChapterMemo {
+    const heatedMemo = chapterHeat
+      ? { ...memo, register: chapterHeat.register, tempo: chapterHeat.tempo }
+      : memo;
     const section = progressDashboardMemoSection?.trim();
-    if (!section || memo.body.includes("## 全书进度仪表盘") || memo.body.includes("## Whole-book progress dashboard")) {
-      return memo;
+    if (!section || heatedMemo.body.includes("## 全书进度仪表盘") || heatedMemo.body.includes("## Whole-book progress dashboard")) {
+      return heatedMemo;
     }
     return {
-      ...memo,
-      body: `${section}\n\n${memo.body}`,
+      ...heatedMemo,
+      body: `${section}\n\n${heatedMemo.body}`,
     };
   }
 
@@ -590,6 +807,7 @@ export class PlannerAgent extends BaseAgent {
     readonly volumeDeviationReason?: string;
     readonly premiseSignal?: string;
     readonly recyclableHooks?: ReadonlyArray<StoredHook>;
+    readonly chapterHeat?: ChapterHeatTarget;
     readonly language: "zh" | "en";
   }): string {
     const krGoal = input.volumeOkrAnchor
@@ -601,6 +819,7 @@ export class PlannerAgent extends BaseAgent {
     const servesKrLine = input.volumeOkrAnchor
       ? `servesKr: ${input.volumeOkrAnchor.kr.id}\n`
       : "servesKr: null\n";
+    const heat = input.chapterHeat ?? { register: "neutral", tempo: "medium" };
     const krFallbackLine = input.volumeOkrAnchor
       ? (input.language === "en"
           ? `Volume KR fallback: force this chapter back to ${input.volumeOkrAnchor.kr.id} — ${input.volumeOkrAnchor.kr.desc}.`
@@ -632,6 +851,8 @@ chapter: ${input.chapterNumber}
 goal: ${goal}
 isGoldenOpening: ${input.isGoldenOpening ? "true" : "false"}
 ${servesKrLine.trimEnd()}
+register: ${heat.register}
+tempo: ${heat.tempo}
 threadRefs:
 ${refs}
 ---
@@ -698,6 +919,8 @@ chapter: ${input.chapterNumber}
 goal: ${goal}
 isGoldenOpening: ${input.isGoldenOpening ? "true" : "false"}
 ${servesKrLine.trimEnd()}
+register: ${heat.register}
+tempo: ${heat.tempo}
 threadRefs:
 ${refs}
 ---
@@ -1325,8 +1548,14 @@ ${deferBlockZh}
       "## Style Emphasis",
       styleEmphasis,
       "",
+      "## Register / Tempo",
+      `- register: ${intent.register}`,
+      `- tempo: ${intent.tempo}`,
+      "",
       "## Chapter Memo",
       `- isGoldenOpening: ${memo.isGoldenOpening ? "true" : "false"}`,
+      `- register: ${memo.register}`,
+      `- tempo: ${memo.tempo}`,
       "",
       "### Thread Refs",
       threadRefsLine,

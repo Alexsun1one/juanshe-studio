@@ -45,6 +45,8 @@ function buildPlan(chapter: number): PlanChapterOutput {
       mustKeep: ["林越父亲已死", "母亲遗物"],
       mustAvoid: ["提前揭露母亲身份"],
       styleEmphasis: ["潮湿氛围", "短句交替"],
+      register: "warm",
+      tempo: "slow",
     },
     memo: {
       chapter,
@@ -52,6 +54,8 @@ function buildPlan(chapter: number): PlanChapterOutput {
       isGoldenOpening: true,
       servesKr: null,
       threadRefs: ["H1"],
+      register: "warm",
+      tempo: "slow",
       body: MEMO_BODY,
     },
     intentMarkdown: "# Chapter Intent\n\n## Goal\n取回账册离开旧港\n",
@@ -84,7 +88,44 @@ describe("persisted-governed-plan round trip", () => {
     expect(loaded!.intent.mustKeep).toEqual(plan.intent.mustKeep);
     expect(loaded!.intent.mustAvoid).toEqual(plan.intent.mustAvoid);
     expect(loaded!.intent.styleEmphasis).toEqual(plan.intent.styleEmphasis);
+    expect(loaded!.intent.register).toBe("warm");
+    expect(loaded!.intent.tempo).toBe("slow");
     expect(loaded!.plannerInputs).toEqual(plan.plannerInputs);
+  });
+
+  it("loads old persisted plans without register/tempo as neutral medium", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "autow-plan-old-"));
+    await mkdir(join(dir, "story", "runtime"), { recursive: true });
+    const oldPlan = `---
+chapter: 1
+goal: 取回账册离开旧港
+isGoldenOpening: true
+threadRefs:
+  - H1
+intent:
+  goal: 取回账册离开旧港
+  outlineNode: Chapter 1
+  mustKeep:
+    - 林越父亲已死
+  mustAvoid:
+    - 提前揭露母亲身份
+  styleEmphasis: []
+plannerInputs: []
+---
+${MEMO_BODY}
+`;
+    await writeFile(
+      join(dir, "story", "runtime", "chapter-0001.plan.md"),
+      oldPlan,
+      "utf-8",
+    );
+
+    const loaded = await loadPersistedPlan(dir, 1);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.memo.register).toBe("neutral");
+    expect(loaded!.memo.tempo).toBe("medium");
+    expect(loaded!.intent.register).toBe("neutral");
+    expect(loaded!.intent.tempo).toBe("medium");
   });
 
   it("returns null when plan file does not exist", async () => {

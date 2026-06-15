@@ -17,7 +17,7 @@ import {
   type PostWriteViolation,
 } from "./post-write-validator.js";
 import { analyzeAITells } from "./ai-tells.js";
-import type { ChapterIntent, ChapterMemo, ContextPackage, RuleStack } from "../models/input-governance.js";
+import type { ChapterIntent, ChapterMemo, ChapterTempo, ContextPackage, RuleStack } from "../models/input-governance.js";
 import type { LengthSpec } from "../models/length-governance.js";
 import type { RuntimeStateDelta } from "../models/runtime-state.js";
 import { buildLengthSpec, countChapterLength } from "../utils/length-metrics.js";
@@ -120,6 +120,16 @@ async function saveCreativeRecoveryDraft(params: {
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+export function resolveCreativeTemperatureForTempo(
+  tempo: ChapterTempo | undefined,
+  temperatureOverride?: number,
+): number {
+  if (temperatureOverride !== undefined) return temperatureOverride;
+  if (tempo === "fast") return 0.85;
+  if (tempo === "slow") return 0.55;
+  return 0.7;
 }
 
 export interface WriteChapterInput {
@@ -343,6 +353,8 @@ export class WriterAgent extends BaseAgent {
     const hasParentCanon = parentCanon !== "(文件尚未创建)";
     const hasFanficCanon = fanficCanonRaw !== "(文件尚未创建)";
     const resolvedLanguage = book.language ?? genreProfile.language;
+    const chapterRegister = input.chapterMemo?.register ?? input.chapterIntentData?.register ?? "neutral";
+    const chapterTempo = input.chapterMemo?.tempo ?? input.chapterIntentData?.tempo ?? "medium";
     const targetWords = input.lengthSpec?.target ?? input.wordCountOverride ?? book.chapterWordCount;
     const resolvedLengthSpec = input.lengthSpec ?? buildLengthSpec(targetWords, resolvedLanguage);
     const governedMemoryBlocks = input.contextPackage
@@ -375,12 +387,14 @@ export class WriterAgent extends BaseAgent {
         }
       : undefined;
 
-    // ── Phase 1: Creative writing (temperature 0.7) ──
+    // ── Phase 1: Creative writing (temperature follows chapter tempo) ──
     const creativeSystemPrompt = buildWriterSystemPrompt(
       book, genreProfile, bookRules, bookRulesBody, genreBody, styleGuide, styleFingerprint,
       chapterNumber, "creative", fanficContext, resolvedLanguage,
       input.chapterMemo ? "governed" : "legacy",
       resolvedLengthSpec,
+      chapterRegister,
+      chapterTempo,
     );
 
     const creativeUserPrompt = input.chapterMemo && input.contextPackage && input.ruleStack
@@ -451,7 +465,7 @@ export class WriterAgent extends BaseAgent {
           });
         })();
 
-    const creativeTemperature = input.temperatureOverride ?? 0.7;
+    const creativeTemperature = resolveCreativeTemperatureForTempo(chapterTempo, input.temperatureOverride);
 
     this.logInfo(resolvedLanguage, {
       zh: `阶段 1：创作正文（第${chapterNumber}章）`,

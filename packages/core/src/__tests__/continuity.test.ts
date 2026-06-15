@@ -374,6 +374,8 @@ describe("ContinuityAuditor", () => {
           servesKr: null,
           body: memoBody,
           threadRefs: [],
+          register: "neutral",
+          tempo: "medium",
         },
       });
 

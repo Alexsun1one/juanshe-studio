@@ -240,6 +240,8 @@ describe("PipelineRunner", () => {
         servesKr: null,
         body: "",
         threadRefs: [] as string[],
+        register: "neutral" as const,
+        tempo: "medium" as const,
       };
       const intentMarkdown = [
         "# Chapter Intent",
@@ -272,6 +274,8 @@ describe("PipelineRunner", () => {
           mustKeep: [],
           mustAvoid: [],
           styleEmphasis: [],
+          register: "neutral",
+          tempo: "medium",
         },
         memo,
         intentMarkdown,
@@ -838,6 +842,8 @@ describe("PipelineRunner", () => {
         servesKr: null,
         body: "",
         threadRefs: [] as string[],
+        register: "neutral" as const,
+        tempo: "medium" as const,
       };
       const intentMarkdown = [
         "# Chapter Intent",
@@ -884,6 +890,8 @@ describe("PipelineRunner", () => {
           mustKeep: ["Lin Yue still hides the broken oath token."],
           mustAvoid: [],
           styleEmphasis: [],
+          register: "neutral",
+          tempo: "medium",
         },
         memo,
         intentMarkdown,
@@ -1516,6 +1524,8 @@ describe("PipelineRunner", () => {
           servesKr: null,
           body: "",
           threadRefs: [],
+          register: result.memo.register,
+          tempo: result.memo.tempo,
         },
       };
     });
@@ -1699,6 +1709,8 @@ describe("PipelineRunner", () => {
           mustKeep: [],
           mustAvoid: [],
           styleEmphasis: [],
+          register: "neutral",
+          tempo: "medium",
         },
         memo: {
           chapter: input.chapterNumber,
@@ -1707,6 +1719,8 @@ describe("PipelineRunner", () => {
           servesKr: null,
           body: "",
           threadRefs: [],
+          register: "neutral",
+          tempo: "medium",
         },
         intentMarkdown: intentMd,
         plannerInputs: [runtimePath],

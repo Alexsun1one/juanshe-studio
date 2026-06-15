@@ -102,6 +102,8 @@ describe("PolisherAgent", () => {
         servesKr: null,
         body: "## 当前任务\n陆焚拿回残刃。",
         threadRefs: [],
+        register: "warm",
+        tempo: "slow",
       },
     });
 
@@ -112,6 +114,47 @@ describe("PolisherAgent", () => {
 
     expect(userPrompt).toContain("## 章节备忘（润色不得偏离此目标）");
     expect(userPrompt).toContain("goal：陆焚拿回残刃");
+    expect(userPrompt).toContain("register：warm");
+    expect(userPrompt).toContain("tempo：slow");
+    expect(userPrompt).toContain("本章火候保护");
+    expect(userPrompt).toContain("不得把本章修回全书统一的克制腔");
+    expect(userPrompt).toContain("温暖章");
+  });
+
+  it("keeps de-AI cleanup from erasing non-default chapter heat", async () => {
+    const agent = makeAgent();
+    const chatSpy = vi.spyOn(PolisherAgent.prototype as never, "chat" as never).mockResolvedValue({
+      content: "润色后的正文。",
+      usage: ZERO_USAGE,
+    });
+
+    await agent.polishChapter({
+      chapterContent: "原始正文。",
+      chapterNumber: 9,
+      language: "zh",
+      deAiFocus: true,
+      chapterMemo: {
+        chapter: 9,
+        goal: "把公开冲突打出来",
+        isGoldenOpening: false,
+        servesKr: null,
+        body: "## 当前任务\n让冲突落到台面上。",
+        threadRefs: [],
+        register: "tense",
+        tempo: "fast",
+      },
+    });
+
+    const messages = chatSpy.mock.calls[0]?.[0] as
+      | ReadonlyArray<{ content: string }>
+      | undefined;
+    const userPrompt = flat(messages?.[1]);
+
+    expect(userPrompt).toContain("本轮以去 AI 味为第一优先");
+    expect(userPrompt).toContain("不要把本章 register/tempo 火候本身当成 AI 味清掉");
+    expect(userPrompt).toContain("去 AI 味清套话、公式化转折和机器解释腔，不清本章火候");
+    expect(userPrompt).toContain("register=tense");
+    expect(userPrompt).toContain("tempo=fast");
   });
 
   it("returns polished content and flags 'changed' when output differs", async () => {
