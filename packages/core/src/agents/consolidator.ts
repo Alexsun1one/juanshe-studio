@@ -1,11 +1,13 @@
 import { BaseAgent } from "./base.js";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { readVolumeMap } from "../utils/outline-paths.js";
 import {
   parsePendingHooksMarkdown,
   renderHookSnapshot,
 } from "../utils/story-markdown.js";
+import { atomicWriteFile } from "../utils/fs-atomic.js";
+import { withStoryTruthWriteLock } from "../utils/story-truth-writer.js";
 
 export interface ConsolidationResult {
   readonly volumeSummaries: string;
@@ -123,22 +125,32 @@ export class ConsolidatorAgent extends BaseAgent {
       newSummaries.push(`\n## ${vol.name} (Ch.${vol.startCh}-${vol.endCh})\n\n${response.content.trim()}`);
     }
 
-    // Write volume summaries
-    await writeFile(volumeSummariesPath, newSummaries.join("\n"), "utf-8");
+    await withStoryTruthWriteLock(storyDir, async () => {
+      // 压缩调用可能耗时很长:进写锁后重新读最新摘要表,只移出本轮确实归档过的旧章节。
+      // 若这期间有新章写入,它不会被旧 rows 覆盖掉。
+      const latestRaw = await readFile(summariesPath, "utf-8").catch(() => summariesRaw);
+      const latestParsed = this.parseSummaryTable(latestRaw);
+      const archivedChapters = new Set(completedVolumes.flatMap((vol) => vol.rows.map((row) => row.chapter)));
+      const retainedRows = latestParsed.rows.filter((row) => !archivedChapters.has(row.chapter));
+      const retainedHeader = latestParsed.header || header;
 
-    // Archive detailed summaries
-    const archiveDir = join(storyDir, "summaries_archive");
-    await mkdir(archiveDir, { recursive: true });
-    for (const vol of completedVolumes) {
-      const archivePath = join(archiveDir, `vol_${vol.startCh}-${vol.endCh}.md`);
-      await writeFile(archivePath, `# ${vol.name}\n\n${header}\n${vol.rows.map((r) => r.raw).join("\n")}`, "utf-8");
-    }
+      // Write volume summaries
+      await atomicWriteFile(volumeSummariesPath, newSummaries.join("\n"));
 
-    // Rewrite chapter_summaries.md with only current volume rows
-    const retainedContent = currentVolumeRows.length > 0
-      ? `${header}\n${currentVolumeRows.map((r) => r.raw).join("\n")}\n`
-      : `${header}\n`;
-    await writeFile(summariesPath, retainedContent, "utf-8");
+      // Archive detailed summaries
+      const archiveDir = join(storyDir, "summaries_archive");
+      await mkdir(archiveDir, { recursive: true });
+      for (const vol of completedVolumes) {
+        const archivePath = join(archiveDir, `vol_${vol.startCh}-${vol.endCh}.md`);
+        await atomicWriteFile(archivePath, `# ${vol.name}\n\n${header}\n${vol.rows.map((r) => r.raw).join("\n")}`);
+      }
+
+      // Rewrite chapter_summaries.md with only non-archived rows from the latest table.
+      const retainedContent = retainedRows.length > 0
+        ? `${retainedHeader}\n${retainedRows.map((r) => r.raw).join("\n")}\n`
+        : `${retainedHeader}\n`;
+      await atomicWriteFile(summariesPath, retainedContent);
+    });
 
     return {
       volumeSummaries: newSummaries.join("\n"),
@@ -158,21 +170,23 @@ export class ConsolidatorAgent extends BaseAgent {
    */
   private async rerunAdvancedCountPromotion(storyDir: string): Promise<number> {
     const ledgerPath = join(storyDir, "pending_hooks.md");
-    const raw = await readFile(ledgerPath, "utf-8").catch(() => "");
-    if (!raw.trim()) return 0;
+    return withStoryTruthWriteLock(storyDir, async () => {
+      const raw = await readFile(ledgerPath, "utf-8").catch(() => "");
+      if (!raw.trim()) return 0;
 
-    const hooks = parsePendingHooksMarkdown(raw);
-    if (hooks.length === 0) return 0;
+      const hooks = parsePendingHooksMarkdown(raw);
+      if (hooks.length === 0) return 0;
 
-    const language: "zh" | "en" = /[\u4e00-\u9fff]/.test(raw) ? "zh" : "en";
-    const summariesRaw = await readFile(join(storyDir, "chapter_summaries.md"), "utf-8").catch(() => "");
+      const language: "zh" | "en" = /[\u4e00-\u9fff]/.test(raw) ? "zh" : "en";
+      const summariesRaw = await readFile(join(storyDir, "chapter_summaries.md"), "utf-8").catch(() => "");
 
-    const { rerunPromotionPass } = await import("../utils/hook-promotion.js");
-    const result = rerunPromotionPass(hooks, summariesRaw);
-    if (!result.updated) return 0;
+      const { rerunPromotionPass } = await import("../utils/hook-promotion.js");
+      const result = rerunPromotionPass(hooks, summariesRaw);
+      if (!result.updated) return 0;
 
-    await writeFile(ledgerPath, renderHookSnapshot([...result.hooks], language), "utf-8");
-    return result.flippedCount;
+      await atomicWriteFile(ledgerPath, renderHookSnapshot([...result.hooks], language));
+      return result.flippedCount;
+    });
   }
 
   /**

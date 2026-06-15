@@ -20,6 +20,8 @@ import {
 } from "../utils/context-assembly.js";
 import { writeGovernedRuntimeArtifacts } from "../utils/runtime-writer.js";
 import { readCharacterContext, readCurrentStateWithFallback } from "../utils/outline-paths.js";
+import { DEFAULT_CHAPTER_CADENCE_WINDOW } from "../utils/chapter-cadence.js";
+import { buildOpeningLedgerBrief } from "../utils/opening-ledger.js";
 
 const DEFAULT_CONTEXT_EXCERPT_CHARS = 1600;
 
@@ -176,6 +178,7 @@ async function collectSelectedContext(
       ),
     ]);
     const trailEntries = await buildRecentChapterTrailEntries(storyDir, plan.intent.chapter);
+    const openingLedgerEntry = await buildOpeningLedgerContextEntry(storyDir, plan.intent.chapter, language);
 
     const memorySelection = await retrieveMemorySelection({
       bookDir: dirname(storyDir),
@@ -238,6 +241,7 @@ async function collectSelectedContext(
       ...chapterMemoEntry,
       ...entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null),
       ...trailEntries,
+      ...openingLedgerEntry,
       ...hookDebtEntries,
       ...entityCardEntries,
       ...factEntries,
@@ -245,6 +249,27 @@ async function collectSelectedContext(
       ...volumeSummaryEntries,
       ...hookEntries,
     ];
+}
+
+async function buildOpeningLedgerContextEntry(
+  storyDir: string,
+  chapterNumber: number,
+  language: "zh" | "en",
+): Promise<ContextPackage["selectedContext"]> {
+    const brief = await buildOpeningLedgerBrief({
+      storyDir,
+      currentChapter: chapterNumber,
+      keepRecent: DEFAULT_CHAPTER_CADENCE_WINDOW,
+      language,
+    });
+    if (!brief) return [];
+    return [{
+      source: "story/opening_ledger.md#recent_openings",
+      reason: language === "en"
+        ? "Keep used opening types and imagery visible so the writer changes the next opening."
+        : "把已用开篇类型和招牌意象显式喂给写手，避免下一章复刻开场。",
+      excerpt: brief,
+    }];
 }
 
 function deriveRetrievalHints(plan: PlanChapterOutput): string[] {

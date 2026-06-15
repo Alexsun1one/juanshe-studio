@@ -68,6 +68,8 @@ export { buildImportFoundationSource } from "./import-foundation.js";
 import { postWriteAnalysisTimeoutMs, withPostWriteAnalysisTimeout } from "./post-write-timeout.js";
 import { saveRecoverableChapterDraft } from "./recovery-draft.js";
 import { buildLengthWarnings, buildLengthTelemetry } from "./length-reporting.js";
+import { atomicWriteFile } from "../utils/fs-atomic.js";
+import { withStoryTruthWriteLock } from "../utils/story-truth-writer.js";
 
 const REVISION_BLOCKING_LONG_SPAN_CATEGORIES = new Set([
   "Opening Pattern Repetition", "开头同构",
@@ -1299,16 +1301,18 @@ export class PipelineRunner {
 
       // Update truth files
       const storyDir = join(bookDir, "story");
-      if (reviseOutput.updatedState !== "(状态卡未更新)") {
-        await writeFile(join(storyDir, "current_state.md"), reviseOutput.updatedState, "utf-8");
-      }
-      if (gp.numericalSystem && reviseOutput.updatedLedger && reviseOutput.updatedLedger !== "(账本未更新)") {
-        await writeFile(join(storyDir, "particle_ledger.md"), reviseOutput.updatedLedger, "utf-8");
-      }
-      if (reviseOutput.updatedHooks !== "(伏笔池未更新)") {
-        await writeFile(join(storyDir, "pending_hooks.md"), reviseOutput.updatedHooks, "utf-8");
-      }
-      await this.syncLegacyStructuredStateFromMarkdown(bookDir, targetChapter);
+      await withStoryTruthWriteLock(storyDir, async () => {
+        if (reviseOutput.updatedState !== "(状态卡未更新)") {
+          await atomicWriteFile(join(storyDir, "current_state.md"), reviseOutput.updatedState);
+        }
+        if (gp.numericalSystem && reviseOutput.updatedLedger && reviseOutput.updatedLedger !== "(账本未更新)") {
+          await atomicWriteFile(join(storyDir, "particle_ledger.md"), reviseOutput.updatedLedger);
+        }
+        if (reviseOutput.updatedHooks !== "(伏笔池未更新)") {
+          await atomicWriteFile(join(storyDir, "pending_hooks.md"), reviseOutput.updatedHooks);
+        }
+        await this.syncLegacyStructuredStateFromMarkdown(bookDir, targetChapter);
+      });
 
       // Update index
       const updatedIndex = index.map((ch) =>
@@ -1772,19 +1776,21 @@ export class PipelineRunner {
       const { parsePendingHooksMarkdown, renderHookSnapshot } = await import("../utils/story-markdown.js");
       const promotionStoryDir = join(bookDir, "story");
       const ledgerPath = join(promotionStoryDir, "pending_hooks.md");
-      const ledgerRaw = await readFile(ledgerPath, "utf-8").catch(() => "");
-      if (ledgerRaw.trim()) {
-        const hooks = parsePendingHooksMarkdown(ledgerRaw);
-        if (hooks.length > 0) {
-          const summariesRaw = await readFile(join(promotionStoryDir, "chapter_summaries.md"), "utf-8").catch(() => "");
-          const promotionResult = rerunPromotionPass(hooks, summariesRaw);
-          if (promotionResult.updated) {
-            const ledgerLang: "zh" | "en" = /[\u4e00-\u9fff]/.test(ledgerRaw) ? "zh" : "en";
-            await writeFile(ledgerPath, renderHookSnapshot([...promotionResult.hooks], ledgerLang), "utf-8");
-            this.config.logger?.info(`[promotion] ${promotionResult.flippedCount} hook(s) promoted after chapter ${chapterNumber}`);
+      await withStoryTruthWriteLock(promotionStoryDir, async () => {
+        const ledgerRaw = await readFile(ledgerPath, "utf-8").catch(() => "");
+        if (ledgerRaw.trim()) {
+          const hooks = parsePendingHooksMarkdown(ledgerRaw);
+          if (hooks.length > 0) {
+            const summariesRaw = await readFile(join(promotionStoryDir, "chapter_summaries.md"), "utf-8").catch(() => "");
+            const promotionResult = rerunPromotionPass(hooks, summariesRaw);
+            if (promotionResult.updated) {
+              const ledgerLang: "zh" | "en" = /[\u4e00-\u9fff]/.test(ledgerRaw) ? "zh" : "en";
+              await atomicWriteFile(ledgerPath, renderHookSnapshot([...promotionResult.hooks], ledgerLang));
+              this.config.logger?.info(`[promotion] ${promotionResult.flippedCount} hook(s) promoted after chapter ${chapterNumber}`);
+            }
           }
         }
-      }
+      });
     }
 
     // 4. Save the final chapter and truth files from a single persistence source
@@ -3483,38 +3489,40 @@ ${matrix}`,
     const storyDir = join(params.bookDir, "story");
     const driftPath = join(storyDir, "audit_drift.md");
     const statePath = join(storyDir, "current_state.md");
-    const currentState = await readFile(statePath, "utf-8").catch(() => "");
-    const sanitizedState = this.stripAuditDriftCorrectionBlock(currentState).trimEnd();
+    await withStoryTruthWriteLock(storyDir, async () => {
+      const currentState = await readFile(statePath, "utf-8").catch(() => "");
+      const sanitizedState = this.stripAuditDriftCorrectionBlock(currentState).trimEnd();
 
-    if (sanitizedState !== currentState) {
-      await writeFile(statePath, sanitizedState, "utf-8");
-    }
+      if (sanitizedState !== currentState) {
+        await atomicWriteFile(statePath, sanitizedState);
+      }
 
-    if (params.issues.length === 0) {
-      await rm(driftPath, { force: true }).catch(() => undefined);
-      return;
-    }
+      if (params.issues.length === 0) {
+        await rm(driftPath, { force: true }).catch(() => undefined);
+        return;
+      }
 
-    const block = [
-      this.localize(params.language, {
-        zh: "# 审计纠偏",
-        en: "# Audit Drift",
-      }),
-      "",
-      this.localize(params.language, {
-        zh: "## 审计纠偏（自动生成，下一章写作前参照）",
-        en: "## Audit Drift Correction",
-      }),
-      "",
-      this.localize(params.language, {
-        zh: `> 第${params.chapterNumber}章审计发现以下问题，下一章写作时必须避免：`,
-        en: `> Chapter ${params.chapterNumber} audit found the following issues to avoid in the next chapter:`,
-      }),
-      ...params.issues.map((issue) => `> - [${issue.severity}] ${issue.category}: ${issue.description}`),
-      "",
-    ].join("\n");
+      const block = [
+        this.localize(params.language, {
+          zh: "# 审计纠偏",
+          en: "# Audit Drift",
+        }),
+        "",
+        this.localize(params.language, {
+          zh: "## 审计纠偏（自动生成，下一章写作前参照）",
+          en: "## Audit Drift Correction",
+        }),
+        "",
+        this.localize(params.language, {
+          zh: `> 第${params.chapterNumber}章审计发现以下问题，下一章写作时必须避免：`,
+          en: `> Chapter ${params.chapterNumber} audit found the following issues to avoid in the next chapter:`,
+        }),
+        ...params.issues.map((issue) => `> - [${issue.severity}] ${issue.category}: ${issue.description}`),
+        "",
+      ].join("\n");
 
-    await writeFile(driftPath, block, "utf-8");
+      await atomicWriteFile(driftPath, block);
+    });
   }
 
   private stripAuditDriftCorrectionBlock(currentState: string): string {

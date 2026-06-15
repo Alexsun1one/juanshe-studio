@@ -1,11 +1,13 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   ChapterSummariesStateSchema,
+  type ChapterSummariesState,
   CurrentStateStateSchema,
   HooksStateSchema,
   StateManifestSchema,
   type RuntimeStateDelta,
+  type StateManifest,
 } from "../models/runtime-state.js";
 import type { Fact, StoredHook, StoredSummary } from "./memory-db.js";
 import { bootstrapStructuredStateFromMarkdown, parseCurrentStateFacts } from "./state-bootstrap.js";
@@ -13,6 +15,7 @@ import { renderChapterSummariesProjection, renderCurrentStateProjection, renderH
 import { applyRuntimeStateDelta, type RuntimeStateSnapshot } from "./state-reducer.js";
 import { validateRuntimeState } from "./state-validator.js";
 import { arbitrateRuntimeStateDeltaHooks } from "../utils/hook-arbiter.js";
+import { atomicWriteFile } from "../utils/fs-atomic.js";
 
 export interface RuntimeStateArtifacts {
   readonly snapshot: RuntimeStateSnapshot;
@@ -99,12 +102,15 @@ export async function saveRuntimeStateSnapshot(
   const stateDir = join(bookDir, "story", "state");
   await mkdir(stateDir, { recursive: true });
 
-  await Promise.all([
-    writeFile(join(stateDir, "manifest.json"), JSON.stringify(snapshot.manifest, null, 2), "utf-8"),
-    writeFile(join(stateDir, "current_state.json"), JSON.stringify(snapshot.currentState, null, 2), "utf-8"),
-    writeFile(join(stateDir, "hooks.json"), JSON.stringify(snapshot.hooks, null, 2), "utf-8"),
-    writeFile(join(stateDir, "chapter_summaries.json"), JSON.stringify(snapshot.chapterSummaries, null, 2), "utf-8"),
-  ]);
+  const existingManifest = await readJsonOrNull(join(stateDir, "manifest.json"), StateManifestSchema);
+  const existingSummaries = await readJsonOrNull(join(stateDir, "chapter_summaries.json"), ChapterSummariesStateSchema);
+  const manifest = mergeManifestProgress(existingManifest, snapshot.manifest);
+  const chapterSummaries = mergeChapterSummaryState(existingSummaries, snapshot.chapterSummaries);
+
+  await atomicWriteFile(join(stateDir, "manifest.json"), JSON.stringify(manifest, null, 2));
+  await atomicWriteFile(join(stateDir, "current_state.json"), JSON.stringify(snapshot.currentState, null, 2));
+  await atomicWriteFile(join(stateDir, "hooks.json"), JSON.stringify(snapshot.hooks, null, 2));
+  await atomicWriteFile(join(stateDir, "chapter_summaries.json"), JSON.stringify(chapterSummaries, null, 2));
 }
 
 export async function loadNarrativeMemorySeed(bookDir: string): Promise<NarrativeMemorySeed> {
@@ -168,4 +174,35 @@ async function readJsonOrNull<T>(
   } catch {
     return null;
   }
+}
+
+function mergeManifestProgress(
+  existing: StateManifest | null,
+  incoming: StateManifest,
+): StateManifest {
+  if (!existing) return incoming;
+  return {
+    ...incoming,
+    lastAppliedChapter: Math.max(existing.lastAppliedChapter, incoming.lastAppliedChapter),
+    migrationWarnings: [...new Set([
+      ...existing.migrationWarnings,
+      ...incoming.migrationWarnings,
+    ])],
+  };
+}
+
+function mergeChapterSummaryState(
+  existing: ChapterSummariesState | null,
+  incoming: ChapterSummariesState,
+): ChapterSummariesState {
+  const rowsByChapter = new Map<number, ChapterSummariesState["rows"][number]>();
+  for (const row of existing?.rows ?? []) {
+    rowsByChapter.set(row.chapter, row);
+  }
+  for (const row of incoming.rows) {
+    rowsByChapter.set(row.chapter, row);
+  }
+  return {
+    rows: [...rowsByChapter.values()].sort((left, right) => left.chapter - right.chapter),
+  };
 }

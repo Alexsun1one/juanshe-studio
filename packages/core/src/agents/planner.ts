@@ -36,6 +36,8 @@ import {
   readSubplotBoard,
 } from "./planner-context.js";
 import type { StoredHook } from "../state/memory-db.js";
+import { DEFAULT_CHAPTER_CADENCE_WINDOW } from "../utils/chapter-cadence.js";
+import { buildOpeningLedgerBrief } from "../utils/opening-ledger.js";
 
 export interface PlanChapterInput {
   readonly book: BookConfig;
@@ -202,12 +204,18 @@ export class PlannerAgent extends BaseAgent {
     readonly volumeDirection?: string;
     readonly language?: "zh" | "en";
   }): Promise<ChapterMemo> {
-    const [characterMatrix, subplotBoard, emotionalArcs, pendingHooks, bookRulesRaw] = await Promise.all([
+    const [characterMatrix, subplotBoard, emotionalArcs, pendingHooks, bookRulesRaw, openingLedgerBrief] = await Promise.all([
       readCharacterMatrix(input.storyDir),
       readSubplotBoard(input.storyDir),
       readEmotionalArcs(input.storyDir),
       readPendingHooks(input.storyDir),
       readBookRules(input.storyDir),
+      buildOpeningLedgerBrief({
+        storyDir: input.storyDir,
+        currentChapter: input.chapterNumber,
+        keepRecent: DEFAULT_CHAPTER_CADENCE_WINDOW,
+        language: input.language ?? "zh",
+      }),
     ]);
 
     const language = input.language ?? "zh";
@@ -230,6 +238,7 @@ export class PlannerAgent extends BaseAgent {
         ? input.previousEndingExcerpt.trim()
         : noPriorChapter,
       recentSummaries: formatRecentSummaries(input.chapterSummariesRaw, input.chapterNumber, 3),
+      openingLedgerBrief: openingLedgerBrief ?? "",
       currentArcProse: composeCurrentArcProse(subplotBoard, emotionalArcs, input.chapterNumber),
       protagonistMatrixRow: extractProtagonistRow(characterMatrix),
       opponentRows: extractOpponentRows(characterMatrix, 3),

@@ -37,6 +37,12 @@ import type { RuntimeStateSnapshot } from "../state/state-reducer.js";
 import { parsePendingHooksMarkdown } from "../utils/memory-retrieval.js";
 import { analyzeHookHealth } from "../utils/hook-health.js";
 import { buildVarianceBrief } from "../utils/long-span-fatigue.js";
+import { DEFAULT_CHAPTER_CADENCE_WINDOW } from "../utils/chapter-cadence.js";
+import {
+  buildOpeningLedgerBrief,
+  extractOpeningSignature,
+  upsertOpeningLedgerFileUnlocked,
+} from "../utils/opening-ledger.js";
 import {
   buildNarrativeIntentBrief,
   renderMemoAsNarrativeBlock,
@@ -45,6 +51,10 @@ import {
 } from "../utils/narrative-control.js";
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { atomicWriteFile } from "../utils/fs-atomic.js";
+import {
+  upsertChapterSummaryFileUnlocked,
+  withStoryTruthWriteLock,
+} from "../utils/story-truth-writer.js";
 import { checkSceneCharacterBudget } from "../utils/scene-character-budget.js";
 import { join } from "node:path";
 import {
@@ -338,6 +348,12 @@ export class WriterAgent extends BaseAgent {
       chapterNumber,
       language: resolvedLanguage,
     });
+    const openingLedgerBrief = await buildOpeningLedgerBrief({
+      storyDir: join(bookDir, "story"),
+      currentChapter: chapterNumber,
+      keepRecent: DEFAULT_CHAPTER_CADENCE_WINDOW,
+      language: resolvedLanguage,
+    });
 
     // Build fanfic context if fanfic_canon.md exists
     const fanficContext: FanficContext | undefined = hasFanficCanon && bookRules?.fanficMode
@@ -369,6 +385,7 @@ export class WriterAgent extends BaseAgent {
           lengthSpec: resolvedLengthSpec,
           language: book.language ?? genreProfile.language,
           varianceBrief: varianceBrief?.text,
+          openingLedgerBrief,
           selectedEvidenceBlock: this.joinGovernedEvidenceBlocks(governedMemoryBlocks),
           // governed 路径此前不带角色矩阵 → 写手看不到「说话」卡原文,全员同腔的源头之一。
           // 按本章意图/memo 点名的角色选卡注入;legacy 路径的矩阵块本就含说话字段,不重复注入。
@@ -417,6 +434,7 @@ export class WriterAgent extends BaseAgent {
             parentCanon: hasParentCanon ? parentCanon : undefined,
             language: book.language ?? genreProfile.language,
             varianceBrief: varianceBrief?.text,
+            openingLedgerBrief,
           });
         })();
 
@@ -907,6 +925,7 @@ export class WriterAgent extends BaseAgent {
     const chaptersDir = join(bookDir, "chapters");
     const storyDir = join(bookDir, "story");
     await mkdir(chaptersDir, { recursive: true });
+    await mkdir(storyDir, { recursive: true });
 
     const paddedNum = String(output.chapterNumber).padStart(4, "0");
     const filename = `${paddedNum}_${this.sanitizeFilename(output.title)}.md`;
@@ -930,39 +949,54 @@ export class WriterAgent extends BaseAgent {
 
     // 正文不可再生:先原子写正文(确保它完整落盘),再写真相文件;每个文件都走原子写,杜绝崩溃/断电写一半。
     await atomicWriteFile(join(chaptersDir, filename), chapterContent);
-    const writes: Array<Promise<void>> = [
-      atomicWriteFile(join(storyDir, "current_state.md"), runtimeStateArtifacts?.currentStateMarkdown ?? output.updatedState),
-      atomicWriteFile(join(storyDir, "pending_hooks.md"), runtimeStateArtifacts?.hooksMarkdown ?? output.updatedHooks),
-    ];
+    await withStoryTruthWriteLock(storyDir, async () => {
+      await atomicWriteFile(join(storyDir, "current_state.md"), runtimeStateArtifacts?.currentStateMarkdown ?? output.updatedState);
+      await atomicWriteFile(join(storyDir, "pending_hooks.md"), runtimeStateArtifacts?.hooksMarkdown ?? output.updatedHooks);
 
-    // 锁定事实(canon 源):把本章 observer 抽取的不可变硬事实合并进 story/locked_facts.md(幂等、跨章累积),
-    // graph-sync 随后据此把 canon 锁进图谱并做跨章硬矛盾检测。observer 本章没抽到锁定事实则不动文件。
-    if (output.lockedFacts !== undefined) {
-      const lockedPath = join(storyDir, "locked_facts.md");
-      const existingLocked = await readFile(lockedPath, "utf-8").catch(() => "");
-      const mergedLocked = mergeLockedFactsMarkdown(existingLocked, output.lockedFacts, output.chapterNumber);
-      if (mergedLocked && mergedLocked !== existingLocked) {
-        writes.push(atomicWriteFile(lockedPath, mergedLocked));
+      // 锁定事实(canon 源):把本章 observer 抽取的不可变硬事实合并进 story/locked_facts.md(幂等、跨章累积),
+      // graph-sync 随后据此把 canon 锁进图谱并做跨章硬矛盾检测。observer 本章没抽到锁定事实则不动文件。
+      if (output.lockedFacts !== undefined) {
+        const lockedPath = join(storyDir, "locked_facts.md");
+        const existingLocked = await readFile(lockedPath, "utf-8").catch(() => "");
+        const mergedLocked = mergeLockedFactsMarkdown(existingLocked, output.lockedFacts, output.chapterNumber);
+        if (mergedLocked && mergedLocked !== existingLocked) {
+          await atomicWriteFile(lockedPath, mergedLocked);
+        }
       }
-    }
 
-    if (runtimeStateArtifacts?.chapterSummariesMarkdown) {
-      writes.push(
-        atomicWriteFile(join(storyDir, "chapter_summaries.md"), runtimeStateArtifacts.chapterSummariesMarkdown),
-      );
-    }
+      const summaryForUpsert = runtimeStateArtifacts?.chapterSummariesMarkdown
+        ?? output.updatedChapterSummaries
+        ?? output.chapterSummary;
+      if (summaryForUpsert) {
+        await upsertChapterSummaryFileUnlocked({
+          storyDir,
+          chapterNumber: output.chapterNumber,
+          summaryMarkdown: summaryForUpsert,
+          language,
+          logger: this.ctx.logger,
+        });
+      }
 
-    if (runtimeStateArtifacts?.snapshot ?? output.runtimeStateSnapshot) {
-      writes.push(saveRuntimeStateSnapshot(bookDir, runtimeStateArtifacts?.snapshot ?? output.runtimeStateSnapshot!));
-    }
+      if (runtimeStateArtifacts?.snapshot ?? output.runtimeStateSnapshot) {
+        await saveRuntimeStateSnapshot(bookDir, runtimeStateArtifacts?.snapshot ?? output.runtimeStateSnapshot!);
+      }
 
-    if (numericalSystem) {
-      writes.push(
-        atomicWriteFile(join(storyDir, "particle_ledger.md"), output.updatedLedger),
-      );
-    }
+      if (numericalSystem) {
+        await atomicWriteFile(join(storyDir, "particle_ledger.md"), output.updatedLedger);
+      }
 
-    await Promise.all(writes);
+      await upsertOpeningLedgerFileUnlocked({
+        storyDir,
+        signature: extractOpeningSignature({
+          chapterNumber: output.chapterNumber,
+          title: output.title,
+          content: chapterContent,
+          language,
+        }),
+        language,
+        logger: this.ctx.logger,
+      });
+    });
   }
 
   /**
@@ -1007,6 +1041,7 @@ export class WriterAgent extends BaseAgent {
     readonly parentCanon?: string;
     readonly language?: "zh" | "en";
     readonly varianceBrief?: string;
+    readonly openingLedgerBrief?: string;
   }): string {
     const continuityGuard = this.buildContinuityGuardBlock(params.lockedFacts ?? "", params.auditDrift ?? "", params.language ?? "zh");
     const contextBlock = params.externalContext
@@ -1050,6 +1085,9 @@ ${params.parentCanon}\n`
     const varianceBlock = params.varianceBrief
       ? `\n${params.varianceBrief}\n`
       : "";
+    const openingLedgerBlock = params.openingLedgerBrief
+      ? `\n${params.openingLedgerBrief}\n`
+      : "";
 
     if (params.language === "en") {
       return `Write chapter ${params.chapterNumber}.
@@ -1063,6 +1101,7 @@ ${summariesBlock}${subplotBlock}${emotionalBlock}${matrixBlock}${fingerprintBloc
 ## Recent Chapters
 ${params.recentChapters || "(This is the first chapter, no previous text)"}
 
+${openingLedgerBlock}
 ## Worldbuilding
 ${params.storyBible}
 
@@ -1083,6 +1122,7 @@ ${summariesBlock}${subplotBlock}${emotionalBlock}${matrixBlock}${fingerprintBloc
 ## 最近章节
 ${params.recentChapters || "(这是第一章，无前文)"}
 
+${openingLedgerBlock}
 ## 世界观设定
 ${params.storyBible}
 
@@ -1105,6 +1145,7 @@ ${lengthRequirementBlock}
     readonly language?: "zh" | "en";
     readonly varianceBrief?: string;
     readonly selectedEvidenceBlock?: string;
+    readonly openingLedgerBrief?: string;
     /** 人物声音卡(「说话」原文)块,空串表示本章无可注入卡。 */
     readonly voiceCardBlock?: string;
   }): string {
@@ -1128,6 +1169,9 @@ ${lengthRequirementBlock}
     const chapterContextBlock = this.buildChapterContextBlock(params.externalContext, language);
     const briefNarrative = renderMemoAsNarrativeBlock(params.chapterMemo, params.chapterIntentData, language);
     const continuityGuard = this.buildContinuityGuardBlock(params.lockedFacts ?? "", params.auditDrift ?? "", language);
+    const openingLedgerBlock = params.openingLedgerBrief
+      ? `\n${params.openingLedgerBrief}\n`
+      : "";
 
     const voiceCardBlock = params.voiceCardBlock ?? "";
 
@@ -1137,7 +1181,7 @@ ${lengthRequirementBlock}
 ${chapterContextBlock}
 
 ${briefNarrative}
-${continuityGuard}${voiceCardBlock}
+${continuityGuard}${openingLedgerBlock}${voiceCardBlock}
 ## Selected Context
 ${contextSections || "(none)"}
 ${selectedEvidenceBlock}
@@ -1158,7 +1202,7 @@ ${lengthRequirementBlock}
 ${chapterContextBlock}
 
 ${briefNarrative}
-${continuityGuard}${voiceCardBlock}
+${continuityGuard}${openingLedgerBlock}${voiceCardBlock}
 ## 已选上下文
 ${contextSections || "(无)"}
 ${selectedEvidenceBlock}
@@ -1344,35 +1388,32 @@ ${overrides}\n`;
     language: "zh" | "en" = "zh",
   ): Promise<void> {
     const storyDir = join(bookDir, "story");
-    const writes: Array<Promise<void>> = [];
+    await mkdir(storyDir, { recursive: true });
+    await withStoryTruthWriteLock(storyDir, async () => {
+      const summaryForUpsert = !output.runtimeStateDelta
+        ? output.updatedChapterSummaries ?? output.chapterSummary
+        : undefined;
+      if (summaryForUpsert) {
+        await upsertChapterSummaryFileUnlocked({
+          storyDir,
+          chapterNumber: output.chapterNumber,
+          summaryMarkdown: summaryForUpsert,
+          language,
+          logger: this.ctx.logger,
+        });
+      }
 
-    // Append chapter summary to chapter_summaries.md
-    if (!output.runtimeStateDelta && output.updatedChapterSummaries) {
-      writes.push(writeFile(
-        join(storyDir, "chapter_summaries.md"),
-        output.updatedChapterSummaries,
-        "utf-8",
-      ));
-    } else if (!output.runtimeStateDelta && output.chapterSummary) {
-      writes.push(this.appendChapterSummary(storyDir, output.chapterSummary, language));
-    }
-
-    // Overwrite subplot board
-    if (output.updatedSubplots) {
-      writes.push(writeFile(join(storyDir, "subplot_board.md"), output.updatedSubplots, "utf-8"));
-    }
-
-    // Overwrite emotional arcs
-    if (output.updatedEmotionalArcs) {
-      writes.push(writeFile(join(storyDir, "emotional_arcs.md"), output.updatedEmotionalArcs, "utf-8"));
-    }
-
-    // Overwrite character matrix
-    if (output.updatedCharacterMatrix) {
-      writes.push(writeFile(join(storyDir, "character_matrix.md"), output.updatedCharacterMatrix, "utf-8"));
-    }
-
-    await Promise.all(writes);
+      // 姊妹真相文件统一串行 + 原子写,避免和章节摘要/状态快照交错覆盖。
+      if (output.updatedSubplots) {
+        await atomicWriteFile(join(storyDir, "subplot_board.md"), output.updatedSubplots);
+      }
+      if (output.updatedEmotionalArcs) {
+        await atomicWriteFile(join(storyDir, "emotional_arcs.md"), output.updatedEmotionalArcs);
+      }
+      if (output.updatedCharacterMatrix) {
+        await atomicWriteFile(join(storyDir, "character_matrix.md"), output.updatedCharacterMatrix);
+      }
+    });
   }
 
   private renderDeltaSummaryRow(delta: RuntimeStateDelta): string {
@@ -1492,53 +1533,6 @@ ${overrides}\n`;
       delta: safeDelta,
       language,
     });
-  }
-
-  private async appendChapterSummary(
-    storyDir: string,
-    summary: string,
-    language: "zh" | "en",
-  ): Promise<void> {
-    const summaryPath = join(storyDir, "chapter_summaries.md");
-    let existing = "";
-    try {
-      existing = await readFile(summaryPath, "utf-8");
-    } catch {
-      // File doesn't exist yet — start with header
-      existing = language === "en"
-        ? "# Chapter Summaries\n\n| Chapter | Title | Characters | Key Events | State Changes | Hook Activity | Mood | Chapter Type |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-        : "# 章节摘要\n\n| 章节 | 标题 | 出场人物 | 关键事件 | 状态变化 | 伏笔动态 | 情绪基调 | 章节类型 |\n|------|------|----------|----------|----------|----------|----------|----------|\n";
-    }
-
-    // Extract only the data row(s) from the summary (skip header lines)
-    const dataRows = summary
-      .split("\n")
-      .filter((line) =>
-        line.startsWith("|")
-        && !line.startsWith("| 章节")
-        && !line.startsWith("| Chapter")
-        && !line.startsWith("|--")
-        && !line.startsWith("| ---"),
-      )
-      .join("\n");
-
-    if (dataRows) {
-      // Deduplicate: remove existing rows with the same chapter number before appending
-      const newChapterNums = new Set(
-        dataRows.split("\n")
-          .map((line) => line.split("|")[1]?.trim())
-          .filter((ch) => ch && /^\d+$/.test(ch)),
-      );
-      const deduped = existing
-        .split("\n")
-        .filter((line) => {
-          if (!line.startsWith("|")) return true;
-          const chNum = line.split("|")[1]?.trim();
-          return !chNum || !newChapterNums.has(chNum);
-        })
-        .join("\n");
-      await writeFile(summaryPath, `${deduped.trimEnd()}\n${dataRows}\n`, "utf-8");
-    }
   }
 
   private buildStyleFingerprint(styleProfileRaw: string): string | undefined {
