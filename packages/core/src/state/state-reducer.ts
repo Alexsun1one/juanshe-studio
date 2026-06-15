@@ -106,11 +106,12 @@ function applyHookOps(hooksState: HooksState, delta: RuntimeStateDelta): HooksSt
     hooksById.set(hook.hookId, { ...hook });
   }
 
+  // 容错:writer/LLM 偶尔把实体id(如 environment-1987)或并不存在的 hook 误塞进 resolve/defer 段。
+  // 跳过未知 op,绝不抛错崩整章/停批 —— hook 留在原状态,hook-debt/continuity 会自愈再提。
+  // 历史上这里 throw 会让一个 LLM 噪音操作直接终止整批写作(实测海雾照相馆 ch3 即因此停批)。
   for (const hookId of delta.hookOps.resolve) {
     const existing = hooksById.get(hookId);
-    if (!existing) {
-      throw new Error(`unknown hook resolve op: ${hookId}`);
-    }
+    if (!existing) continue;
     hooksById.set(hookId, {
       ...existing,
       status: "resolved",
@@ -120,9 +121,7 @@ function applyHookOps(hooksState: HooksState, delta: RuntimeStateDelta): HooksSt
 
   for (const hookId of delta.hookOps.defer) {
     const existing = hooksById.get(hookId);
-    if (!existing) {
-      throw new Error(`unknown hook defer op: ${hookId}`);
-    }
+    if (!existing) continue;
     hooksById.set(hookId, {
       ...existing,
       status: "deferred",

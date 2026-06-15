@@ -222,8 +222,10 @@ describe("applyRuntimeStateDelta", () => {
     ]);
   });
 
-  it("rejects resolve and defer operations for unknown hooks", () => {
-    expect(() => applyRuntimeStateDelta({
+  it("tolerates resolve/defer ops for unknown hooks instead of crashing the batch", () => {
+    // writer/LLM 偶尔把实体id或并不存在的 hook 误塞进 resolve/defer;reducer 跳过而非抛错,
+    // 绝不让一个噪音操作终止整批写作。未知 op 不产生任何 hook,状态保持为空。
+    const result = applyRuntimeStateDelta({
       snapshot: {
         manifest: {
           schemaVersion: 2,
@@ -252,7 +254,8 @@ describe("applyRuntimeStateDelta", () => {
         },
         notes: [],
       }),
-    })).toThrow(/unknown hook resolve op: mentor-debt/);
+    });
+    expect(result.hooks.hooks).toEqual([]);
   });
 
   it("keeps mention-only hooks from mutating lastAdvancedChapter", () => {
