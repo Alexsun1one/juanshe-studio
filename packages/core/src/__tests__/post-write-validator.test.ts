@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   detectDuplicateTitle,
+  detectCrossChapterRepetition,
   detectEndingProphecy,
   detectParagraphLengthDrift,
   detectParagraphShapeWarnings,
@@ -279,6 +280,36 @@ describe("validatePostWrite", () => {
     const result = detectParagraphShapeWarnings(current, "zh");
     expect(findRule(result, "段落过碎")).toBeDefined();
     expect(findRule(result, "连续短段")).toBeDefined();
+  });
+
+  it("blocks exact repeated concrete detail phrases across recent chapters", () => {
+    const recent = "便利店的白灯亮着，林秋把抹布叠成方块，压在柜台一角。".repeat(6);
+    const current = "雨停以后，她绕到柜台后面，把抹布叠成方块，又去摸那串钥匙。";
+
+    const result = detectCrossChapterRepetition(current, recent, "zh");
+
+    expect(findRule(result, "跨章具象细节复用")).toBeDefined();
+    expect(findRule(result, "跨章具象细节复用")?.severity).toBe("error");
+  });
+
+  it("keeps ordinary repeated narration below the concrete-detail error gate", () => {
+    const recent = "他看了一眼门口，又走了过去。".repeat(10);
+    const current = "他看了一眼门口，没有马上说话。";
+
+    const result = detectCrossChapterRepetition(current, recent, "zh");
+
+    expect(findRule(result, "跨章具象细节复用")).toBeUndefined();
+  });
+
+  it("limits concrete-detail errors to adjacent recent chapters", () => {
+    const older = "便利店的白灯亮着，林秋把抹布叠成方块，压在柜台一角。".repeat(4);
+    const recentA = "他推门出去，雨水顺着台阶往下流。".repeat(6);
+    const recentB = "她低头核对账本，把钥匙交给值班的人。".repeat(6);
+    const current = "雨停以后，她绕到柜台后面，把抹布叠成方块，又去摸那串钥匙。";
+
+    const result = detectCrossChapterRepetition(current, [older, recentA, recentB].join("\n\n---\n\n"), "zh");
+
+    expect(findRule(result, "跨章具象细节复用")).toBeUndefined();
   });
 
   it("detects duplicate chapter titles", () => {

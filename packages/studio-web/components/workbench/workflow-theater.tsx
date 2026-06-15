@@ -20,6 +20,7 @@ import { CelebrationBurst } from "./celebration-burst"
 import { StreamingProse, splitStreamParagraphs } from "./streaming-prose"
 import { StreamFollowChip } from "./stream-follow-chip"
 import { useStickToBottom } from "@/hooks/use-stick-to-bottom"
+import { renderAgentOutputInline, sanitizeAgentOutput } from "@/lib/sanitize-agent-output"
 import "./workflow-theater.css"
 
 /**
@@ -327,7 +328,8 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
 
   // 接力链:每个角色取它最近一条事件文案,挂到对应节点上(让真实事件流在结构化接力里就地呈现)
   const lastTextByFid: Record<string, string> = {}
-  for (const ev of activity.events) lastTextByFid[toFrontendAgentId(ev.agentId)] = ev.text
+  for (const ev of activity.events) lastTextByFid[toFrontendAgentId(ev.agentId)] = sanitizeAgentOutput(ev.text)
+  const currentAgentText = sanitizeAgentOutput(activity.currentText)
 
   // "在跑但没可见输出"期:剧场在跑,但还没有正文逐字流出 —— 可能是模型冷启动(还没人出场),
   // 也可能是某个角色(如写手)在闷头调模型生成(字数还是 0)。这两种页面都"看着像冻住",
@@ -335,7 +337,7 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
   const noVisibleOutput = isRunning && paragraphs.length === 0 && !live.active
   const workTitle = currentFid ? `${nameOf(currentFid)}正在${currentStep?.step.label ?? "工作"}…` : "正在唤醒编辑部…"
   const workSub = currentFid
-    ? (activity.currentText?.trim() || "正在调用模型逐字生成,第一段马上冒出来。别关,它在干活。")
+    ? (currentAgentText || "正在调用模型逐字生成,第一段马上冒出来。别关,它在干活。")
     : "后台正在启动 —— 模型冷启动可能要几十秒,规划师马上接第一棒。"
 
   return (
@@ -455,7 +457,7 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
               <span className="tf-strip-name">{currentFid ? nameOf(currentFid) : currentStep.step.label}</span>
               <span className="tf-strip-doing">正在 <b>{currentStep.step.label}</b><span className="tf-dots" aria-hidden><i /><i /><i /></span></span>
               <span className="tf-strip-secs" title="本阶段已用时 · 数字在跳=正在运行,没有卡住">{stageSeconds}s</span>
-              <span className="tf-strip-hint">{activity.currentText || currentStep.step.hint}</span>
+              <span className="tf-strip-hint">{renderAgentOutputInline(currentAgentText || currentStep.step.hint, "theater-current-hint")}</span>
               {nextStep && (
                 <span className="tf-strip-next">
                   <span aria-hidden>↪</span>下一步 <b>{nextStep.step.label}</b>
@@ -555,7 +557,7 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
                 const isCurrent = currentFid === fid
                 const seen = status === "done" || status === "running" || activity.seenOrder.includes(fid)
                 const text = isCurrent
-                  ? (activity.currentText || lastTextByFid[fid] || "正在接棒,马上开干…")
+                  ? (currentAgentText || lastTextByFid[fid] || "正在接棒,马上开干…")
                   : (lastTextByFid[fid] || (seen ? "已交棒" : "等待接棒"))
                 return (
                   <li
@@ -572,7 +574,7 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
                         <b className="relay-name">{nameOf(fid)}</b>
                         <span className="relay-state">{status === "running" ? "在跑" : status === "done" ? "交棒✓" : "待接"}</span>
                       </span>
-                      <span className="relay-text">{text}</span>
+                      <span className="relay-text">{renderAgentOutputInline(text, `relay-${fid}`)}</span>
                     </span>
                   </li>
                 )

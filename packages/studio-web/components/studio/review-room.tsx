@@ -27,6 +27,7 @@ import { AGENTS } from "@/lib/studio-data"
 import { agentColor, agentSoftBg, agentBorder } from "@/lib/agent-identity"
 import { toFrontendAgentId } from "@/lib/api/agent-aliases"
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card"
+import { renderAgentOutputMarkdown, sanitizeAgentOutput } from "@/lib/sanitize-agent-output"
 
 // ---------------------------------------------------------------------------
 // agent 展示元数据 —— 友好中文名 + 单色字号头像，绝不外泄 agentId/原始 JSON。
@@ -645,7 +646,10 @@ function AgentBubble({
             isWriter ? "bg-secondary/30" : "bg-card",
           )}
         >
-          <span className="whitespace-pre-wrap break-words">{message.text}</span>
+          {renderAgentOutputMarkdown(message.text, {
+            keyPrefix: message.id,
+            className: "space-y-2 whitespace-normal break-words",
+          })}
           {message.streaming ? <span className="stream-caret" aria-hidden /> : null}
         </div>
       </div>
@@ -680,7 +684,7 @@ function SystemLine({
         ) : (
           <Sparkles className="size-3" />
         )}
-        {message.text}
+        {sanitizeAgentOutput(message.text)}
       </span>
       <span
         className={cn(
@@ -769,9 +773,12 @@ function VerdictCard({
         ) : null}
       </div>
       {verdict.rationale ? (
-        <p className="text-muted-foreground mt-2 max-h-32 overflow-y-auto scroll-thin text-[12px] leading-relaxed">
-          {verdict.rationale}
-        </p>
+        <div className="text-muted-foreground mt-2 max-h-32 overflow-y-auto scroll-thin text-[12px] leading-relaxed">
+          {renderAgentOutputMarkdown(verdict.rationale, {
+            keyPrefix: "verdict-rationale",
+            className: "space-y-2 whitespace-normal break-words",
+          })}
+        </div>
       ) : null}
     </div>
   )

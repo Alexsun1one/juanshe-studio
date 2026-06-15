@@ -76,6 +76,32 @@ const COLLECTIVE_SHOCK_PATTERNS = [
   /(?:全场|一片)[，,]?(?:寂静|哗然|沸腾|震动)/,
 ];
 
+/** 只把“物件/动作/形状”咬合的短语升 error，避免误伤人名地名和常用叙述词。 */
+const SIGNATURE_DETAIL_OBJECTS = [
+  "抹布", "毛巾", "钥匙", "手机", "柜台", "货架", "玻璃", "合同", "借条", "腰牌",
+  "茶杯", "茶缸", "硬币", "伞", "刀", "剑", "枪", "箱", "袋", "铃", "牌", "信", "血", "汗",
+];
+
+const GENERIC_DETAIL_OBJECTS = [
+  "桌", "椅", "门", "窗", "灯", "杯", "碗", "筷", "纸", "书", "笔", "鞋", "袖", "衣", "车",
+];
+
+const CONCRETE_DETAIL_ACTIONS = [
+  "擦", "叠", "捏", "攥", "握", "摸", "掏", "扣", "摁", "拧", "推", "拉", "拍", "摔",
+  "砸", "撕", "折", "塞", "递", "收", "挂", "插", "系", "解", "划", "切", "抹", "压",
+  "贴", "敲", "端", "放", "拎", "夹", "扔", "捡", "翻", "盖", "锁", "开", "关",
+];
+
+const CONCRETE_DETAIL_SHAPES = [
+  "方块", "一角", "边缘", "指缝", "掌心", "桌沿", "门缝", "台面", "柜台", "角落",
+  "鞋底", "袖口", "裂纹", "焦痕", "灰印", "水印",
+];
+
+const COMMON_DETAIL_FALSE_POSITIVES = new Set([
+  "这个时候", "那个时候", "这个地方", "那个地方", "他们两个", "她们两个",
+  "看了一眼", "回头看了", "走了过去", "站了起来", "低声说道",
+]);
+
 /** 章末预言句:全链最高禁令之一,此前只有提示词管、零机检(实测原样入库)。 */
 const ENDING_PROPHECY_PATTERNS = [
   /(?:他|她|他们)(?:还)?不知道的是/,
@@ -402,6 +428,18 @@ export function detectCrossChapterRepetition(
   } else {
     // Chinese: 6-char ngrams
     const chars = currentContent.replace(/[\s\n\r]/g, "");
+    const recentClean = recentChaptersContent.replace(/[\s\n\r]/g, "");
+    const adjacentRecentClean = selectAdjacentRecentChaptersContent(recentChaptersContent).replace(/[\s\n\r]/g, "");
+    const concreteRepeats = detectConcreteDetailRepeats(chars, adjacentRecentClean);
+    if (concreteRepeats.length > 0) {
+      violations.push({
+        rule: "跨章具象细节复用",
+        severity: "error",
+        description: `具象动作/物件短语在近期章节逐字重复：${concreteRepeats.slice(0, 5).map(p => `"${p}"`).join("、")}`,
+        suggestion: "换物件、换动作或换感官细节；招牌意象至少隔 5 章再用，不能逐字复刻上一章细节",
+      });
+    }
+
     const phraseCounts = new Map<string, number>();
     for (let i = 0; i < chars.length - 5; i++) {
       const phrase = chars.slice(i, i + 6);
@@ -409,7 +447,6 @@ export function detectCrossChapterRepetition(
         phraseCounts.set(phrase, (phraseCounts.get(phrase) ?? 0) + 1);
       }
     }
-    const recentClean = recentChaptersContent.replace(/[\s\n\r]/g, "");
     const crossRepeats: string[] = [];
     for (const [phrase, count] of phraseCounts) {
       if (count >= 2 && recentClean.includes(phrase)) {
@@ -427,6 +464,47 @@ export function detectCrossChapterRepetition(
   }
 
   return violations;
+}
+
+function detectConcreteDetailRepeats(currentClean: string, recentClean: string): string[] {
+  const repeats: string[] = [];
+  const seen = new Set<string>();
+  for (let length = 8; length >= 4; length--) {
+    for (let i = 0; i <= currentClean.length - length; i++) {
+      const phrase = currentClean.slice(i, i + length);
+      if (!isConcreteDetailPhrase(phrase) || seen.has(phrase) || !recentClean.includes(phrase)) {
+        continue;
+      }
+      if (repeats.some((existing) => existing.includes(phrase) || phrase.includes(existing))) {
+        continue;
+      }
+      seen.add(phrase);
+      repeats.push(phrase);
+      if (repeats.length >= 8) return repeats;
+    }
+  }
+  return repeats;
+}
+
+function isConcreteDetailPhrase(phrase: string): boolean {
+  if (!/^[\u4e00-\u9fff]{4,8}$/.test(phrase)) return false;
+  if (COMMON_DETAIL_FALSE_POSITIVES.has(phrase)) return false;
+  const hasAction = CONCRETE_DETAIL_ACTIONS.some((word) => phrase.includes(word));
+  const hasShape = CONCRETE_DETAIL_SHAPES.some((word) => phrase.includes(word));
+  const hasSignatureObject = SIGNATURE_DETAIL_OBJECTS.some((word) => phrase.includes(word));
+  if (hasSignatureObject) return hasAction || hasShape;
+
+  const hasGenericObject = GENERIC_DETAIL_OBJECTS.some((word) => phrase.includes(word));
+  return hasGenericObject && hasAction && hasShape;
+}
+
+function selectAdjacentRecentChaptersContent(recentChaptersContent: string): string {
+  const chapters = recentChaptersContent
+    .split(/\n\s*---\s*\n/g)
+    .map((chapter) => chapter.trim())
+    .filter(Boolean);
+  if (chapters.length <= 2) return recentChaptersContent;
+  return chapters.slice(-2).join("\n\n---\n\n");
 }
 
 export function detectParagraphLengthDrift(

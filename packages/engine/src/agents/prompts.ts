@@ -119,4 +119,11 @@ export const ROLE_PROMPTS: Record<string, RolePrompt> = {
   },
 }
 
+const WRITER_OPENING_AVOIDANCE_PROMPT = "\n- 开篇避坑(内容层防重复,硬规则):开篇前 200 字有三禁区。①禁连续用同一开篇类型,如\"时间状语+天气\"在 3 章内最多用一次;上章用过就换\"动作切入/声音切入/人物突然出现\"。②禁连续铺陈同一场景同一套仪式,如上章是\"便利店+店员擦桌子\",本章必须换地、换人、换冲突或换时间线。③禁复用近 5 章出现过的招牌意象/细节,如\"抹布叠成方块\"已用过就至少隔 5 章才能再用;逐字重复上一章的细节一律禁止。若本章场景确实和上一章相近(同地点/同人物),开篇 100 字内必须给一个新鲜的感官、信息或冲突,先打破重复感。"
+
+ROLE_PROMPTS.writer.systemPrompt = ROLE_PROMPTS.writer.systemPrompt.replace(
+  "\n- 信息节流:",
+  `${WRITER_OPENING_AVOIDANCE_PROMPT}\n- 信息节流:`,
+)
+
 export const ROLE_PROMPT_IDS = Object.keys(ROLE_PROMPTS)

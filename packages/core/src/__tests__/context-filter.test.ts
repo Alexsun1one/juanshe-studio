@@ -15,7 +15,8 @@ describe("context-filter", () => {
     const filtered = filterSummaries(summaries, 101);
 
     expect(filtered).not.toContain("| 1 | Chapter 1 |");
-    expect(filtered).not.toContain("| 97 | Chapter 97 |");
+    // 摘要窗口 4→10(防续写重复):current=101 保留第 91 章及以后,故第 97 章现在保留。
+    expect(filtered).toContain("| 97 | Chapter 97 |");
     expect(filtered).toContain("| 98 | Chapter 98 |");
     expect(filtered).toContain("| 100 | Chapter 100 |");
   });
@@ -26,7 +27,7 @@ describe("context-filter", () => {
       "",
       "| Character | Chapter | Emotional State | Trigger Event | Intensity (1-10) | Arc Direction |",
       "| --- | --- | --- | --- | --- | --- |",
-      "| Lin Yue | 97 | guarded | old wound | 4 | holding |",
+      "| Lin Yue | 85 | guarded | old wound | 4 | holding |",
       "| Lin Yue | 98 | tense | harbor clue | 6 | rising |",
       "| Lin Yue | 99 | strained | mentor echo | 7 | tightening |",
       "| Lin Yue | 100 | brittle | oath pressure | 8 | compressing |",
@@ -34,7 +35,8 @@ describe("context-filter", () => {
 
     const filtered = filterEmotionalArcs(arcs, 101);
 
-    expect(filtered).not.toContain("| Lin Yue | 97 |");
+    // 窗口=10:current=101 保留第 91 章及以后,第 85 章(< 91)被过滤。
+    expect(filtered).not.toContain("| Lin Yue | 85 |");
     expect(filtered).toContain("| Lin Yue | 98 |");
     expect(filtered).toContain("| Lin Yue | 100 |");
   });
