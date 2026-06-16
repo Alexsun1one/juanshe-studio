@@ -79,6 +79,8 @@ export async function loadLLMProviders(req: Request): Promise<LLMProvider[]> {
         name: text(service.label ?? service.name, id.replace(/^custom:/, "")),
         kind: providerKind(id),
         baseUrl: text(service.baseUrl ?? configuredService?.baseUrl),
+        providerFamily: providerFamily(service.providerFamily ?? configuredService?.providerFamily),
+        api: providerApi(service.api ?? configuredService?.api),
         hasKey: Boolean(service.connected ?? service.hasKey),
         enabled: id === activeService || Boolean(service.connected),
         selectedModel: selectedModel || models[0],
@@ -262,6 +264,8 @@ async function createViaServices(req: Request, body: Record<string, unknown>) {
     name,
     kind: "custom",
     baseUrl: text(body.baseUrl),
+    providerFamily: providerFamily(body.providerFamily),
+    api: providerApi(body.api),
     hasKey: Boolean(text(body.apiKey)),
     enabled: body.enabled !== false,
     selectedModel,
@@ -285,6 +289,14 @@ function serviceConfigPatch(
   }
   if (selectedModel) {
     entry.model = selectedModel
+    changed = true
+  }
+  if (providerFamily(patch.providerFamily)) {
+    entry.providerFamily = providerFamily(patch.providerFamily)
+    changed = true
+  }
+  if (providerApi(patch.api)) {
+    entry.api = providerApi(patch.api)
     changed = true
   }
   if (patch.apiFormat === "chat" || patch.apiFormat === "responses") {
@@ -321,6 +333,8 @@ function asProvider(value: unknown): LLMProvider {
     name: text(record.name),
     kind: text(record.kind, "custom"),
     baseUrl: text(record.baseUrl),
+    providerFamily: providerFamily(record.providerFamily),
+    api: providerApi(record.api),
     hasKey: Boolean(record.hasKey),
     enabled: Boolean(record.enabled),
     selectedModel: text(record.selectedModel),
@@ -383,6 +397,16 @@ function numberOrUndefined(value: unknown) {
 
 function booleanOrUndefined(value: unknown) {
   return typeof value === "boolean" ? value : undefined
+}
+
+function providerFamily(value: unknown): LLMProvider["providerFamily"] | undefined {
+  return value === "openai" || value === "anthropic" ? value : undefined
+}
+
+function providerApi(value: unknown): LLMProvider["api"] | undefined {
+  return value === "openai-completions" || value === "openai-responses" || value === "anthropic-messages"
+    ? value
+    : undefined
 }
 
 function unique(values: Array<string | undefined>) {

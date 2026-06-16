@@ -453,6 +453,39 @@
 }
 .cj-llm .llm-fld input::placeholder { color: var(--ink-400); }
 .cj-llm .llm-fld input:focus-visible { outline: none; border-color: var(--brand-300); box-shadow: var(--ring); }
+.cj-llm .llm-format-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--surface-2, rgba(255,255,255,.03));
+}
+.cj-llm .llm-format-toggle button {
+  height: 32px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-600);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft), box-shadow var(--motion-fast) var(--ease-soft);
+}
+.cj-llm .llm-format-toggle button.sel {
+  background: var(--bg-card);
+  color: var(--brand-700, var(--brand-600));
+  box-shadow: 0 1px 0 rgba(0,0,0,.04), inset 0 0 0 1px var(--border-soft, rgba(255,255,255,.10));
+}
+.cj-llm .llm-format-toggle button:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-llm .llm-format-toggle button:hover { color: var(--brand-600); }
+.cj-llm .llm-format-hint {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-500);
+}
 .cj-llm .llm-key-wrap { position: relative; display: flex; min-width: 0; }
 .cj-llm .llm-key-wrap input { flex: 1; padding-right: 40px; font-family: var(--font-mono); }
 .cj-llm .llm-eye {

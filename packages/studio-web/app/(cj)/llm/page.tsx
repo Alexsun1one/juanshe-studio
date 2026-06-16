@@ -53,6 +53,7 @@ import { KpiChip, FoldCard } from "@/components/design/kit"
 import "./llm.css"
 
 type Preset = { id: string; name: string; baseUrl: string; model: string; hint: string; cost?: string }
+type CustomEndpointFormat = "openai" | "anthropic"
 type LLMConfirmAction = {
   title: string
   description: string
@@ -87,7 +88,7 @@ const PRESET_ICON: Record<string, React.ComponentType<{ size?: number }>> = {
 
 // 已接入服务商:按显示名/类型猜一枚图标,猜不中回落到通用「服务节点」图标。
 function providerIcon(p: LLMProvider): React.ComponentType<{ size?: number }> {
-  const hay = `${p.name} ${p.baseUrl} ${p.kind}`.toLowerCase()
+  const hay = `${p.name} ${p.baseUrl} ${p.kind} ${p.providerFamily ?? ""} ${p.api ?? ""}`.toLowerCase()
   if (/deepseek/.test(hay)) return Brain
   if (/openai|gpt/.test(hay)) return Sparkles
   if (/moonshot|kimi/.test(hay)) return Rocket
@@ -135,6 +136,7 @@ export default function LLMConfigPage() {
   const [name, setName] = React.useState(PRESETS[0].name)
   const [baseUrl, setBaseUrl] = React.useState(PRESETS[0].baseUrl)
   const [model, setModel] = React.useState(PRESETS[0].model)
+  const [customFormat, setCustomFormat] = React.useState<CustomEndpointFormat>("openai")
   const [apiKey, setApiKey] = React.useState("")
   const [showKey, setShowKey] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
@@ -152,7 +154,12 @@ export default function LLMConfigPage() {
     setName(p.name)
     setBaseUrl(p.baseUrl)
     setModel(p.model)
+    if (p.id !== "custom") setCustomFormat("openai")
   }
+
+  const customFormatLabel = customFormat === "anthropic" ? "Anthropic 兼容" : "OpenAI 兼容"
+  const customProviderFamily = customFormat === "anthropic" ? "anthropic" : "openai"
+  const customApi = customFormat === "anthropic" ? "anthropic-messages" : "openai-completions"
 
   const executeTest = async (id: string) => {
     setTesting((t) => ({ ...t, [id]: true }))
@@ -238,7 +245,18 @@ export default function LLMConfigPage() {
     }
     setSaving(true)
     try {
-      const created = await createLLMProvider({ name: name.trim() || preset.name, baseUrl: baseUrl.trim(), model: model.trim(), apiKey: apiKey.trim(), enabled: true })
+      const created = await createLLMProvider({
+        name: name.trim() || preset.name,
+        baseUrl: baseUrl.trim(),
+        model: model.trim(),
+        apiKey: apiKey.trim(),
+        enabled: true,
+        ...(preset.id === "custom" ? {
+          providerFamily: customProviderFamily,
+          api: customApi,
+          apiFormat: "chat" as const,
+        } : {}),
+      })
       toast.success(`已添加 ${created.name},正在测试连通…`)
       setApiKey("")
       await mutate()
@@ -262,7 +280,7 @@ export default function LLMConfigPage() {
     setConfirmAction({
       title: "保存并测试模型服务？",
       description: "这会把 API Key 保存到本地后端,随后向模型服务发起一次真实连通测试。",
-      detail: `${name.trim() || preset.name} · ${model.trim()} · ${baseUrl.trim()}`,
+      detail: `${name.trim() || preset.name} · ${model.trim()} · ${baseUrl.trim()}${preset.id === "custom" ? ` · ${customFormatLabel}` : ""}`,
       confirmLabel: "确认保存并测试",
       run: executeSaveAndTest,
     })
@@ -491,7 +509,32 @@ export default function LLMConfigPage() {
                         <span className="llm-fld-ic" aria-hidden><Link2 size={13} /></span>
                         服务地址 (Base URL) <span className="req">*</span>
                       </label>
-                      <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.deepseek.com/v1" />
+                      <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder={customFormat === "anthropic" ? "https://relay.example.com/v1/messages" : "https://api.deepseek.com/v1"} />
+                    </div>
+                    <div className="llm-fld">
+                      <label>
+                        <span className="llm-fld-ic" aria-hidden><Waypoints size={13} /></span>
+                        接口格式
+                      </label>
+                      <div className="llm-format-toggle" role="group" aria-label="自定义端点接口格式">
+                        <button
+                          type="button"
+                          className={customFormat === "openai" ? "sel" : ""}
+                          aria-pressed={customFormat === "openai"}
+                          onClick={() => setCustomFormat("openai")}
+                        >
+                          OpenAI 兼容
+                        </button>
+                        <button
+                          type="button"
+                          className={customFormat === "anthropic" ? "sel" : ""}
+                          aria-pressed={customFormat === "anthropic"}
+                          onClick={() => setCustomFormat("anthropic")}
+                        >
+                          Anthropic 兼容
+                        </button>
+                      </div>
+                      <p className="llm-format-hint">中转站转 Claude 选 Anthropic 兼容;转 GPT 选 OpenAI 兼容。</p>
                     </div>
                     <div className="llm-fld">
                       <label>

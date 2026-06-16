@@ -1,6 +1,13 @@
 import { getModel } from "@mariozechner/pi-ai";
 import type { Model, Api } from "@mariozechner/pi-ai";
-import { resolveServicePiProvider, resolveServicePreset } from "./service-presets.js";
+import {
+  normalizeServiceApi,
+  providerFamilyForServiceApi,
+  resolveCustomServiceApi,
+  resolveServicePiProvider,
+  resolveServicePreset,
+  type ServiceApi,
+} from "./service-presets.js";
 import { getServiceApiKey } from "./secrets.js";
 import { getEndpoint } from "./providers/index.js";
 import type { HardWriteEndpoint } from "./providers/types.js";
@@ -13,6 +20,8 @@ export interface ResolvedModel {
   temperatureRange?: readonly [number, number];
   temperatureHint?: string;
 }
+
+type CustomServiceApiInput = "chat" | "responses" | ServiceApi;
 
 function resolveProviderCompat(
   provider: HardWriteEndpoint | undefined,
@@ -30,16 +39,27 @@ export async function resolveServiceModel(
   modelId: string,
   projectRoot: string,
   customBaseUrl?: string,
-  customApiFormat?: "chat" | "responses",
+  customApiFormat?: CustomServiceApiInput,
 ): Promise<ResolvedModel> {
   // Determine pi-ai provider
-  const baseService = service.startsWith("custom:") ? "custom" : service;
+  const isCustomService = service === "custom" || service.startsWith("custom:");
+  const baseService = isCustomService ? "custom" : service;
   const preset = resolveServicePreset(baseService);
   const endpoint = getEndpoint(baseService);
-  const piProvider = baseService === "ollama" ? "ollama" : resolveServicePiProvider(baseService) ?? "openai";
-  const apiType = service.startsWith("custom:")
-    ? (customApiFormat === "responses" ? "openai-responses" : "openai-completions")
+  const customApi = isCustomService
+    ? resolveCustomServiceApi({
+      api: normalizeServiceApi(customApiFormat),
+      apiFormat: customApiFormat === "responses" ? "responses" : customApiFormat === "chat" ? "chat" : undefined,
+    })
+    : undefined;
+  const apiType = isCustomService
+    ? customApi
     : (preset?.api ?? "openai-completions");
+  const piProvider = baseService === "ollama"
+    ? "ollama"
+    : isCustomService
+      ? providerFamilyForServiceApi(apiType) ?? "openai"
+      : resolveServicePiProvider(baseService) ?? "openai";
   const configuredBaseUrl = customBaseUrl ?? preset?.baseUrl ?? "";
   // 端点内置的模型元数据（真实上下文窗口 / 最大输出），用于补全 pi-ai registry 缺失的值
   const endpointModel = endpoint?.models.find(
@@ -62,7 +82,10 @@ export async function resolveServiceModel(
   // Resolve API key after baseUrl/provider are known so local/self-hosted endpoints
   // such as Ollama can be used without forcing a fake secret.
   const apiKey = await getServiceApiKey(projectRoot, service);
-  if (!apiKey && !isApiKeyOptionalForEndpoint({ provider: preset?.providerFamily, baseUrl: effectiveBaseUrl })) {
+  if (!apiKey && !isApiKeyOptionalForEndpoint({
+    provider: isCustomService ? providerFamilyForServiceApi(apiType) : preset?.providerFamily,
+    baseUrl: effectiveBaseUrl,
+  })) {
     throw new Error(
       `API key not found for service "${service}". Add it in .autow/secrets.json or set the environment variable.`,
     );

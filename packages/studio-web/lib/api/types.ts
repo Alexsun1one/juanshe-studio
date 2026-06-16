@@ -510,6 +510,8 @@ export type LLMProvider = {
   name: string
   kind: string
   baseUrl: string
+  providerFamily?: "openai" | "anthropic"
+  api?: "openai-completions" | "openai-responses" | "anthropic-messages"
   /** API key 是否已配置（不返回明文） */
   hasKey: boolean
   /** 是否启用 */
@@ -534,6 +536,8 @@ export type LLMProviderCreateInput = {
   model?: string
   apiKey?: string
   enabled?: boolean
+  providerFamily?: "openai" | "anthropic"
+  api?: "openai-completions" | "openai-responses" | "anthropic-messages"
   apiFormat?: "chat" | "responses"
   stream?: boolean
 }

@@ -4,7 +4,7 @@ import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { serve } from "@hono/node-server";
 import archiver from "archiver";
-import { StateManager, PipelineRunner, ConsolidatorAgent, MemoryDB, createLLMClient, createLogger, createInteractionToolsFromDeps, computeAnalytics, loadProjectConfig, loadProjectSession, processProjectInteractionRequest, resolveSessionActiveBook, listBookSessions, loadBookSession, appendManualSessionMessages, createAndPersistBookSession, renameBookSession, deleteBookSession, migrateBookSession, SessionAlreadyMigratedError, runAgentSession, buildAgentSystemPrompt, resolveServicePreset, resolveServiceProviderFamily, resolveServiceModelsBaseUrl, resolveServiceModel, loadSecrets, saveSecrets, listModelsForService, isApiKeyOptionalForEndpoint, getAllEndpoints, probeModelsFromUpstream, fetchWithProxy, chatCompletion, buildExportArtifact, GLOBAL_ENV_PATH, markdownToContentDocument, renderForPlatform, getContentTypeProfile, assembleContentType, buildWritingSystemPrompt, mountSkills, buildCriticSystemPrompt, buildReviserSystemPrompt, parseCritiqueReport, critiqueWantsRevision, critiquePasses, buildResearchQueries, buildResearchContext, emptyAccountStyle, evolveStyleProfile, buildAccountVoicePrompt, parseCharacterMatrix, parseRoleFile, parseEmotionalArcs, groupArcsByCharacter, tensionByChapter, parsePendingHooks, parseSubplotBoard, hooksByStartChapter, parseVolumeMap, parseChapterSummaries, appearanceCounts, parseStoryFrame, buildGovernanceRecommendation, analyzeStyle, EDITOR_IN_CHIEF_SYSTEM_PROMPT, buildEditorInChiefUserMessage, parseEditorialVerdict, listWechatTemplates, DEFAULT_WECHAT_TEMPLATE, analyzeAITells, aiToneScore, DEFAULT_AI_TONE_FLOOR, } from "@juanshe/core";
+import { StateManager, PipelineRunner, ConsolidatorAgent, MemoryDB, createLLMClient, createLogger, createInteractionToolsFromDeps, computeAnalytics, loadProjectConfig, loadProjectSession, processProjectInteractionRequest, resolveSessionActiveBook, listBookSessions, loadBookSession, appendManualSessionMessages, createAndPersistBookSession, renameBookSession, deleteBookSession, migrateBookSession, SessionAlreadyMigratedError, runAgentSession, buildAgentSystemPrompt, normalizeServiceApi, normalizeServiceProviderFamily, providerFamilyForServiceApi, resolveCustomServiceApi, resolveCustomServiceProviderFamily, resolveServicePreset, resolveServiceProviderFamily, resolveServiceModelsBaseUrl, resolveServiceModel, serviceApiToApiFormat, loadSecrets, saveSecrets, listModelsForService, isApiKeyOptionalForEndpoint, getAllEndpoints, probeModelsFromUpstream, fetchWithProxy, chatCompletion, buildExportArtifact, GLOBAL_ENV_PATH, markdownToContentDocument, renderForPlatform, getContentTypeProfile, assembleContentType, buildWritingSystemPrompt, mountSkills, buildCriticSystemPrompt, buildReviserSystemPrompt, parseCritiqueReport, critiqueWantsRevision, critiquePasses, buildResearchQueries, buildResearchContext, emptyAccountStyle, evolveStyleProfile, buildAccountVoicePrompt, parseCharacterMatrix, parseRoleFile, parseEmotionalArcs, groupArcsByCharacter, tensionByChapter, parsePendingHooks, parseSubplotBoard, hooksByStartChapter, parseVolumeMap, parseChapterSummaries, appearanceCounts, parseStoryFrame, buildGovernanceRecommendation, analyzeStyle, EDITOR_IN_CHIEF_SYSTEM_PROMPT, buildEditorInChiefUserMessage, parseEditorialVerdict, listWechatTemplates, DEFAULT_WECHAT_TEMPLATE, analyzeAITells, aiToneScore, DEFAULT_AI_TONE_FLOOR, } from "@juanshe/core";
 import { access, appendFile, chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createHash, createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
@@ -3092,9 +3092,10 @@ async function hydrateAgentOverrideRuntimeConfig(root, config) {
             ...override,
             service: baseService,
             serviceName: serviceId,
-            provider: override.provider ?? (isCustomServiceId(serviceId) ? "openai" : resolveServiceProviderFamily(baseService)) ?? config.llm?.provider ?? "openai",
+            provider: override.provider ?? resolveServiceEntryProviderFamily(serviceId, serviceEntry) ?? config.llm?.provider ?? "openai",
             baseUrl: override.baseUrl ?? serviceEntry?.baseUrl ?? preset?.baseUrl ?? (serviceId === config.llm?.service ? config.llm?.baseUrl : undefined),
-            apiFormat: override.apiFormat ?? serviceEntry?.apiFormat ?? config.llm?.apiFormat ?? "chat",
+            api: override.api ?? serviceEntry?.api ?? (isCustomServiceId(serviceId) ? resolveServiceEntryApi(serviceId, serviceEntry) : undefined),
+            apiFormat: override.apiFormat ?? resolveServiceEntryApiFormat(serviceId, serviceEntry, config.llm?.apiFormat ?? "chat"),
             stream: override.stream ?? serviceEntry?.stream ?? config.llm?.stream ?? true,
             temperature: override.temperature ?? profile.temperature ?? serviceEntry?.temperature ?? config.llm?.temperature ?? 0.7,
             ...(apiKey ? { apiKey } : {}),
@@ -8169,6 +8170,23 @@ function isCustomServiceId(serviceId) {
 function serviceConfigKey(entry) {
     return entry.service === "custom" ? `custom:${entry.name ?? "Custom"}` : entry.service;
 }
+function resolveServiceEntryProviderFamily(serviceId, entry) {
+    if (isCustomServiceId(serviceId))
+        return resolveCustomServiceProviderFamily(entry);
+    return resolveServiceProviderFamily(serviceId) ?? "openai";
+}
+function resolveServiceEntryApi(serviceId, entry) {
+    if (isCustomServiceId(serviceId))
+        return resolveCustomServiceApi(entry);
+    return resolveServicePreset(serviceId)?.api
+        ?? (resolveServiceProviderFamily(serviceId) === "anthropic" ? "anthropic-messages" : "openai-completions");
+}
+function resolveServiceEntryApiFormat(serviceId, entry, fallback = "chat") {
+    const explicitApi = normalizeServiceApi(entry?.api);
+    if (explicitApi)
+        return serviceApiToApiFormat(explicitApi);
+    return entry?.apiFormat ?? serviceApiToApiFormat(resolveServiceEntryApi(serviceId, entry)) ?? fallback;
+}
 function normalizeServiceEntry(serviceId, value) {
     if (serviceId.startsWith("custom:")) {
         return {
@@ -8176,6 +8194,8 @@ function normalizeServiceEntry(serviceId, value) {
             name: decodeURIComponent(serviceId.slice("custom:".length)),
             ...(typeof value.baseUrl === "string" && value.baseUrl.length > 0 ? { baseUrl: value.baseUrl } : {}),
             ...(typeof value.model === "string" && value.model.length > 0 ? { model: value.model } : {}),
+            ...(normalizeServiceProviderFamily(value.providerFamily) ? { providerFamily: normalizeServiceProviderFamily(value.providerFamily) } : {}),
+            ...(normalizeServiceApi(value.api) ? { api: normalizeServiceApi(value.api) } : {}),
             ...(typeof value.temperature === "number" ? { temperature: value.temperature } : {}),
             ...(value.apiFormat === "chat" || value.apiFormat === "responses" ? { apiFormat: value.apiFormat } : {}),
             ...(typeof value.stream === "boolean" ? { stream: value.stream } : {}),
@@ -8187,6 +8207,8 @@ function normalizeServiceEntry(serviceId, value) {
             ...(typeof value.name === "string" && value.name.length > 0 ? { name: value.name } : {}),
             ...(typeof value.baseUrl === "string" && value.baseUrl.length > 0 ? { baseUrl: value.baseUrl } : {}),
             ...(typeof value.model === "string" && value.model.length > 0 ? { model: value.model } : {}),
+            ...(normalizeServiceProviderFamily(value.providerFamily) ? { providerFamily: normalizeServiceProviderFamily(value.providerFamily) } : {}),
+            ...(normalizeServiceApi(value.api) ? { api: normalizeServiceApi(value.api) } : {}),
             ...(typeof value.temperature === "number" ? { temperature: value.temperature } : {}),
             ...(value.apiFormat === "chat" || value.apiFormat === "responses" ? { apiFormat: value.apiFormat } : {}),
             ...(typeof value.stream === "boolean" ? { stream: value.stream } : {}),
@@ -8212,6 +8234,9 @@ function normalizeServiceConfig(raw) {
             service: typeof entry.service === "string" && entry.service.length > 0 ? entry.service : "custom",
             ...(typeof entry.name === "string" && entry.name.length > 0 ? { name: entry.name } : {}),
             ...(typeof entry.baseUrl === "string" && entry.baseUrl.length > 0 ? { baseUrl: entry.baseUrl } : {}),
+            ...(typeof entry.model === "string" && entry.model.length > 0 ? { model: entry.model } : {}),
+            ...(normalizeServiceProviderFamily(entry.providerFamily) ? { providerFamily: normalizeServiceProviderFamily(entry.providerFamily) } : {}),
+            ...(normalizeServiceApi(entry.api) ? { api: normalizeServiceApi(entry.api) } : {}),
             ...(typeof entry.temperature === "number" ? { temperature: entry.temperature } : {}),
             ...(entry.apiFormat === "chat" || entry.apiFormat === "responses" ? { apiFormat: entry.apiFormat } : {}),
             ...(typeof entry.stream === "boolean" ? { stream: entry.stream } : {}),
@@ -8315,27 +8340,33 @@ async function resolveConfiguredServiceEntry(root, serviceId) {
         return undefined;
     }
 }
-function buildProbePlans(preferredApiFormat, preferredStream) {
+function buildProbePlans(preferredApiFormat, preferredStream, preferredApi) {
     const candidates = [];
     const seen = new Set();
-    const push = (apiFormat, stream) => {
-        const key = `${apiFormat}:${stream ? "1" : "0"}`;
+    const push = (apiFormat, stream, api) => {
+        const key = `${api ?? ""}:${apiFormat}:${stream ? "1" : "0"}`;
         if (seen.has(key))
             return;
         seen.add(key);
-        candidates.push({ apiFormat, stream });
+        candidates.push({ apiFormat, stream, ...(api ? { api } : {}) });
     };
+    const normalizedApi = normalizeServiceApi(preferredApi);
+    if (normalizedApi === "anthropic-messages") {
+        push("chat", preferredStream ?? false, normalizedApi);
+        push("chat", !(preferredStream ?? false), normalizedApi);
+        return candidates;
+    }
     if (preferredApiFormat) {
-        push(preferredApiFormat, preferredStream ?? false);
-        push(preferredApiFormat, !(preferredStream ?? false));
+        push(preferredApiFormat, preferredStream ?? false, normalizedApi);
+        push(preferredApiFormat, !(preferredStream ?? false), normalizedApi);
     }
     const alternate = preferredApiFormat === "responses" ? "chat" : "responses";
-    push(alternate, false);
-    push(alternate, true);
-    push("chat", false);
-    push("chat", true);
-    push("responses", false);
-    push("responses", true);
+    push(alternate, false, normalizedApi);
+    push(alternate, true, normalizedApi);
+    push("chat", false, normalizedApi);
+    push("chat", true, normalizedApi);
+    push("responses", false, normalizedApi);
+    push("responses", true, normalizedApi);
     return candidates;
 }
 function buildModelCandidates(args) {
@@ -8374,7 +8405,7 @@ function formatServiceProbeError(args) {
     const context = [
         `服务商：${args.label ?? args.service}`,
         `测试模型：${args.model ?? "未确定"}`,
-        `协议：${args.apiFormat === "responses" ? "Responses" : "Chat / Completions"}${typeof args.stream === "boolean" ? `，${args.stream ? "流式" : "非流式"}` : ""}`,
+        `协议：${args.api === "anthropic-messages" ? "Anthropic Messages" : args.apiFormat === "responses" ? "Responses" : "Chat / Completions"}${typeof args.stream === "boolean" ? `，${args.stream ? "流式" : "非流式"}` : ""}`,
         `Base URL：${args.baseUrl}`,
     ].join("\n");
     if (args.service === "google") {
@@ -8450,6 +8481,16 @@ async function probeServiceCapabilities(args) {
             ? envConfig.global.model
             : null;
     const baseService = isCustomServiceId(args.service) ? "custom" : args.service;
+    const serviceEntry = await resolveConfiguredServiceEntry(args.root, args.service);
+    const api = normalizeServiceApi(args.preferredApi)
+        ?? (isCustomServiceId(args.service) ? resolveServiceEntryApi(args.service, {
+            ...serviceEntry,
+            providerFamily: args.providerFamily ?? serviceEntry?.providerFamily,
+            apiFormat: args.preferredApiFormat ?? serviceEntry?.apiFormat,
+        }) : resolveServiceEntryApi(baseService, serviceEntry));
+    const providerFamily = providerFamilyForServiceApi(api)
+        ?? normalizeServiceProviderFamily(args.providerFamily)
+        ?? resolveServiceEntryProviderFamily(args.service, serviceEntry);
     const modelsResponse = await fetchModelsFromServiceBaseUrl(baseService, args.baseUrl, args.apiKey, args.proxyUrl);
     if (modelsResponse.authFailed) {
         return {
@@ -8495,14 +8536,15 @@ async function probeServiceCapabilities(args) {
     }
     let lastError = modelsResponse.error ?? "自动探测失败";
     for (const model of modelCandidates) {
-        for (const plan of buildProbePlans(args.preferredApiFormat, args.preferredStream)) {
+        for (const plan of buildProbePlans(args.preferredApiFormat, args.preferredStream, api)) {
             const client = createLLMClient({
-                provider: resolveServiceProviderFamily(baseService) ?? "openai",
+                provider: providerFamily,
                 service: baseService,
                 configSource: "studio",
                 baseUrl: args.baseUrl,
                 apiKey: args.apiKey.trim(),
                 model,
+                api: plan.api ?? api,
                 temperature: 0.7,
                 maxTokens: 2048,
                 thinkingBudget: 0,
@@ -8524,6 +8566,7 @@ async function probeServiceCapabilities(args) {
                     ok: true,
                     models,
                     selectedModel: model,
+                    api: plan.api ?? api,
                     apiFormat: plan.apiFormat,
                     stream: plan.stream,
                     baseUrl: args.baseUrl,
@@ -8537,6 +8580,7 @@ async function probeServiceCapabilities(args) {
                     baseUrl: args.baseUrl,
                     model,
                     apiFormat: plan.apiFormat,
+                    api: plan.api ?? api,
                     stream: plan.stream,
                     error: error instanceof Error ? error.message : String(error),
                 });
@@ -10680,10 +10724,11 @@ export function createStudioServer(initialConfig, root) {
         const preset = resolveServicePreset(baseService);
         const baseUrl = rawLlm.baseUrl || serviceEntry?.baseUrl || await resolveConfiguredServiceBaseUrl(root, serviceId) || preset?.baseUrl || "";
         const model = String(rawLlm.model || rawLlm.defaultModel || config.llm?.model || config.llm?.defaultModel || "").trim();
-        const provider = rawLlm.provider || (isCustomServiceId(serviceId) ? "openai" : resolveServiceProviderFamily(baseService)) || config.llm?.provider || "openai";
+        const provider = rawLlm.provider || resolveServiceEntryProviderFamily(serviceId, serviceEntry) || config.llm?.provider || "openai";
         const apiKey = rawLlm.apiKey || secrets.services?.[serviceId]?.apiKey || (serviceId === config.llm?.service ? config.llm?.apiKey : "") || "";
         const serviceLabel = serviceEntry?.name || resolveServicePreset(baseService)?.label || target.serviceLabel || serviceId || baseService;
-        const apiFormat = rawLlm.apiFormat || serviceEntry?.apiFormat || config.llm?.apiFormat || "chat";
+        const api = rawLlm.api || serviceEntry?.api || (isCustomServiceId(serviceId) ? resolveServiceEntryApi(serviceId, serviceEntry) : config.llm?.api);
+        const apiFormat = rawLlm.apiFormat || resolveServiceEntryApiFormat(serviceId, serviceEntry, config.llm?.apiFormat || "chat");
         const stream = rawLlm.stream ?? serviceEntry?.stream ?? config.llm?.stream ?? false;
         const llm = {
             ...config.llm,
@@ -10694,6 +10739,7 @@ export function createStudioServer(initialConfig, root) {
             baseUrl,
             apiKey,
             model,
+            api,
             apiFormat,
             stream,
             temperature: Number(rawLlm.temperature ?? target.temperature ?? 0),
@@ -10709,6 +10755,7 @@ export function createStudioServer(initialConfig, root) {
             model,
             provider,
             apiKey,
+            api,
             apiFormat,
             stream,
             llm,
@@ -14975,6 +15022,8 @@ export function createStudioServer(initialConfig, root) {
                         label: svc.name ?? "Custom",
                         group: undefined,
                         baseUrl: svc.baseUrl ?? "",
+                        providerFamily: resolveCustomServiceProviderFamily(svc),
+                        api: resolveCustomServiceApi(svc),
                         apiFormat: svc.apiFormat ?? "chat",
                         stream: svc.stream !== false,
                         connected: Boolean(secrets.services[secretKey]?.apiKey),
@@ -15030,7 +15079,9 @@ export function createStudioServer(initialConfig, root) {
             if (resolvedBaseUrl) {
                 llm.baseUrl = resolvedBaseUrl;
             }
-            llm.provider = isCustomServiceId(body.service) ? "openai" : (resolveServiceProviderFamily(body.service) ?? llm.provider ?? "openai");
+            llm.provider = resolveServiceEntryProviderFamily(body.service, entry) ?? llm.provider ?? "openai";
+            llm.api = resolveServiceEntryApi(body.service, entry);
+            llm.apiFormat = resolveServiceEntryApiFormat(body.service, entry, llm.apiFormat ?? "chat");
         }
         await saveRawConfig(root, config);
         return c.json({ ok: true });
@@ -15044,9 +15095,10 @@ export function createStudioServer(initialConfig, root) {
         if (!resolvedBaseUrl) {
             return c.json({ ok: false, error: `未知服务商: ${service}` }, 400);
         }
-        const baseService = isCustomServiceId(service) ? "custom" : service;
+        const serviceEntry = await resolveConfiguredServiceEntry(root, service);
+        const providerFamily = resolveServiceEntryProviderFamily(service, serviceEntry);
         const apiKeyOptional = isApiKeyOptionalForEndpoint({
-            provider: resolveServiceProviderFamily(baseService) ?? "openai",
+            provider: providerFamily,
             baseUrl: resolvedBaseUrl,
         });
         if (!effectiveApiKey && !apiKeyOptional) {
@@ -15059,6 +15111,8 @@ export function createStudioServer(initialConfig, root) {
             service,
             apiKey: effectiveApiKey,
             baseUrl: resolvedBaseUrl,
+            providerFamily,
+            preferredApi: resolveServiceEntryApi(service, serviceEntry),
             preferredApiFormat: apiFormat,
             preferredStream: stream,
             proxyUrl: typeof llm.proxyUrl === "string" ? llm.proxyUrl : undefined,
@@ -15238,6 +15292,8 @@ export function createStudioServer(initialConfig, root) {
                 name: service.name ?? "Custom",
                 kind: "custom",
                 baseUrl: service.baseUrl ?? "",
+                providerFamily: resolveCustomServiceProviderFamily(service),
+                api: resolveCustomServiceApi(service),
                 hasKey: Boolean(secrets.services?.[id]?.apiKey),
                 enabled: activeService === id,
                 selectedModel,
@@ -15267,6 +15323,11 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ error: "Base URL is required" }, 400);
         const safeName = rawName.replace(/^custom:/, "").trim().slice(0, 80);
         const id = isCustomServiceId(rawName) ? rawName : `custom:${safeName}`;
+        const providerFamily = providerFamilyForServiceApi(body.api)
+            ?? normalizeServiceProviderFamily(body.providerFamily)
+            ?? "openai";
+        const api = normalizeServiceApi(body.api)
+            ?? resolveCustomServiceApi({ providerFamily, apiFormat: body.apiFormat === "responses" ? "responses" : "chat" });
         const config = await loadRawConfig(root).catch(() => ({}));
         config.llm = config.llm ?? {};
         const llm = config.llm;
@@ -15278,6 +15339,8 @@ export function createStudioServer(initialConfig, root) {
             normalizeServiceEntry(id, {
                 baseUrl,
                 ...(model ? { model } : {}),
+                providerFamily,
+                api,
                 apiFormat: body.apiFormat === "responses" ? "responses" : "chat",
                 stream: body.stream !== false,
             }),
@@ -15288,7 +15351,9 @@ export function createStudioServer(initialConfig, root) {
         }
         if (body.enabled !== false) {
             llm.service = id;
-            llm.provider = "openai";
+            llm.provider = providerFamily;
+            llm.api = api;
+            llm.apiFormat = serviceApiToApiFormat(api);
             llm.baseUrl = baseUrl;
         }
         await saveRawConfig(root, config);
@@ -15303,6 +15368,8 @@ export function createStudioServer(initialConfig, root) {
             name: safeName,
             kind: "custom",
             baseUrl,
+            providerFamily,
+            api,
             hasKey: Boolean(typeof body.apiKey === "string" && body.apiKey.trim()),
             enabled: body.enabled !== false,
             selectedModel: model,
@@ -15321,9 +15388,14 @@ export function createStudioServer(initialConfig, root) {
         if (!resolvedBaseUrl) {
             return c.json({ ok: false, latencyMs: Date.now() - startedAt, error: `未知服务商: ${service}` }, 400);
         }
-        const baseService = isCustomServiceId(service) ? "custom" : service;
+        const serviceEntry = await resolveConfiguredServiceEntry(root, service);
+        const providerFamily = providerFamilyForServiceApi(body?.api)
+            ?? normalizeServiceProviderFamily(body?.providerFamily)
+            ?? resolveServiceEntryProviderFamily(service, serviceEntry);
+        const api = normalizeServiceApi(body?.api)
+            ?? resolveServiceEntryApi(service, serviceEntry);
         const apiKeyOptional = isApiKeyOptionalForEndpoint({
-            provider: resolveServiceProviderFamily(baseService) ?? "openai",
+            provider: providerFamily,
             baseUrl: resolvedBaseUrl,
         });
         if (!effectiveApiKey && !apiKeyOptional) {
@@ -15335,6 +15407,8 @@ export function createStudioServer(initialConfig, root) {
             service,
             apiKey: effectiveApiKey,
             baseUrl: resolvedBaseUrl,
+            providerFamily,
+            preferredApi: api,
             preferredApiFormat: body?.apiFormat,
             preferredStream: body?.stream,
             proxyUrl: typeof rawConfig.llm?.proxyUrl === "string" ? rawConfig.llm.proxyUrl : undefined,
@@ -15377,6 +15451,10 @@ export function createStudioServer(initialConfig, root) {
         const serviceUpdates: Record<string, unknown> = {};
         if (typeof body.baseUrl === "string")
             serviceUpdates.baseUrl = body.baseUrl.trim();
+        if (normalizeServiceProviderFamily(body.providerFamily))
+            serviceUpdates.providerFamily = normalizeServiceProviderFamily(body.providerFamily);
+        if (normalizeServiceApi(body.api))
+            serviceUpdates.api = normalizeServiceApi(body.api);
         if (typeof body.temperature === "number")
             serviceUpdates.temperature = body.temperature;
         if (body.apiFormat === "chat" || body.apiFormat === "responses")
@@ -15394,12 +15472,16 @@ export function createStudioServer(initialConfig, root) {
             llm.model = selectedModel;
         }
         if (Object.keys(serviceUpdates).length) {
-            llm.services = mergeServiceConfig(normalizeServiceConfig(llm.services), [normalizeServiceEntry(id, serviceUpdates)]);
+            const existingServices = normalizeServiceConfig(llm.services);
+            const previousEntry = existingServices.find((serviceEntry) => serviceConfigKey(serviceEntry) === id);
+            llm.services = mergeServiceConfig(existingServices, [normalizeServiceEntry(id, { ...previousEntry, ...serviceUpdates })]);
         }
         if (body.enabled !== false) {
             llm.service = id;
-            llm.provider = isCustomServiceId(id) ? "openai" : (resolveServiceProviderFamily(id) ?? llm.provider ?? "openai");
             const entry = normalizeServiceConfig(llm.services).find((serviceEntry) => serviceConfigKey(serviceEntry) === id);
+            llm.provider = resolveServiceEntryProviderFamily(id, entry) ?? llm.provider ?? "openai";
+            llm.api = resolveServiceEntryApi(id, entry);
+            llm.apiFormat = resolveServiceEntryApiFormat(id, entry, llm.apiFormat ?? "chat");
             const resolvedBaseUrl = entry?.baseUrl ?? resolveServicePreset(id)?.baseUrl;
             if (resolvedBaseUrl)
                 llm.baseUrl = resolvedBaseUrl;
@@ -15449,9 +15531,9 @@ export function createStudioServer(initialConfig, root) {
         // 主路径仍是后端已存的密钥(secrets);仅"保存前先拉模型列表"这种临时密钥用 header 传。
         const apiKey = c.req.header("x-llm-api-key") || secrets.services[service]?.apiKey || "";
         const resolvedBaseUrl = await resolveConfiguredServiceBaseUrl(root, service);
-        const baseService = isCustomServiceId(service) ? "custom" : service;
+        const serviceEntry = await resolveConfiguredServiceEntry(root, service);
         const apiKeyOptional = isApiKeyOptionalForEndpoint({
-            provider: resolveServiceProviderFamily(baseService) ?? "openai",
+            provider: resolveServiceEntryProviderFamily(service, serviceEntry),
             baseUrl: resolvedBaseUrl,
         });
         // No key = no models, except local/self-hosted endpoints such as Ollama.
@@ -15912,7 +15994,7 @@ export function createStudioServer(initialConfig, root) {
                 // 1. Frontend explicitly selected a service+model — fail loudly if no key
                 try {
                     const configuredEntry = await resolveConfiguredServiceEntry(root, reqService);
-                    const resolved = await resolveServiceModel(reqService, reqModel, root, await resolveConfiguredServiceBaseUrl(root, reqService), configuredEntry?.apiFormat);
+                    const resolved = await resolveServiceModel(reqService, reqModel, root, await resolveConfiguredServiceBaseUrl(root, reqService), configuredEntry?.api ?? configuredEntry?.apiFormat);
                     resolvedModel = resolved.model;
                     resolvedApiKey = resolved.apiKey;
                 }
@@ -15935,7 +16017,7 @@ export function createStudioServer(initialConfig, root) {
                 const firstService = servicesArr[0];
                 if (firstService?.service && defaultModel && isTextChatModelId(defaultModel)) {
                     try {
-                        const resolved = await resolveServiceModel(serviceConfigKey(firstService), defaultModel, root, firstService.baseUrl, firstService.apiFormat);
+                        const resolved = await resolveServiceModel(serviceConfigKey(firstService), defaultModel, root, firstService.baseUrl, firstService.api ?? firstService.apiFormat);
                         resolvedModel = resolved.model;
                         resolvedApiKey = resolved.apiKey;
                     }
@@ -15952,7 +16034,7 @@ export function createStudioServer(initialConfig, root) {
                             const textModels = filterTextChatModels(models);
                             if (textModels.length > 0) {
                                 const configuredEntry = await resolveConfiguredServiceEntry(root, svcName);
-                                const resolved = await resolveServiceModel(svcName, textModels[0].id, root, await resolveConfiguredServiceBaseUrl(root, svcName), configuredEntry?.apiFormat);
+                                const resolved = await resolveServiceModel(svcName, textModels[0].id, root, await resolveConfiguredServiceBaseUrl(root, svcName), configuredEntry?.api ?? configuredEntry?.apiFormat);
                                 resolvedModel = resolved.model;
                                 resolvedApiKey = resolved.apiKey;
                                 break;
@@ -15981,6 +16063,8 @@ export function createStudioServer(initialConfig, root) {
                     service: configuredEntry?.service ?? reqService,
                     model: reqModel,
                     apiKey: resolvedApiKey ?? "",
+                    provider: resolveServiceEntryProviderFamily(reqService, configuredEntry),
+                    api: configuredEntry?.api ?? resolveServiceEntryApi(reqService, configuredEntry),
                     ...(configuredEntry?.apiFormat ? { apiFormat: configuredEntry.apiFormat } : {}),
                     ...(configuredEntry?.stream !== undefined ? { stream: configuredEntry.stream } : {}),
                     baseUrl: configuredEntry?.baseUrl ?? "",
@@ -16210,6 +16294,8 @@ export function createStudioServer(initialConfig, root) {
                         service: configuredEntry?.service ?? reqService ?? config.llm.service,
                         model: reqModel ?? config.llm.model,
                         apiKey: agentApiKey ?? config.llm.apiKey,
+                        provider: resolveServiceEntryProviderFamily(reqService ?? config.llm.service ?? "custom", configuredEntry),
+                        api: configuredEntry?.api ?? resolveServiceEntryApi(reqService ?? config.llm.service ?? "custom", configuredEntry),
                         baseUrl: configuredEntry?.baseUrl ?? "",
                         ...(configuredEntry?.apiFormat ? { apiFormat: configuredEntry.apiFormat } : {}),
                         ...(configuredEntry?.stream !== undefined ? { stream: configuredEntry.stream } : {}),
@@ -16268,6 +16354,8 @@ export function createStudioServer(initialConfig, root) {
                         service: configuredEntry?.service ?? reqService ?? config.llm.service,
                         model: reqModel ?? config.llm.model,
                         apiKey: agentApiKey ?? config.llm.apiKey,
+                        provider: resolveServiceEntryProviderFamily(reqService ?? config.llm.service ?? "custom", configuredEntry),
+                        api: configuredEntry?.api ?? resolveServiceEntryApi(reqService ?? config.llm.service ?? "custom", configuredEntry),
                         baseUrl: configuredEntry?.baseUrl ?? "",
                         ...(configuredEntry?.apiFormat ? { apiFormat: configuredEntry.apiFormat } : {}),
                         ...(configuredEntry?.stream !== undefined ? { stream: configuredEntry.stream } : {}),
@@ -17313,7 +17401,15 @@ export function createStudioServer(initialConfig, root) {
             if (draftService) {
                 currentConfig.llm = currentConfig.llm ?? {};
                 currentConfig.llm.service = draftService;
-                currentConfig.llm.provider = isCustomServiceId(draftService) ? "openai" : (resolveServiceProviderFamily(draftService) ?? currentConfig.llm.provider ?? "openai");
+                const draftEntry = await resolveConfiguredServiceEntry(root, draftService);
+                const draftProviderFamily = providerFamilyForServiceApi(serviceDraft.api)
+                    ?? normalizeServiceProviderFamily(serviceDraft.providerFamily)
+                    ?? resolveServiceEntryProviderFamily(draftService, draftEntry);
+                const draftApi = normalizeServiceApi(serviceDraft.api)
+                    ?? resolveServiceEntryApi(draftService, draftEntry);
+                currentConfig.llm.provider = draftProviderFamily ?? currentConfig.llm.provider ?? "openai";
+                currentConfig.llm.api = draftApi;
+                currentConfig.llm.apiFormat = resolveServiceEntryApiFormat(draftService, { ...draftEntry, api: draftApi }, currentConfig.llm.apiFormat ?? "chat");
                 const resolvedBaseUrl = await resolveConfiguredServiceBaseUrl(root, draftService, draftBaseUrl);
                 if (resolvedBaseUrl)
                     currentConfig.llm.baseUrl = resolvedBaseUrl;

@@ -181,13 +181,66 @@ describe("loadProjectConfig local provider auth", () => {
     const config = await loadProjectConfig(root);
 
     expect(config.llm.service).toBe("custom");
-    expect(config.llm.provider).toBe("custom");
+    expect(config.llm.provider).toBe("openai");
     expect(config.llm.baseUrl).toBe("https://llm.internal.corp/v1");
     expect(config.llm.model).toBe("corp-chat");
     expect(config.llm.apiKey).toBe("sk-corp");
     expect(config.llm.temperature).toBe(0.9);
+    expect(config.llm.api).toBe("openai-responses");
     expect(config.llm.apiFormat).toBe("responses");
     expect(config.llm.stream).toBe(false);
+  });
+
+  it("loads custom Anthropic service config with providerFamily and api", async () => {
+    root = await mkdtemp(join(tmpdir(), "autow-config-loader-custom-anthropic-"));
+    for (const key of ENV_KEYS) {
+      previousEnv.set(key, process.env[key]);
+      process.env[key] = "";
+    }
+
+    await writeFile(join(root, "autow.json"), JSON.stringify({
+      name: "custom-anthropic-project",
+      version: "0.1.0",
+      language: "zh",
+      llm: {
+        services: [
+          {
+            service: "custom",
+            name: "ClaudeRelay",
+            baseUrl: "https://relay.example.com/v1/messages",
+            providerFamily: "anthropic",
+            api: "anthropic-messages",
+            apiFormat: "responses",
+            stream: false,
+          },
+        ],
+        defaultModel: "claude-sonnet-4-6",
+      },
+      notify: [],
+    }, null, 2), "utf-8");
+    await mkdir(join(root, ".autow"), { recursive: true });
+    await writeFile(
+      join(root, ".autow", "secrets.json"),
+      JSON.stringify({ services: { "custom:ClaudeRelay": { apiKey: "sk-claude-relay" } } }, null, 2),
+      "utf-8",
+    );
+
+    const config = await loadProjectConfig(root);
+
+    expect(config.llm.service).toBe("custom");
+    expect(config.llm.provider).toBe("anthropic");
+    expect(config.llm.baseUrl).toBe("https://relay.example.com/v1/messages");
+    expect(config.llm.model).toBe("claude-sonnet-4-6");
+    expect(config.llm.apiKey).toBe("sk-claude-relay");
+    expect(config.llm.api).toBe("anthropic-messages");
+    expect(config.llm.apiFormat).toBe("chat");
+    expect(config.llm.stream).toBe(false);
+    expect(config.llm.services?.[0]).toMatchObject({
+      service: "custom",
+      name: "ClaudeRelay",
+      providerFamily: "anthropic",
+      api: "anthropic-messages",
+    });
   });
 
   it("keeps Studio config active when llm.configSource is studio", async () => {
@@ -226,7 +279,7 @@ describe("loadProjectConfig local provider auth", () => {
     const config = await loadProjectConfig(root);
 
     expect(config.llm.configSource).toBe("studio");
-    expect(config.llm.provider).toBe("custom");
+    expect(config.llm.provider).toBe("openai");
     expect(config.llm.baseUrl).toBe("https://llm.internal.corp/v1");
     expect(config.llm.model).toBe("corp-chat");
     expect(config.llm.apiKey).toBe("sk-corp");

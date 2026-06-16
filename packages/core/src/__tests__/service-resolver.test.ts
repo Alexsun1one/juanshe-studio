@@ -208,6 +208,28 @@ describe("resolveServiceModel", () => {
     expect(result.model.api).toBe("openai-responses");
   });
 
+  it("resolves custom Anthropic-compatible service with custom baseUrl", async () => {
+    await mkdir(join(root, ".autow"), { recursive: true });
+    await writeFile(
+      join(root, ".autow", "secrets.json"),
+      JSON.stringify({ services: { "custom:ClaudeRelay": { apiKey: "sk-claude-relay" } } }),
+    );
+
+    const result = await resolveServiceModel(
+      "custom:ClaudeRelay",
+      "claude-sonnet-4-6",
+      root,
+      "https://relay.example.com/v1/messages",
+      "anthropic-messages",
+    );
+
+    expect(result.apiKey).toBe("sk-claude-relay");
+    expect(result.model.id).toBe("claude-sonnet-4-6");
+    expect(result.model.api).toBe("anthropic-messages");
+    expect(result.model.provider).toBe("anthropic");
+    expect(result.model.baseUrl).toBe("https://relay.example.com/v1/messages");
+  });
+
   it("resolves MiniMax using the preset provider family and anthropic endpoint", async () => {
     await mkdir(join(root, ".autow"), { recursive: true });
     await writeFile(

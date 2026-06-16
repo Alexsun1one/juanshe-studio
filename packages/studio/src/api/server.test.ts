@@ -232,9 +232,15 @@ vi.mock("@juanshe/core", async (importOriginal) => {
     deleteBookSession: deleteBookSessionMock,
     migrateBookSession: migrateBookSessionMock,
     SessionAlreadyMigratedError: MockSessionAlreadyMigratedError,
+    normalizeServiceApi: actual.normalizeServiceApi,
+    normalizeServiceProviderFamily: actual.normalizeServiceProviderFamily,
+    providerFamilyForServiceApi: actual.providerFamilyForServiceApi,
+    resolveCustomServiceApi: actual.resolveCustomServiceApi,
+    resolveCustomServiceProviderFamily: actual.resolveCustomServiceProviderFamily,
     resolveServicePreset: resolveServicePresetMock,
     resolveServiceProviderFamily: resolveServiceProviderFamilyMock,
     resolveServiceModelsBaseUrl: resolveServiceModelsBaseUrlMock,
+    serviceApiToApiFormat: actual.serviceApiToApiFormat,
     resolveServiceModel: resolveServiceModelMock,
     isApiKeyOptionalForEndpoint: actual.isApiKeyOptionalForEndpoint,
     loadSecrets: loadSecretsMock,
@@ -805,6 +811,8 @@ describe("createStudioServer daemon lifecycle", () => {
     expect(body.services.find((s) => s.service === "moonshot")?.connected).toBe(true);
     expect(body.services.find((s) => s.service === "custom:内网GPT")).toMatchObject({
       connected: true,
+      providerFamily: "openai",
+      api: "openai-completions",
     });
   });
 
@@ -940,7 +948,7 @@ describe("createStudioServer daemon lifecycle", () => {
       llm: {
         services: [
           { service: "moonshot", temperature: 1, apiFormat: "chat", stream: true },
-          { service: "custom", name: "内网GPT", baseUrl: "https://llm.internal.corp/v1", temperature: 0.9, apiFormat: "responses", stream: false },
+          { service: "custom", name: "内网GPT", baseUrl: "https://llm.internal.corp/v1", providerFamily: "anthropic", api: "anthropic-messages", temperature: 0.9, apiFormat: "responses", stream: false },
         ],
         defaultModel: "kimi-k2.5",
       },
@@ -968,7 +976,7 @@ describe("createStudioServer daemon lifecycle", () => {
     const raw = JSON.parse(await readFile(join(root, "hardwrite.json"), "utf-8"));
     expect(raw.llm.services).toEqual([
       { service: "moonshot", temperature: 0.5, apiFormat: "responses", stream: false },
-      { service: "custom", name: "内网GPT", baseUrl: "https://llm.internal.corp/v1", temperature: 0.9, apiFormat: "responses", stream: false },
+      { service: "custom", name: "内网GPT", baseUrl: "https://llm.internal.corp/v1", providerFamily: "anthropic", api: "anthropic-messages", temperature: 0.9, apiFormat: "responses", stream: false },
     ]);
   });
 
@@ -1049,6 +1057,91 @@ describe("createStudioServer daemon lifecycle", () => {
       { service: "moonshot", temperature: 1 },
     ]);
     expect(raw.llm.defaultModel).toBe("kimi-k2.5");
+  });
+
+  it("persists Anthropic format when creating a custom LLM provider", async () => {
+    const { createStudioServer } = await import("./server.js");
+    const app = createStudioServer(cloneProjectConfig() as never, root);
+
+    const save = await app.request("http://localhost/api/v1/llm-providers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "ClaudeRelay",
+        baseUrl: "https://relay.example.com/v1/messages",
+        model: "claude-sonnet-4-6",
+        apiKey: "sk-claude-relay",
+        providerFamily: "anthropic",
+        api: "anthropic-messages",
+        enabled: true,
+      }),
+    });
+
+    expect(save.status).toBe(201);
+    const raw = JSON.parse(await readFile(join(root, "hardwrite.json"), "utf-8"));
+    expect(raw.llm.service).toBe("custom:ClaudeRelay");
+    expect(raw.llm.provider).toBe("anthropic");
+    expect(raw.llm.api).toBe("anthropic-messages");
+    expect(raw.llm.apiFormat).toBe("chat");
+    expect(raw.llm.services).toContainEqual({
+      service: "custom",
+      name: "ClaudeRelay",
+      baseUrl: "https://relay.example.com/v1/messages",
+      model: "claude-sonnet-4-6",
+      providerFamily: "anthropic",
+      api: "anthropic-messages",
+      apiFormat: "chat",
+      stream: true,
+    });
+  });
+
+  it("updates custom LLM provider format without dropping existing endpoint config", async () => {
+    await writeFile(join(root, "hardwrite.json"), JSON.stringify({
+      ...projectConfig,
+      llm: {
+        services: [
+          {
+            service: "custom",
+            name: "ClaudeRelay",
+            baseUrl: "https://relay.example.com/v1/messages",
+            model: "claude-sonnet-4-6",
+            providerFamily: "openai",
+            api: "openai-completions",
+            stream: false,
+          },
+        ],
+        service: "custom:ClaudeRelay",
+        defaultModel: "claude-sonnet-4-6",
+      },
+    }, null, 2), "utf-8");
+
+    const { createStudioServer } = await import("./server.js");
+    const app = createStudioServer(cloneProjectConfig() as never, root);
+
+    const save = await app.request("http://localhost/api/v1/llm-providers/custom:ClaudeRelay", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        providerFamily: "anthropic",
+        api: "anthropic-messages",
+        enabled: true,
+      }),
+    });
+
+    expect(save.status).toBe(200);
+    const raw = JSON.parse(await readFile(join(root, "hardwrite.json"), "utf-8"));
+    expect(raw.llm.provider).toBe("anthropic");
+    expect(raw.llm.api).toBe("anthropic-messages");
+    expect(raw.llm.baseUrl).toBe("https://relay.example.com/v1/messages");
+    expect(raw.llm.services).toContainEqual({
+      service: "custom",
+      name: "ClaudeRelay",
+      baseUrl: "https://relay.example.com/v1/messages",
+      model: "claude-sonnet-4-6",
+      providerFamily: "anthropic",
+      api: "anthropic-messages",
+      stream: false,
+    });
   });
 
   it("returns the saved default service and model for Studio chat selection", async () => {

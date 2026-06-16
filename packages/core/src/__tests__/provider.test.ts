@@ -831,6 +831,24 @@ describe("createLLMClient with providers lookup", () => {
     expect(client.defaults.maxTokens).toBe(4096);
   });
 
+  it("custom Anthropic-compatible service uses anthropic-messages with custom baseUrl", async () => {
+    const { createLLMClient } = await import("../llm/provider.js");
+    const { LLMConfigSchema } = await import("../models/project.js");
+    const client = createLLMClient(LLMConfigSchema.parse({
+      provider: "anthropic",
+      service: "custom",
+      model: "claude-sonnet-4-6",
+      apiKey: "test",
+      baseUrl: "https://relay.example.com/v1/messages",
+      api: "anthropic-messages",
+    }));
+
+    expect(client.provider).toBe("anthropic");
+    expect(client._piModel?.api).toBe("anthropic-messages");
+    expect(client._piModel?.provider).toBe("anthropic");
+    expect(client._piModel?.baseUrl).toBe("https://relay.example.com/v1/messages");
+  });
+
   it("未知 model 走 8192 * 3 的写作兜底预算", async () => {
     const { createLLMClient } = await import("../llm/provider.js");
     const { LLMConfigSchema } = await import("../models/project.js");

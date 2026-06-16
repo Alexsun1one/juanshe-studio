@@ -1,10 +1,17 @@
 import { z } from "zod";
 
 // C1 (v2.0.0 breaking): `maxTokens` 字段已被 providers bank 接管；zod 用 strip mode 静默丢弃老配置里的 `maxTokens`。
+const LLMProviderFamilySchema = z.enum(["openai", "anthropic"]);
+const LLMServiceApiSchema = z.enum(["openai-completions", "openai-responses", "anthropic-messages"]);
+
 const LLMServiceEntrySchema = z.object({
   service: z.string().min(1),
   name: z.string().min(1).optional(),
   baseUrl: z.string().url().optional(),
+  providerFamily: LLMProviderFamilySchema.optional(),
+  // api 历史上可来自 provider bank 的更宽协议名（如 google-generative-ai）；
+  // 自定义端点新增的三种可选值由 normalizeServiceApi/resolveCustomServiceApi 收窄处理。
+  api: z.string().min(1).optional(),
   temperature: z.number().min(0).max(2).optional(),
   apiFormat: z.enum(["chat", "responses"]).optional(),
   stream: z.boolean().optional(),
@@ -25,6 +32,7 @@ export const LLMConfigSchema = z.object({
   thinkingBudget: z.number().int().min(0).default(0),
   extra: z.record(z.unknown()).optional(),
   headers: z.record(z.string()).optional(),
+  api: z.string().min(1).optional(),
   apiFormat: z.enum(["chat", "responses"]).default("chat"),
   stream: z.boolean().default(true),
   services: z.array(LLMServiceEntrySchema).optional(),

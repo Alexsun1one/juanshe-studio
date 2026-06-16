@@ -269,14 +269,23 @@ export { createLLMClient, chatCompletion, chatWithTools, createStreamMonitor, Pa
 export {
   SERVICE_PRESETS,
   SERVICE_TO_PI_PROVIDER,
+  normalizeServiceApi,
+  normalizeServiceProviderFamily,
+  providerFamilyForServiceApi,
+  resolveCustomServiceApi,
+  resolveCustomServiceProviderFamily,
   resolveServicePreset,
   resolveServiceProviderFamily,
   resolveServicePiProvider,
   resolveServiceModelsBaseUrl,
+  serviceApiToApiFormat,
   guessServiceFromBaseUrl,
   listModelsForService,
   listServicesWithModelCount,
   type ServicePreset,
+  type ServiceApi,
+  type ServiceApiFormat,
+  type ServiceProviderFamily,
   type ModelInfo,
 } from "./llm/service-presets.js";
 export { resolveServiceModel, type ResolvedModel } from "./llm/service-resolver.js";

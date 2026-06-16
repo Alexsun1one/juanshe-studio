@@ -3,7 +3,18 @@ import { join } from "node:path";
 import { ProjectConfigSchema, type LLMConfig, type ProjectConfig } from "../models/project.js";
 import { loadSecrets } from "../llm/secrets.js";
 import { getEndpoint } from "../llm/providers/index.js";
-import { guessServiceFromBaseUrl, resolveServicePreset, resolveServiceProviderFamily } from "../llm/service-presets.js";
+import {
+  guessServiceFromBaseUrl,
+  normalizeServiceApi,
+  normalizeServiceProviderFamily,
+  resolveCustomServiceApi,
+  resolveCustomServiceProviderFamily,
+  resolveServicePreset,
+  resolveServiceProviderFamily,
+  serviceApiToApiFormat,
+  type ServiceApi,
+  type ServiceProviderFamily,
+} from "../llm/service-presets.js";
 import { isApiKeyOptionalForEndpoint } from "./llm-endpoint-auth.js";
 import { cliOverlayEnv, legacyEnv, studioIgnoredEnv, type LLMEnvLayers, type LLMEnvMap } from "./llm-env.js";
 
@@ -46,6 +57,8 @@ interface ServiceConfigEntry {
   readonly service: string;
   readonly name?: string;
   readonly baseUrl?: string;
+  readonly providerFamily?: ServiceProviderFamily;
+  readonly api?: ServiceApi;
   readonly temperature?: number;
   readonly maxTokens?: number;
   readonly apiFormat?: "chat" | "responses";
@@ -320,13 +333,15 @@ function applyServiceEntry(llm: Record<string, unknown>, entry: ServiceConfigEnt
   const endpoint = getEndpoint(entry.service);
   const transportDefaults = endpoint?.transportDefaults;
   llm.service = entry.service;
-  llm.provider = deriveProviderFromService(entry.service);
+  llm.provider = deriveProviderFromServiceEntry(entry);
   llm.baseUrl = entry.baseUrl ?? resolveServicePreset(entry.service)?.baseUrl ?? "";
+  llm.api = entry.service === "custom" ? resolveCustomServiceApi(entry) : resolveServicePreset(entry.service)?.api;
 
   if (entry.temperature !== undefined) llm.temperature = entry.temperature;
-  if (entry.apiFormat !== undefined) llm.apiFormat = entry.apiFormat;
+  if (entry.api !== undefined) llm.apiFormat = serviceApiToApiFormat(entry.api);
+  else if (entry.apiFormat !== undefined) llm.apiFormat = entry.apiFormat;
   else if (transportDefaults?.apiFormat !== undefined) llm.apiFormat = transportDefaults.apiFormat;
-  else llm.apiFormat = resolveServicePreset(entry.service)?.api.startsWith("openai-responses") ? "responses" : "chat";
+  else llm.apiFormat = serviceApiToApiFormat(llm.api);
   if (entry.stream !== undefined) llm.stream = entry.stream;
   else if (transportDefaults?.stream !== undefined) llm.stream = transportDefaults.stream;
 }
@@ -367,6 +382,8 @@ function normalizeServiceEntries(raw: unknown): ServiceConfigEntry[] {
         service: typeof entry.service === "string" && entry.service.length > 0 ? entry.service : "custom",
         ...(typeof entry.name === "string" && entry.name.length > 0 ? { name: entry.name } : {}),
         ...(typeof entry.baseUrl === "string" && entry.baseUrl.length > 0 ? { baseUrl: entry.baseUrl } : {}),
+        ...(normalizeServiceProviderFamily(entry.providerFamily) ? { providerFamily: normalizeServiceProviderFamily(entry.providerFamily) } : {}),
+        ...(normalizeServiceApi(entry.api) ? { api: normalizeServiceApi(entry.api) } : {}),
         ...(typeof entry.temperature === "number" ? { temperature: entry.temperature } : {}),
         ...(typeof entry.maxTokens === "number" ? { maxTokens: entry.maxTokens } : {}),
         ...(entry.apiFormat === "chat" || entry.apiFormat === "responses" ? { apiFormat: entry.apiFormat } : {}),
@@ -389,6 +406,8 @@ function normalizeServiceEntryFromPatch(serviceId: string, value: Record<string,
       service: "custom",
       name: decodeURIComponent(serviceId.slice("custom:".length)),
       ...(typeof value.baseUrl === "string" && value.baseUrl.length > 0 ? { baseUrl: value.baseUrl } : {}),
+      ...(normalizeServiceProviderFamily(value.providerFamily) ? { providerFamily: normalizeServiceProviderFamily(value.providerFamily) } : {}),
+      ...(normalizeServiceApi(value.api) ? { api: normalizeServiceApi(value.api) } : {}),
       ...(typeof value.temperature === "number" ? { temperature: value.temperature } : {}),
       ...(typeof value.maxTokens === "number" ? { maxTokens: value.maxTokens } : {}),
       ...(value.apiFormat === "chat" || value.apiFormat === "responses" ? { apiFormat: value.apiFormat } : {}),
@@ -401,6 +420,8 @@ function normalizeServiceEntryFromPatch(serviceId: string, value: Record<string,
       service: "custom",
       ...(typeof value.name === "string" && value.name.length > 0 ? { name: value.name } : {}),
       ...(typeof value.baseUrl === "string" && value.baseUrl.length > 0 ? { baseUrl: value.baseUrl } : {}),
+      ...(normalizeServiceProviderFamily(value.providerFamily) ? { providerFamily: normalizeServiceProviderFamily(value.providerFamily) } : {}),
+      ...(normalizeServiceApi(value.api) ? { api: normalizeServiceApi(value.api) } : {}),
       ...(typeof value.temperature === "number" ? { temperature: value.temperature } : {}),
       ...(typeof value.maxTokens === "number" ? { maxTokens: value.maxTokens } : {}),
       ...(value.apiFormat === "chat" || value.apiFormat === "responses" ? { apiFormat: value.apiFormat } : {}),
@@ -486,6 +507,11 @@ function serviceEntryKey(entry: ServiceConfigEntry): string {
 function deriveProviderFromService(service: string): "anthropic" | "openai" | "custom" {
   if (service === "custom") return "custom";
   return resolveServiceProviderFamily(service) ?? "openai";
+}
+
+function deriveProviderFromServiceEntry(entry: ServiceConfigEntry): "anthropic" | "openai" | "custom" {
+  if (entry.service === "custom") return resolveCustomServiceProviderFamily(entry);
+  return deriveProviderFromService(entry.service);
 }
 
 function warnIfStudioIgnoresEnv(layers: LLMEnvLayers, diagnostics: MutableDiagnostics): void {

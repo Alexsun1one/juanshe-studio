@@ -964,6 +964,8 @@ export function normalizeLLMProviders(
       name: text(first(service, ["label", "name"]), serviceId),
       kind: normalizeProviderKind(serviceId),
       baseUrl,
+      providerFamily: normalizeProviderFamily(first(service, ["providerFamily"]) ?? first(configured ?? {}, ["providerFamily"])),
+      api: normalizeProviderApi(first(service, ["api"]) ?? first(configured ?? {}, ["api"])),
       hasKey: Boolean(first(service, ["connected", "hasKey"])),
       enabled,
       lastTestedAt: optionalEpoch(first(service, ["lastTestedAt", "testedAt"])),
@@ -1617,6 +1619,16 @@ function normalizeProviderKind(id: string): LLMProvider["kind"] {
   if (raw.includes("openrouter")) return "openrouter"
   if (raw.includes("openai") || raw.includes("newapi")) return "openai"
   return "custom"
+}
+
+function normalizeProviderFamily(value: unknown): LLMProvider["providerFamily"] | undefined {
+  return value === "openai" || value === "anthropic" ? value : undefined
+}
+
+function normalizeProviderApi(value: unknown): LLMProvider["api"] | undefined {
+  return value === "openai-completions" || value === "openai-responses" || value === "anthropic-messages"
+    ? value
+    : undefined
 }
 
 function withSeedContract(prompt: string, seedPrompt?: string) {

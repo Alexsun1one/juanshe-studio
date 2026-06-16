@@ -2,9 +2,13 @@ import { getEndpoint } from "./providers/index.js";
 import { probeModelsFromUpstream } from "./providers/probe.js";
 import { isApiKeyOptionalForEndpoint } from "../utils/llm-endpoint-auth.js";
 
+export type ServiceProviderFamily = "openai" | "anthropic";
+export type ServiceApi = "openai-completions" | "openai-responses" | "anthropic-messages";
+export type ServiceApiFormat = "chat" | "responses";
+
 export interface ServicePreset {
-  readonly providerFamily: "openai" | "anthropic";
-  readonly api: string;
+  readonly providerFamily: ServiceProviderFamily;
+  readonly api: ServiceApi | string;
   readonly baseUrl: string;
   readonly label: string;
   readonly temperatureRange?: readonly [number, number];
@@ -49,6 +53,49 @@ export const SERVICE_PRESETS: Record<string, ServicePreset> = {
   ollama:      { providerFamily: "openai",    api: "openai-completions", baseUrl: "http://localhost:11434/v1",                          label: "Ollama (本地)" },
   custom:      { providerFamily: "openai",    api: "openai-completions", baseUrl: "",                                                    label: "自定义端点" },
 };
+
+export function normalizeServiceProviderFamily(value: unknown): ServiceProviderFamily | undefined {
+  return value === "anthropic" || value === "openai" ? value : undefined;
+}
+
+export function normalizeServiceApi(value: unknown): ServiceApi | undefined {
+  return value === "anthropic-messages"
+    || value === "openai-completions"
+    || value === "openai-responses"
+    ? value
+    : undefined;
+}
+
+export function providerFamilyForServiceApi(api: unknown): ServiceProviderFamily | undefined {
+  const normalized = normalizeServiceApi(api);
+  if (!normalized) return undefined;
+  return normalized === "anthropic-messages" ? "anthropic" : "openai";
+}
+
+export function serviceApiToApiFormat(api: unknown): ServiceApiFormat {
+  return normalizeServiceApi(api) === "openai-responses" ? "responses" : "chat";
+}
+
+export function resolveCustomServiceApi(entry?: {
+  readonly api?: unknown;
+  readonly providerFamily?: unknown;
+  readonly apiFormat?: unknown;
+}): ServiceApi {
+  const explicitApi = normalizeServiceApi(entry?.api);
+  if (explicitApi) return explicitApi;
+  const providerFamily = normalizeServiceProviderFamily(entry?.providerFamily);
+  if (providerFamily === "anthropic") return "anthropic-messages";
+  return entry?.apiFormat === "responses" ? "openai-responses" : "openai-completions";
+}
+
+export function resolveCustomServiceProviderFamily(entry?: {
+  readonly providerFamily?: unknown;
+  readonly api?: unknown;
+}): ServiceProviderFamily {
+  return providerFamilyForServiceApi(entry?.api)
+    ?? normalizeServiceProviderFamily(entry?.providerFamily)
+    ?? "openai";
+}
 
 export function resolveServicePreset(service: string): ServicePreset | undefined {
   const provider = getEndpoint(service);

@@ -13,7 +13,7 @@ import type {
   TextContent as PiTextContent,
   ToolCall as PiToolCall,
 } from "@mariozechner/pi-ai";
-import { resolveServicePreset } from "./service-presets.js";
+import { normalizeServiceApi, resolveCustomServiceApi, resolveCustomServiceProviderFamily, resolveServicePreset } from "./service-presets.js";
 import { getEndpoint } from "./providers/index.js";
 import { lookupModel } from "./providers/lookup.js";
 import { fetchWithProxy } from "../utils/proxy-fetch.js";
@@ -210,7 +210,13 @@ export function createLLMClient(config: LLMConfig): LLMClient {
   const hardWriteProvider = getEndpoint(serviceName);
   const modelCard = lookupModel(serviceName, config.model);
 
-  const piApi = resolvePiApi(serviceName, config.apiFormat, (hardWriteProvider?.api ?? preset?.api) as PiApi) as PiApi;
+  const piApi = resolvePiApi(
+    serviceName,
+    config.apiFormat,
+    (hardWriteProvider?.api ?? preset?.api) as PiApi,
+    config.provider,
+    config.api,
+  ) as PiApi;
   const baseUrl = config.baseUrl || hardWriteProvider?.baseUrl || preset?.baseUrl || "";
   const extraHeaders = config.headers ?? parseEnvHeaders();
   const compat = piApi === "openai-completions"
@@ -267,8 +273,15 @@ function resolvePiApi(
   serviceName: string,
   apiFormat: LLMConfig["apiFormat"] | undefined,
   presetApi: PiApi | undefined,
+  providerFamily: LLMConfig["provider"] | undefined,
+  explicitApi: LLMConfig["api"] | undefined,
 ): PiApi {
   if (serviceName === "custom") {
+    const normalizedApi = normalizeServiceApi(explicitApi);
+    if (normalizedApi) return normalizedApi as PiApi;
+    if (resolveCustomServiceProviderFamily({ providerFamily }) === "anthropic") {
+      return resolveCustomServiceApi({ providerFamily }) as PiApi;
+    }
     return apiFormat === "responses" ? "openai-responses" : "openai-completions";
   }
   return (presetApi ?? "openai-completions") as PiApi;
@@ -846,6 +859,11 @@ function extractAnthropicContent(json: any): string {
     .join("");
 }
 
+function anthropicMessagesUrl(baseUrl: string): string {
+  const normalized = baseUrl.replace(/\/$/, "");
+  return normalized.endsWith("/messages") ? normalized : `${normalized}/messages`;
+}
+
 async function chatCompletionViaCustomAnthropicCompatible(
   client: LLMClient,
   model: string,
@@ -872,7 +890,7 @@ async function chatCompletionViaCustomAnthropicCompatible(
   const usesCaching = messagesHaveCacheMarkers(messages)
     || (Array.isArray(system) && system.some((b) => b.cache_control));
 
-  const response = await fetchWithProxy(`${baseUrl.replace(/\/$/, "")}/messages`, {
+  const response = await fetchWithProxy(anthropicMessagesUrl(baseUrl), {
     method: "POST",
     headers: {
       "User-Agent": JUANSHE_USER_AGENT,
