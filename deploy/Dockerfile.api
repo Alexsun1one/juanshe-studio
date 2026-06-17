@@ -11,14 +11,11 @@ COPY . .
 # 全量装(含 devDep typescript,build core/engine/studio 都要 tsc)。--ignore-scripts 跳过
 # electron 二进制下载/sharp 原生编译(本镜像用不到);最终 pnpm deploy 只挑 studio 的生产依赖进 /app。
 # (不能用 --filter "@juanshe/studio..." —— 那样 core/engine 只装生产依赖,缺 tsc → build 失败。)
-# 构建期改用国内 npm 镜像 + 放宽超时/重试:本 VPS 直连 registry.npmjs.org 实测间歇 2-24KiB/s,
-# 慢到 pnpm install 超时挂掉(多次构建失败)。registry.npmmirror.com 是 npmjs 全量镜像、tarball
-# integrity 一致,与 --frozen-lockfile 兼容;只影响构建期拉包,不改锁文件与运行时。
-ENV npm_config_registry=https://registry.npmmirror.com \
-    npm_config_fetch_retries=5 \
-    npm_config_fetch_retry_mintimeout=10000 \
-    npm_config_fetch_retry_maxtimeout=120000
-RUN pnpm install --frozen-lockfile --ignore-scripts
+# pnpm 内容寻址 store 走 BuildKit 缓存挂载:依赖只下载一次、跨构建复用,扛 registry.npmjs.org
+# 间歇性慢窗口(实测偶发 2-24KiB/s 导致 install 超时失败;平时 ~480KiB/s 正常)。叠加重试/超时放宽。
+# 保留默认 npmjs(实测比 npmmirror 从本 VPS 快)。仅构建期,不改锁文件与运行时。
+RUN printf 'fetch-retries=5\nfetch-retry-maxtimeout=180000\nfetch-timeout=600000\nstore-dir=/pnpm-store\n' > .npmrc
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store pnpm install --frozen-lockfile --ignore-scripts
 # core/engine 必须先 build(deploy 打包它们的 dist),再 build studio,最后 deploy 成自包含目录。
 RUN pnpm --filter @juanshe/core build \
  && pnpm --filter @juanshe/engine build \
