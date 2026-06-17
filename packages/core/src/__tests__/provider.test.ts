@@ -205,6 +205,54 @@ describe("chatCompletion via pi-ai", () => {
     expect(error.message).toContain("无法连接到 API 服务");
   });
 
+  it("translates 中转站 '503 No available channel' into a Chinese hint and keeps the raw error", async () => {
+    mockStreamSimple.mockReturnValue(
+      makeErrorStream("503 No available channel for model gemini-3.1-pro-preview"),
+    );
+
+    const client = makeClient();
+    const error = await captureError(
+      chatCompletion(client, "test-model", [{ role: "user", content: "ping" }]),
+    );
+
+    // 人话提示：点名「无可用渠道」+ 配置的模型名
+    expect(error.message).toContain("可用渠道");
+    expect(error.message).toContain("test-model");
+    // 原始英文仍带在提示里给用户排查
+    expect(error.message).toContain("上游原始报错");
+    expect(error.message).toContain("No available channel");
+    // 原始错误经 cause 保留，供日志 / isTransientLLMTransportError 顺链判定
+    expect((error as Error & { cause?: unknown }).cause).toBeInstanceOf(Error);
+    expect(String((error as Error & { cause?: unknown }).cause)).toContain("No available channel");
+  });
+
+  it("translates upstream 402 insufficient balance into a Chinese hint", async () => {
+    mockStreamSimple.mockReturnValue(
+      makeErrorStream("402 insufficient_quota: your account balance is not enough"),
+    );
+
+    const client = makeClient();
+    const error = await captureError(
+      chatCompletion(client, "test-model", [{ role: "user", content: "ping" }]),
+    );
+
+    expect(error.message).toContain("余额");
+    expect(error.message).toContain("上游原始报错");
+  });
+
+  it("leaves unrecognized upstream errors untranslated (no regression)", async () => {
+    mockStreamSimple.mockReturnValue(makeErrorStream("some totally novel upstream failure xyz"));
+
+    const client = makeClient();
+    const error = await captureError(
+      chatCompletion(client, "test-model", [{ role: "user", content: "ping" }]),
+    );
+
+    // 未命中任何已知模式 → 回落默认兜底，原文不被中文覆盖
+    expect(error.message).toContain("some totally novel upstream failure xyz");
+    expect(error.message).not.toContain("怎么办");
+  });
+
   it("retries transient socket termination errors before failing the chapter pipeline", async () => {
     mockStreamSimple
       .mockReturnValueOnce(makeErrorStream("terminated: UND_ERR_SOCKET other side closed"))

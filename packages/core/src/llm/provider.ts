@@ -380,6 +380,126 @@ export function __resetFixedTemperatureWarnings(): void {
 
 // === Error Wrapping ===
 
+// 把上游/中转站常见英文错误翻译成给终端用户的中文人话提示。
+// 命中 → 返回带 { cause: error } 的新 Error：原始英文仍进日志 / isTransientLLMTransportError
+//        仍能顺 .cause 链判定瞬时性；命中文案直接展示给用户（write-mode toast / 活动流）。
+// 未命中 → 返回 null，回落到 wrapLLMError 既有默认分支，零回归。
+// 设计前提：本函数在 wrapLLMError 的所有具体状态码分支（400/401/403/429/连接/5xx-no-body）
+//          之后才被调用，只翻译"掉到默认兜底"的错误（中转站 503 无渠道、404 模型不存在、
+//          402 余额不足等当前会吐原始英文的情形）。
+function translateUpstreamError(
+  error: unknown,
+  msg: string,
+  context?: { readonly baseUrl?: string; readonly model?: string },
+): Error | null {
+  const detail = msg.replace(/^Error:\s*/i, "").trim().slice(0, 200);
+  const model = context?.model || msg.match(/model[\s:"']*([\w\-.]+)/i)?.[1] || "该模型";
+  const baseUrl = context?.baseUrl;
+  const compose = (headline: string, actions: string): Error => {
+    const body =
+      `${headline}\n`
+      + (detail && detail !== "[object Object]" ? `上游原始报错：${detail}\n` : "")
+      + (baseUrl ? `当前接口/中转站：${baseUrl}\n` : "")
+      + actions;
+    return new Error(body, { cause: error });
+  };
+
+  // 1. 中转站无可用渠道（one-api / new-api / 博洛类聚合站典型：「503 No available channel for model X」）。
+  //    用文本而非裸 503 判定，避免把直连服务商的普通 503 误贴「无渠道」标签。
+  if (/no available channel|no channel available|channel not found|无可用渠道|当前分组.{0,16}无.{0,4}渠道/i.test(msg)) {
+    return compose(
+      `中转站里没有「${model}」的可用渠道，请求被上游直接挡回（这是中转站侧的配置问题，不是卷舍在算你的额度）。`,
+      `怎么办：\n`
+      + `  1. 打开 LLM 设置，确认填的模型名和中转站后台「已上架模型名」一字不差（大小写、版本号、前后缀都要对上）\n`
+      + `  2. 换一个该中转站确实在售、且分组里有上游的模型重试\n`
+      + `  3. 若后台显示该模型「无可用上游 / 已下架」，找中转站客服开通，或换服务商`,
+    );
+  }
+
+  // 2. 模型不存在 / 未上架（404、model not found、未知模型）。
+  if (/\b404\b|model[_\s]?not[_\s]?found|no such model|model does not exist|unknown model|invalid model|未找到.{0,4}模型|模型不存在|模型未上架/i.test(msg)) {
+    return compose(
+      `上游找不到「${model}」这个模型（模型名写错、大小写不符，或这个接口根本没上架它）。`,
+      `怎么办：\n`
+      + `  1. 去 LLM 设置核对模型名，和服务商 /models 列表里的名字逐字符对齐\n`
+      + `  2. 用「模型连通性检测」试一下当前模型是否可用\n`
+      + `  3. 确认这个 baseUrl 对应的服务商确实提供该模型`,
+    );
+  }
+
+  // 3. 余额不足 / 额度用尽（402、insufficient_quota、欠费）。
+  if (/\b402\b|insufficient[_\s]?(quota|balance|credit)|payment required|余额不足|额度不足|额度已用|欠费|您的余额|账户余额/i.test(msg)) {
+    return compose(
+      `上游 API 账户余额 / 额度不足，调用被拒（扣的是你自己那把 key 的钱，不是卷舍积分）。`,
+      `怎么办：\n`
+      + `  1. 去服务商 / 中转站后台给这把 API Key 充值或提额\n`
+      + `  2. 或在 LLM 设置换一把有余额的 Key`,
+    );
+  }
+
+  // 4. 密钥无效 / 未授权（部分中转站用文字而非 401 数字报，故在此兜底）。
+  if (/invalid[_\s]?api[_\s]?key|incorrect api key|api key.{0,8}(invalid|expired|wrong)|invalid[_\s]?token|令牌.{0,4}(无效|错误)|密钥.{0,4}(无效|错误)|认证失败|鉴权失败/i.test(msg)) {
+    return compose(
+      `上游拒绝了这把 API Key（无效、过期或填错）。`,
+      `怎么办：\n`
+      + `  1. 去 LLM 设置重新粘贴正确的 API Key（注意别带多余空格 / 换行）\n`
+      + `  2. 确认这把 Key 对应的正是当前填的 baseUrl 那个服务商`,
+    );
+  }
+
+  // 5. 限流 / 频控（429 数字一般已被上游分支拦，这里兜文字与 TPM/RPM 表述）。
+  if (/rate[_\s]?limit|too many requests|请求过于频繁|频率限制|触发限流|\bt?pm\b限|并发.{0,4}(超|限)|concurrency limit/i.test(msg)) {
+    return compose(
+      `触发了上游的频率限制（请求太密、或超了 TPM/RPM/并发配额）。`,
+      `怎么办：\n`
+      + `  1. 等几十秒到一两分钟再重试\n`
+      + `  2. 若批量写作并发太高，调小并发档，或换更高配额的 Key / 服务商`,
+    );
+  }
+
+  // 6. 内容审查拦截（公益 / 免费 / 国产中转常见）。
+  if (/content[_\s]?(policy|filter|moderation)|risk[_\s]?control|内容审查|内容安全|敏感词|命中.{0,4}风控|policy violation|flagged|safety system/i.test(msg)) {
+    return compose(
+      `请求被上游的内容审查拦下了（这一段触发了服务商的敏感内容策略）。`,
+      `怎么办：\n`
+      + `  1. 这类拦截多由暴力 / 露骨 / 政治敏感情节触发，可微调本章设定后重试\n`
+      + `  2. 或换一个对小说内容更宽松的服务商 / 模型`,
+    );
+  }
+
+  // 7. 消息格式 / role 不兼容（部分服务不支持 system / developer role 或多模态结构）。
+  if (/system role|developer role|role.{0,12}(not supported|unsupported|invalid|must be)|messages.{0,16}(invalid|format|must)|不支持.{0,4}role|消息格式.{0,4}(错误|不兼容)/i.test(msg)) {
+    return compose(
+      `上游不接受当前的消息格式（多半是不支持 system / developer role，或消息结构要求不同）。`,
+      `怎么办：\n`
+      + `  1. 在 LLM 设置把「接口格式」切到与该服务商匹配的那种（OpenAI / Anthropic）\n`
+      + `  2. 或换一个标准 OpenAI 兼容的服务商`,
+    );
+  }
+
+  // 8. 空响应 / 无内容（连通但上游返回空，常因模型故障或被静默截断）。
+  if (/empty (response|completion|content)|no (content|choices|completion)|返回为空|响应为空|空响应|生成内容为空/i.test(msg)) {
+    return compose(
+      `上游连上了，但返回了空内容（没生成任何正文）。`,
+      `怎么办：\n`
+      + `  1. 直接重试一次，多数是上游临时抽风\n`
+      + `  2. 若反复为空，换个模型试试，可能是该模型当前不稳定`,
+    );
+  }
+
+  // 9. 上游故障 / 过载 / 网关错误（通用 5xx，放在 503-无渠道之后，避免抢匹配）。
+  if (/\b50[0-4]\b|service unavailable|bad gateway|gateway time-?out|internal server error|upstream error|server overload|过载|服务不可用|网关.{0,4}(错误|超时)/i.test(msg)) {
+    return compose(
+      `上游服务临时故障或过载（${model} 这次没能正常返回，属于服务商侧的波动）。`,
+      `怎么办：\n`
+      + `  1. 等一会儿直接重试，这类故障通常几分钟内自愈\n`
+      + `  2. 若持续报错，换个模型 / 服务商，或稍后再来`,
+    );
+  }
+
+  return null;
+}
+
 function wrapLLMError(
   error: unknown,
   context?: { readonly baseUrl?: string; readonly model?: string; readonly maxTokens?: number; readonly temperature?: number },
@@ -487,6 +607,10 @@ function wrapLLMError(
       `  3. 当前 apikey 无权限调用该模型${ctxLine}`,
     );
   }
+  // 上述具体状态码分支之外，把中转站/上游的常见英文错误翻译成人话（中转站 503 无渠道、
+  // 404 模型不存在、402 余额不足等当前会掉到默认兜底吐英文的情形）。未命中返回 null 不影响兜底。
+  const translated = translateUpstreamError(error, msg, context);
+  if (translated) return translated;
   return error instanceof Error ? error : new Error(msg);
 }
 
