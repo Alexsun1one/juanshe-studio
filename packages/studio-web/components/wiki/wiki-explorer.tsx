@@ -464,8 +464,8 @@ function BacklinksPanel({
               <Lock className="text-muted-foreground mt-0.5 size-3 shrink-0" />
               <span className="text-muted-foreground">
                 {lang === "en"
-                  ? "Edit prompts in System & Agents or Agent Lab. Changes here don’t affect runtime."
-                  : "请到「系统与智能体」或「Agent 实验室」修改提示词。这里的内容只是档案视图，不影响执行。"}
+                  ? "Edit prompts in System & Agents or Editorial Members. Changes here don’t affect runtime."
+                  : "请到「系统与智能体」或「编辑部成员」修改提示词。这里的内容只是档案视图，不影响执行。"}
               </span>
             </div>
           )}

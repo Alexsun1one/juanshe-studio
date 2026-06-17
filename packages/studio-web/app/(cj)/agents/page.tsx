@@ -170,7 +170,7 @@ export default function AgentLabPage() {
             value={editableCount}
             unit={lang === "en" ? "" : "位"}
             tone={editableCount > 0 ? "ok" : "neutral"}
-            hint={lang === "en" ? "Prompt & model are tunable" : "提示词 / 模型可调"}
+            hint={lang === "en" ? "Assign a model to each editor" : "在这里给每个编辑单独换大模型"}
           />
           <KpiChip
             label={lang === "en" ? "Locked" : "已锁定"}
@@ -311,10 +311,10 @@ function AgentLabUnavailable({
     <div className="cj-screen cj-agents">
       <header className="cj-workhead ag-head">
         <div className="ag-headline">
-          <PixelBadge kind="agents" size={44} className="ag-hero-pixel" ariaLabel={lang === "en" ? "Agent Lab" : "Agent 实验室"} />
+          <PixelBadge kind="agents" size={44} className="ag-hero-pixel" ariaLabel={lang === "en" ? "Editorial Members" : "编辑部成员"} />
           <div className="ag-headline-text">
             <div className="page-title-row">
-              <h1 className="page-title">{lang === "en" ? "Agent Lab" : "Agent 实验室"}</h1>
+              <h1 className="page-title">{lang === "en" ? "Editorial Members" : "编辑部成员"}</h1>
             </div>
             <p className="page-sub">
               {lang === "en"
@@ -685,6 +685,17 @@ function AgentEditor({
                   <FileCode2 size={12} strokeWidth={2} />
                   {t("agents.editor.model")}
                 </Label>
+                <p className="ag-field-note">
+                  {lang === "en" ? (
+                    <>
+                      Pick the model for this role. Set the provider Key in <Link href="/llm">LLM Config</Link> first.
+                    </>
+                  ) : (
+                    <>
+                      这个角色用哪个大模型(在<Link href="/llm">大模型配置</Link>里配好对应服务的 Key)
+                    </>
+                  )}
+                </p>
                 <Select value={model} onValueChange={setModel} disabled={editLocked}>
                   <SelectTrigger>
                     <SelectValue />

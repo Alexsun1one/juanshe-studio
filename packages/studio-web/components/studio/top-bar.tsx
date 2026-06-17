@@ -322,7 +322,7 @@ export function TopBar() {
             </CommandItem>
             <CommandItem onSelect={() => runCommand("/agents")}>
               <Share2 className="size-4" />
-              <span>Agent 实验室</span>
+              <span>编辑部成员</span>
             </CommandItem>
             <CommandItem onSelect={() => runCommand("/wiki")}>
               <Share2 className="size-4" />

@@ -234,7 +234,7 @@ const zh: Dict = {
   // 主导航
   "nav.studio": "工作台",
   "nav.runs": "运行台",
-  "nav.agents": "Agent 实验室",
+  "nav.agents": "编辑部成员",
   "nav.capabilities": "能力台",
   "nav.genres": "题材库",
   "nav.import": "导入台",
@@ -287,9 +287,9 @@ const zh: Dict = {
   "runs.cancel": "终止",
   "runs.viewBook": "进入作品",
 
-  // Agent Lab
-  "agents.title": "编辑部成员中心",
-  "agents.subtitle": `调教 ${EDITORIAL_STAFF_COUNT} 位编辑部成员的提示词、模型与发稿职责`,
+  // 编辑部成员
+  "agents.title": "编辑部成员",
+  "agents.subtitle": `给 ${EDITORIAL_STAFF_COUNT} 位编辑部成员分别调提示词、模型与发稿职责`,
   "agents.tabs.prompts": "提示词",
   "agents.tabs.workflow": "工作流",
   "agents.tabs.connectivity": "连通性",
@@ -536,7 +536,7 @@ const en: Dict = {
 
   "nav.studio": "Studio",
   "nav.runs": "Runs",
-  "nav.agents": "Agent Lab",
+  "nav.agents": "Editorial Members",
   "nav.capabilities": "Capabilities",
   "nav.genres": "Genres",
   "nav.import": "Import",

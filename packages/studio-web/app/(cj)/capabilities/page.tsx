@@ -76,10 +76,10 @@ const capabilityGroups: Array<{
   {
     title: "运维与并行",
     kind: "runs",
-    summary: "运行台、Agent Lab、模型路由和偏好设置已经从旧壳剥离。",
+    summary: "运行台、编辑部成员、模型路由和偏好设置已经从旧壳剥离。",
     items: [
       { label: "运行台", href: "/runs", icon: Workflow },
-      { label: "Agent Lab", href: "/agents", icon: FlaskConical },
+      { label: "编辑部成员", href: "/agents", icon: FlaskConical },
       { label: "模型路由", href: "/llm", icon: Route },
       { label: "偏好设置", href: "/preferences", icon: SlidersHorizontal },
     ],

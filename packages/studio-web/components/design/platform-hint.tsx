@@ -18,6 +18,8 @@ import "./platform-hint.css"
  */
 export type PlatformHintType =
   | "local-llm" // 模型配置页:本机 Ollama 连不上
+  | "per-agent-model" // 模型配置页:配完 Key 后去给每个编辑派模型
+  | "theatre-guide" // 工作台:首次进入写作剧场态
   | "auto-publish" // 发布页:一键发草稿是桌面的
   | "channel-auth" // 渠道连接弹窗:同上的简版
   | "browser-download" // 平台导出页:浏览器下载落点
@@ -44,6 +46,25 @@ const CONTENT: Record<PlatformHintType, HintContent> = {
       </>
     ),
     moreHref: "/guide#desktop-vs-web",
+  },
+  "per-agent-model": {
+    badge: "agents",
+    eyebrow: "编辑部分工 · 模型派工",
+    body: (
+      <>
+        配好 Key 后,可以给每个编辑分配不同的写作模型——写手用强模型、润色用便宜快模型,省钱又稳。{" "}
+        <Link href="/agents" className="ph-inline-link">去给每个角色派模型 →</Link>
+      </>
+    ),
+  },
+  "theatre-guide": {
+    badge: "runs",
+    eyebrow: "写作剧场",
+    body: (
+      <>
+        右侧是当前 / 下一棒编辑,中间正文逐字流出;想回读就上翻已写段落,点「回到最新」再贴回底部。
+      </>
+    ),
   },
   "auto-publish": {
     badge: "publish",

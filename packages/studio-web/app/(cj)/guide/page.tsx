@@ -26,6 +26,7 @@ type Block =
   | { type: "lead"; text: string }
   | { type: "para"; text: string }
   | { type: "points"; items: { k: string; v: string }[] }
+  | { type: "links"; items: { href: string; label: string; text: string }[] }
   | { type: "examples"; goodLabel?: string; badLabel?: string; items: Example[] }
   | { type: "callout"; tone?: "brand" | "warm"; title: string; text: string }
 
@@ -306,6 +307,47 @@ const GUIDE_SECTIONS: Section[] = [
       },
     ],
   },
+  {
+    id: "model-routing",
+    no: "08",
+    pixel: "llm",
+    title: "系统如何工作 / 模型如何接入",
+    tagline: "先配钥匙,再给每个编辑派模型",
+    blocks: [
+      {
+        type: "lead",
+        text:
+          "卷舍采用 BYOK:你把自己的模型服务 Key 接进来,编辑部只负责把任务派给合适的模型。这样做的好处很直接——额度在你手里,成本可控;服务商可替换,不会被一个模型绑死;同一本书的写手、润色、评审也能按职责分工。",
+      },
+      {
+        type: "para",
+        text:
+          "系统先在「大模型配置」里接入服务商和 Key,再到「编辑部成员」里给每个角色单独选模型。写手可以用更强的模型保证正文质量,润色师可以用便宜快的模型跑文字打磨,审稿官则按你看重的质量 / 成本取舍来配。",
+      },
+      {
+        type: "points",
+        items: [
+          { k: "为什么自带 Key", v: "长篇写作会持续消耗 token。BYOK 让你清楚知道钱花在哪个服务商、哪个模型上,也方便随时停用或替换。" },
+          { k: "八家预设怎么选", v: "先选一个你已有额度的 OpenAI 兼容服务商。想省钱就从 DeepSeek / Kimi / 通义这类高性价比服务开始;已有国外额度再接 OpenAI / OpenRouter。" },
+          { k: "每个编辑单独换模型", v: "模型不是全站一把梭。选中写手、润色师、评审官等成员后,在模型栏分别指定它们要用的模型。" },
+        ],
+      },
+      {
+        type: "links",
+        items: [
+          { href: "/llm", label: "去配 Key", text: "接入服务商、粘贴 Key、测试连通。" },
+          { href: "/agents", label: "去配模型", text: "打开编辑部成员,给每个角色单独派模型。" },
+        ],
+      },
+      {
+        type: "callout",
+        tone: "brand",
+        title: "最省心的起步顺序",
+        text:
+          "先在「大模型配置」接一个已启用且有 Key 的服务;再去「编辑部成员」把写手设成强模型、润色设成便宜快模型。能写、能省、也好排查。",
+      },
+    ],
+  },
 ]
 
 export default function GuidePage() {
@@ -379,7 +421,7 @@ export default function GuidePage() {
               卷舍的出稿质量,几乎完全由你的输入决定。这份指南把引擎内部的评分哲学透给你——
               当你的一句话灵感、约束、风格样本和续写引导,正好喂中引擎奖励的东西,好稿就是稳定的,而不是碰运气。
             </p>
-            <div className="guide-hero-meta">7 节 · 约 8 分钟读完 · 越早读越省一整本书的弯路</div>
+            <div className="guide-hero-meta">8 节 · 约 9 分钟读完 · 越早读越省一整本书的弯路</div>
           </header>
 
           {GUIDE_SECTIONS.map((s) => (
@@ -441,6 +483,18 @@ function GuideBlock({ block }: { block: Block }) {
             </div>
           ))}
         </dl>
+      )
+    case "links":
+      return (
+        <div className="guide-links">
+          {block.items.map((item) => (
+            <Link href={item.href} className="guide-link-card" key={item.href}>
+              <span className="guide-link-label">{item.label}</span>
+              <span className="guide-link-text">{item.text}</span>
+              <ArrowRight size={13} aria-hidden />
+            </Link>
+          ))}
+        </div>
       )
     case "callout":
       return (

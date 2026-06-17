@@ -148,6 +148,15 @@
 .first-run .fr-step-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .first-run .fr-step-body b { font-size: 13.5px; font-weight: 700; color: var(--ink-900); }
 .first-run .fr-step-body span { font-size: 12px; color: var(--ink-500); line-height: 1.5; }
+.first-run .fr-step-body .fr-step-note { color: var(--ink-400); }
+.first-run .fr-step-body .fr-step-note a {
+  color: var(--brand-600);
+  font-weight: 600;
+  text-decoration: none;
+  margin: 0 2px;
+}
+.first-run .fr-step-body .fr-step-note a:hover { text-decoration: underline; }
+.first-run .fr-step-body .fr-step-note a:focus-visible { outline: none; box-shadow: var(--ring); border-radius: var(--r-xs); }
 .first-run .fr-step-cta {
   flex: 0 0 auto; font-size: 12.5px; font-weight: 600; text-decoration: none;
   color: var(--brand-600); background: var(--brand-50); border: 1px solid var(--brand-100);

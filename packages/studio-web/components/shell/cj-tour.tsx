@@ -19,7 +19,8 @@ type Step = {
 const STEPS: Step[] = [
   { sel: ".sidebar", title: "这是你的编辑部", body: "17 个编辑分管选题、写作、审稿、润色、排版到发布。每个工种点开都能调教。", place: "right" },
   { sel: ".workspace-sel", title: "作品在这儿切换", body: "你的每一部书都在这里。新建一本,编辑部就开始为它起稿故事框架。", place: "bottom" },
-  { sel: ".writer-actions", title: "来,写第一章", body: "点「继续创作」—— 规划师先读设定,再把意图交给写手落正文,流式刷给你看。", place: "top" },
+  { sel: ".settings-foot-btn", title: "先交模型钥匙", body: "动笔前先在这配好你的写作模型,否则编辑部接不到活。", place: "right" },
+  { sel: ".writer-actions", title: "来,写第一章", body: "前提是先配好写作模型。点「继续创作」—— 规划师先读设定,再把意图交给写手落正文,流式刷给你看。", place: "top" },
   { sel: ".theme-color-trigger", title: "换个心情", body: "想要别的颜色?这儿 7 套主题随你切,暖纸和像素魂都不变。", place: "bottom" },
 ]
 

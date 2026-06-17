@@ -296,6 +296,18 @@ export function NewBookDialog({
     router.push("/outline")
   }
 
+  function foundationGuidance(raw: string): string {
+    const msg = raw.trim()
+    if (!msg) return "复审官没否定这本书,只是觉得地基还差一口气。先补清主角想要什么、第一卷冲突是什么、前三章怎么转折,再让编辑部开写。"
+    if (/json|parse|schema|validator|required|missing|invalid|字段|格式/i.test(msg)) {
+      return "复审官没拿到足够清楚的故事施工图。先补三样:主角想要什么、第一卷核心冲突是什么、每三章靠什么转折。"
+    }
+    if (/timeout|timed out|econn|network|fetch|abort|超时|网络|连接/i.test(msg)) {
+      return "复审官还没等到完整地基结果。可以先去作品列表看进度;如果确实停住,再进路线图补大纲或重试。"
+    }
+    return `复审官的意见是:${msg}。先补清主角动机、核心冲突和第一卷转折,补够了再开写正文。`
+  }
+
   // stalled / needs-foundation / error 三态共用的补救按钮组(文案/主按钮各态微调)。
   // 用自绘 div 而非 DialogFooter:DialogFooter 自带 sm:justify-end,会跟两端对齐布局打架。
   const remediationActions = (variant: "stalled" | "needs-foundation" | "error") => (
@@ -387,7 +399,7 @@ export function NewBookDialog({
                 onChange={(e) => setDraft({ ...draft, brief: e.target.value })}
                 placeholder="例:近未来的海滨城市,女主角是能「听见」老建筑记忆的修复师,接下一桩旧剧院翻新案,逐渐卷入二十年前的失踪旧案。基调温暖带悬疑,节奏每章一个小发现、三章一个转折。"
               />
-              <span className="nb-hint">越具体越好 — 时代/地点/主角动机/基调/章节节奏。Architect 会先据此起稿。</span>
+              <span className="nb-hint">一句话灵感要写出具体的人、正在发生的事、能感到的基调;别只写主题词。</span>
             </label>
 
             {/* 一句话灵感提示卡 — 一句钩子 + 超短好/坏对比 + 链到完整指南。最小侵入,不动提交逻辑。 */}
@@ -596,7 +608,7 @@ export function NewBookDialog({
                 <p className="nb-outcome-sub">框架已起好,但复审官没让它直接开写正文。</p>
               </div>
             </div>
-            <p className="nb-outcome-body">{errMsg || "故事地基还没通过复审。"}</p>
+            <p className="nb-outcome-body">{foundationGuidance(errMsg)}</p>
             <p className="nb-outcome-note">
               草稿已保存在<b>作品列表</b>里(没切成当前作品)。去补地基会把它设为当前作品,带你进路线图补大纲、伏笔和人物动机,补够了再开写。
             </p>

@@ -12,6 +12,7 @@ import {
   fetchPlotProgress,
   fetchProjectPrefs,
   fetchQuality,
+  fetchLLMProviders,
   startWriteBatch,
   startWriteNextChapter,
   stopBookWorkflow,
@@ -199,6 +200,7 @@ export default function CjDashboard() {
   const { data: chapters } = useSWR(key("chapters"), () => fetchChapters(bookId), fresh)
   const { data: plot } = useSWR(key("plot"), () => fetchPlotProgress(bookId), soft)
   const { data: agents } = useSWR("agents", fetchAgents, { refreshInterval: 8000 })
+  const { data: providers } = useSWR("llm-providers", fetchLLMProviders, { shouldRetryOnError: false })
   const { data: prefs } = useSWR("prefs", fetchProjectPrefs, soft)
   const curChapter = active?.currentChapter ?? 0
   const immersiveHref = curChapter ? `/immersive?chapter=${curChapter}` : "/immersive"
@@ -237,8 +239,27 @@ export default function CjDashboard() {
   // 无人值守续写:低分先接受、不停下、事后批量重修(走 write-batch livestream)。适合挂机连写几十章。
   const [unattended, setUnattended] = React.useState(false)
   const [confirmAction, setConfirmAction] = React.useState<DashboardWorkflowAction | null>(null)
+  const llmReady = (providers ?? []).some((p) => p.hasKey && p.enabled)
+  const showModelKeyHint = React.useCallback(() => {
+    toast.info("还没配写作模型,先去配一把钥匙 →", {
+      description: "去「大模型配置」粘贴 Key 并启用服务,编辑部才会接活。",
+      action: { label: "去配置", onClick: () => router.push("/llm") },
+    })
+  }, [router])
   // 新建书向导:工作台直接打开,不再跳 /books
   const [newBookOpen, setNewBookOpen] = React.useState(false)
+  const [seenTheatre, setSeenTheatre] = React.useState(true)
+  React.useEffect(() => {
+    try {
+      setSeenTheatre(localStorage.getItem("cj.seenTheatre") === "1")
+    } catch {
+      setSeenTheatre(false)
+    }
+  }, [])
+  const dismissTheatreHint = React.useCallback(() => {
+    try { localStorage.setItem("cj.seenTheatre", "1") } catch { /* ignore */ }
+    setSeenTheatre(true)
+  }, [])
   // 深链 /?new=1:从任意页(⌘K「新建一本书」/ 书架「新建一本」)一键直达并自动开建书弹窗,
   // 省掉"跳到工作台后还得再找一次新建一本"的第二下点击。开后清掉 query,避免刷新/返回重复弹。
   React.useEffect(() => {
@@ -335,6 +356,10 @@ export default function CjDashboard() {
       })
       return
     }
+    if (!llmReady) {
+      showModelKeyHint()
+      return
+    }
     setBusy(true)
     try {
       // 关键修复:手动续写必须带上用户配置的过线分(targetQuality),否则后端默认 90、
@@ -429,6 +454,10 @@ export default function CjDashboard() {
     if (!bookId) return
     if (isRunning) {
       toast.info("正在写作中", { description: "等当前任务结束,或先停止再开始连续写。" })
+      return
+    }
+    if (!llmReady) {
+      showModelKeyHint()
       return
     }
     setBusy(true)
@@ -562,6 +591,7 @@ export default function CjDashboard() {
         stage: activeRun?.currentStage || liveStage,
       })
     : null
+  const showTheatreHint = isRunning && !seenTheatre
 
   // 长短期记忆卡已下沉到 /memory 专页;首页不再重复展示统计 + 片段。
   const milestones = plot?.milestones ?? []
@@ -748,6 +778,14 @@ export default function CjDashboard() {
                 </div>
                 <button
                   type="button"
+                  className="wm-tier-help"
+                  onClick={() => setVipOpen(true)}
+                  title="查看轻 / 中 / 重三档对应的会员权限"
+                >
+                  档位说明
+                </button>
+                <button
+                  type="button"
                   className={`ctrl primary${busy || preparing ? " is-loading" : ""}`}
                   onClick={() => openWorkflowConfirm("continue")}
                   disabled={busy || preparing || !bookId || isRunning}
@@ -781,6 +819,13 @@ export default function CjDashboard() {
                 <Link href="/editor" className="ctrl">展开编辑器</Link>
               </div>
             </div>
+
+            {showTheatreHint && (
+              <div className="wb-theatre-hint">
+                <PlatformHint type="theatre-guide" variant="quiet" />
+                <button type="button" className="wb-theatre-dismiss" onClick={dismissTheatreHint}>知道了</button>
+              </div>
+            )}
 
             <div className="writer-body cj-pane-scroll" ref={streamRef}>
               {live.active && live.text ? (

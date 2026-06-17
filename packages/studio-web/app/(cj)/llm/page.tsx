@@ -313,6 +313,7 @@ export default function LLMConfigPage() {
               接入任意 OpenAI 兼容大模型。选服务商 → 只填一个 API Key → 一键测试连通即可开始创作。
             </div>
             <PlatformHint type="local-llm" variant="info" />
+            <PlatformHint type="per-agent-model" variant="info" />
           </div>
         </div>
         <div className="llm-kpis" role="group" aria-label="模型接入概览">

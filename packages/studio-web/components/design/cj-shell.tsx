@@ -130,7 +130,7 @@ const NAV: NavGroup[] = [
     items: [
       { href: "/runs", label: "运行台", icon: PlayCircle, pixelKind: "runs" },
       { href: "/system", label: "系统与智能体", icon: Cpu, pixelKind: "system" },
-      { href: "/agents", label: "Agent 实验室", icon: FlaskConical, pixelKind: "agents" },
+      { href: "/agents", label: "编辑部成员", icon: FlaskConical, pixelKind: "agents" },
       { href: "/capabilities", label: "能力台", icon: Boxes, pixelKind: "capabilities" },
     ],
   },
@@ -396,7 +396,8 @@ function CjSidebar() {
                 key={item.href}
                 href={item.href}
                 className={`nav-item${active ? " active" : ""}${item.pixelKind ? " pixel" : ""}`}
-                title={item.label}
+                title={item.href === "/agents" ? "编辑部成员 · 给每个编辑单独配模型" : item.label}
+                aria-label={item.href === "/agents" ? "编辑部成员,给每个编辑单独配模型" : item.label}
                 onMouseEnter={() => hoverPrefetch(item.href)}
                 onFocus={() => hoverPrefetch(item.href)}
               >
@@ -434,7 +435,7 @@ function CjSidebar() {
         )}
         <button
           type="button"
-          className={`sidebar-foot-btn${settingsActive ? " active" : ""}${settingsOpen ? " open" : ""}`}
+          className={`sidebar-foot-btn settings-foot-btn${settingsActive ? " active" : ""}${settingsOpen ? " open" : ""}`}
           onClick={() => setSettingsOpen((o) => !o)}
           aria-haspopup="menu"
           aria-expanded={settingsOpen}

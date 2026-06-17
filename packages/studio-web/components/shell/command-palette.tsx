@@ -52,7 +52,7 @@ const ROUTES: Route[] = [
   { href: "/consistency", label: "一致性扫描", keywords: "consistency yizhixing shangjia gate jiancha" },
   { href: "/runs", label: "运行台", pixelKind: "runs", keywords: "runs yunxing" },
   { href: "/system", label: "系统与智能体", pixelKind: "system", keywords: "system xitong agent" },
-  { href: "/agents", label: "Agent 实验室", pixelKind: "agents", keywords: "agents shiyanshi" },
+  { href: "/agents", label: "编辑部成员", pixelKind: "agents", keywords: "agents bianjibu chengyuan model 模型" },
   { href: "/capabilities", label: "能力台", pixelKind: "capabilities", keywords: "capabilities nengli" },
   { href: "/llm", label: "大模型配置", pixelKind: "llm", keywords: "llm model damoxing" },
   { href: "/preferences", label: "偏好设置", pixelKind: "preferences", keywords: "preferences pianhao settings" },

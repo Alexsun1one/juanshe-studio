@@ -99,6 +99,9 @@ export function FirstRunHero({ onCreate }: { onCreate: () => void }) {
             <span className="fr-step-body">
               <b>配置写作模型(BYOK)</b>
               <span>填你自己的模型 Key(DeepSeek / Kimi / 智谱…),仅存本地、不上传。</span>
+              <span className="fr-step-note">
+                进阶:可在<Link href="/agents">编辑部成员</Link>给每个角色单独换模型
+              </span>
             </span>
             {llmReady ? (
               <Link href="/llm" className="fr-step-cta done"><Check size={12} /> 已配置</Link>

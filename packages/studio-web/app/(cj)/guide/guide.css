@@ -248,6 +248,52 @@
   margin: 0;
 }
 
+.cj-guide .guide-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.cj-guide .guide-link-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "label icon"
+    "text icon";
+  align-items: center;
+  gap: 4px 10px;
+  padding: 13px 15px;
+  border-radius: var(--r-lg);
+  border: 1px solid color-mix(in srgb, var(--brand-500) 22%, transparent);
+  background: color-mix(in srgb, var(--brand-500) 7%, var(--bg-card));
+  color: var(--ink-700);
+  text-decoration: none;
+  transition: background 160ms var(--ease-soft, ease-out), border-color 160ms, transform 160ms var(--ease-soft, ease-out);
+}
+.cj-guide .guide-link-card:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--brand-500) 11%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--brand-500) 34%, transparent);
+}
+.cj-guide .guide-link-card:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-guide .guide-link-label {
+  grid-area: label;
+  font-family: var(--font-pixel-ui);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-600);
+}
+.cj-guide .guide-link-text {
+  grid-area: text;
+  font-family: var(--font-serif-prose);
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--ink-600);
+}
+.cj-guide .guide-link-card svg {
+  grid-area: icon;
+  color: var(--brand-500);
+}
+
 /* Callout —— brand=品牌紫,warm=暖橙(注意/提示),都不冷 */
 .cj-guide .guide-callout {
   border-radius: var(--r-lg);
@@ -421,6 +467,7 @@
   .cj-guide .guide-toc-item.active .guide-toc-label { display: inline; }
   .cj-guide .guide-toc-cta { margin: 0; flex: 0 0 auto; }
   .cj-guide .guide-ex-pair { grid-template-columns: minmax(0, 1fr); }
+  .cj-guide .guide-links { grid-template-columns: minmax(0, 1fr); }
   .cj-guide .guide-point { grid-template-columns: minmax(0, 1fr); gap: 4px; }
 }
 
