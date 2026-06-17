@@ -717,9 +717,10 @@ describe("PipelineRunner", () => {
     const reviewMock = vi.mocked(FoundationReviewerAgent.prototype.review);
 
     reviewMock.mockReset();
+    // 地基崩坏(总分 45 < 可写地板 60)→ 跑满 5 轮仍硬阻塞。可写地板内的低分改为降级放行(见下一条测试)。
     reviewMock.mockResolvedValue({
       passed: false,
-      totalScore: 72,
+      totalScore: 45,
       dimensions: [],
       overallFeedback: "仍未达到可开写标准。",
     });
@@ -745,6 +746,64 @@ describe("PipelineRunner", () => {
       expect(reviewMock).toHaveBeenCalledTimes(5);
       expect(generate.mock.calls[1]?.[0]).toContain("仍未达到可开写标准");
       expect(generate.mock.calls[4]?.[0]).toContain("仍未达到可开写标准");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("degrades to accepting a writable-but-imperfect foundation after retries instead of blocking", async () => {
+    const { root, runner, bookId } = await createRunnerFixture({
+      foundationReviewRetries: 2,
+    } as Partial<ConstructorParameters<typeof PipelineRunner>[0]>);
+    const reviewer = new FoundationReviewerAgent({
+      client: {
+        provider: "openai",
+        apiFormat: "chat",
+        stream: false,
+        defaults: { temperature: 0.7, thinkingBudget: 0 },
+      } as ConstructorParameters<typeof PipelineRunner>[0]["client"],
+      model: "test-model",
+      projectRoot: root,
+      bookId,
+    });
+    const foundation = {
+      storyBible: "# Story Bible",
+      volumeOutline: "# Volume Outline",
+      bookRules: "---\nversion: \"1.0\"\n---\n\n# Book Rules",
+      currentState: "# Current State",
+      pendingHooks: "# Pending Hooks",
+    };
+    const generate = vi.fn(async (_reviewFeedback?: string) => foundation);
+    const reviewMock = vi.mocked(FoundationReviewerAgent.prototype.review);
+    reviewMock.mockReset();
+    // 总分 72 ≥ 可写地板 60、但未达优秀线 → 跑满重试后带建议放行开写,而不是把整本书堵死。
+    reviewMock.mockResolvedValue({
+      passed: false,
+      totalScore: 72,
+      dimensions: [],
+      overallFeedback: "可写,但还能更紧。",
+    });
+
+    try {
+      const result = await (runner as unknown as {
+        generateAndReviewFoundation: (params: {
+          readonly generate: (reviewFeedback?: string) => Promise<typeof foundation>;
+          readonly reviewer: FoundationReviewerAgent;
+          readonly mode: "original";
+          readonly language: "zh";
+          readonly stageLanguage: "zh";
+        }) => Promise<typeof foundation>;
+      }).generateAndReviewFoundation({
+        generate,
+        reviewer,
+        mode: "original",
+        language: "zh",
+        stageLanguage: "zh",
+      });
+
+      expect(result).toEqual(foundation);
+      expect(generate).toHaveBeenCalledTimes(3); // 初次 + 2 轮重试,然后降级放行
+      expect(reviewMock).toHaveBeenCalledTimes(3);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

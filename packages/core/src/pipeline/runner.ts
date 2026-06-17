@@ -362,6 +362,18 @@ export class PipelineRunner {
     );
     if (!finalReview.passed) {
       const feedback = this.buildFoundationReviewFeedback(finalReview, params.language);
+      // 跑满 maxRetries+1 轮后:只要地基"可写"(总分达可写地板 60)就带改进建议放行开写,
+      // 让用户能开始、之后在路线图随时补强;唯有地基崩坏(<60)才硬阻塞。
+      // 守项目铁律:质量门是"生成侧给方向",事后别用一条硬线把整本书堵死——旧逻辑在 80 优秀线
+      // 硬 throw,导致 65-79 分的完全可写地基被全盘卡死 = 大量用户"地基修改失败"。
+      const FOUNDATION_WRITABLE_FLOOR = 60;
+      if (finalReview.totalScore >= FOUNDATION_WRITABLE_FLOOR) {
+        this.logWarn(params.stageLanguage, {
+          zh: `基础设定 ${finalReview.totalScore} 分(未达优秀线),已带改进建议放行开写——可在路线图随时补强地基。`,
+          en: `Foundation accepted at ${finalReview.totalScore}/100 (below the excellence bar) with suggestions; you can strengthen it later.`,
+        });
+        return foundation;
+      }
       this.logWarn(params.stageLanguage, {
         zh: `基础设定最终未通过审核（${finalReview.totalScore}分），已阻止进入写章。`,
         en: `Foundation final review failed (${finalReview.totalScore}/100); writing is blocked.`,
