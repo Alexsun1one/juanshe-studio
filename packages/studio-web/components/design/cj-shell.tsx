@@ -7,6 +7,7 @@ import { PixelBadge } from "./pixel-badge"
 import { CjLogo } from "./cj-logo"
 import { useTheme } from "next-themes"
 import { useAuthorName, setAuthorName } from "@/lib/use-author-name"
+import { setTierCache, useTier } from "@/lib/use-tier"
 import {
   Activity,
   BookOpenText,
@@ -294,7 +295,11 @@ function CjSidebar() {
     let cancelled = false
     fetch("/api/v1/auth/me", { cache: "no-store" })
       .then((r) => r.json())
-      .then((me) => { if (!cancelled) setIsAdmin(Boolean(me?.saas) && me?.user?.role === "admin") })
+      .then((me) => {
+        if (cancelled) return
+        setIsAdmin(Boolean(me?.saas) && me?.user?.role === "admin")
+        if (typeof me?.user?.tier === "string") setTierCache(me.user.tier)
+      })
       .catch(() => { /* 不可达时保持隐藏,绝不误显管理入口 */ })
     return () => { cancelled = true }
   }, [])
@@ -479,11 +484,11 @@ function CjSidebar() {
 function CjTopbar() {
   const { theme, resolvedTheme, setTheme } = useTheme()
   const authorName = useAuthorName()
+  const tier = useTier()
   const router = useRouter()
   const { collapsed, toggle } = React.useContext(CollapseCtx)
   const { books, bookId, setBookId } = useWorkspace()
   const [mounted, setMounted] = React.useState(false)
-  const [tier, setTier] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [bookMenu, setBookMenu] = React.useState(false)
   const [userMenu, setUserMenu] = React.useState(false)
@@ -506,7 +511,6 @@ function CjTopbar() {
   React.useEffect(() => {
     setMounted(true)
     try {
-      setTier(localStorage.getItem("cj.tier") || "")
       setEmail(localStorage.getItem("cj.email") || "")
     } catch { /* ignore */ }
   }, [])

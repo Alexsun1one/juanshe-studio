@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { backendUnavailable } from "@/lib/api/facade"
 import { jsonOK } from "@/lib/api/route-helpers"
-import { loadLLMProvider, updateLLMProvider } from "../providers-adapter"
+import { deleteLLMProvider, loadLLMProvider, updateLLMProvider } from "../providers-adapter"
 
 export async function GET(
   req: Request,
@@ -27,6 +27,24 @@ export async function PATCH(
   const { id } = await params
   try {
     return jsonOK(await updateLLMProvider(req, id))
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      { status: 502 },
+    )
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params
+  try {
+    return jsonOK(await deleteLLMProvider(req, id))
   } catch (error) {
     return NextResponse.json(
       {

@@ -143,6 +143,22 @@ export async function updateLLMProvider(
   return provider
 }
 
+export async function deleteLLMProvider(
+  req: Request,
+  id: string,
+): Promise<{ ok?: boolean; id?: string }> {
+  const { response, data } = await backendJSON(
+    `/api/v1/llm-providers/${encodeURIComponent(id)}`,
+    req,
+    { method: "DELETE" },
+  )
+  if (!response.ok) {
+    throw new Error(errorMessage(data, response.status))
+  }
+  const record = asRecord(data)
+  return { ok: record.ok === undefined ? true : Boolean(record.ok), id: text(record.id, id) }
+}
+
 export async function testLLMProvider(
   req: Request,
   id: string,

@@ -59,6 +59,7 @@ import { StreamingProse } from "@/components/workbench/streaming-prose"
 import { StreamFollowChip } from "@/components/workbench/stream-follow-chip"
 import { useStickToBottom } from "@/hooks/use-stick-to-bottom"
 import { VipUpgradeDialog } from "@/components/cj/vip-upgrade-dialog"
+import { useTier } from "@/lib/use-tier"
 import "./dashboard.css"
 
 const AGENT_STATE_LABEL: Record<string, string> = {
@@ -226,8 +227,7 @@ export default function CjDashboard() {
   // 续写/连写点击后 → run 真跑起来之间的"模型准备中"态,避免用户以为没反应而狂点
   const [preparing, setPreparing] = React.useState(false)
   // 写作强度档位(轻中重):默认 = 当前激活等级允许的最高档(normal→轻 / pro→中 / ultra→重);可往下选省 token
-  const [tier, setTier] = React.useState<"normal" | "pro" | "ultra">("normal")
-  React.useEffect(() => { try { const t = localStorage.getItem("cj.tier"); if (t === "pro" || t === "ultra") setTier(t) } catch { /* ignore */ } }, [])
+  const tier = useTier()
   const maxMode: "light" | "standard" | "max" = tier === "ultra" ? "max" : tier === "pro" ? "standard" : "light"
   const [writeMode, setWriteMode] = React.useState<"light" | "standard" | "max">("light")
   React.useEffect(() => { setWriteMode(maxMode) }, [maxMode])

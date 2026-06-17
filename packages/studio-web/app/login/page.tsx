@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { ArrowRight, KeyRound, PenLine, Sparkles, AlertCircle, Mail, Lock, CheckCircle2 } from "lucide-react"
 import { CjLogo } from "@/components/design/cj-logo"
 import { setAuthorName } from "@/lib/use-author-name"
+import { setTierCache } from "@/lib/use-tier"
 import "./login.css"
 
 // 每台浏览器/安装一个稳定设备标识(用于发卡方做软性防共享统计,不含任何隐私)
@@ -182,7 +183,7 @@ export default function LoginPage() {
       // 记下等级(Normal/Pro/Ultra)与邮箱,供全站显示/按等级解锁
       try {
         const tier = data?.activation?.tier
-        if (tier) localStorage.setItem("cj.tier", String(tier))
+        if (tier) setTierCache(String(tier))
         if (email.trim()) localStorage.setItem("cj.email", email.trim())
       } catch { /* ignore */ }
       // 通过:写本地身份后进门
@@ -271,7 +272,7 @@ export default function LoginPage() {
       const tier = data?.activation?.tier ?? null
       if (tier) {
         setUpgradeTier(String(tier))
-        try { localStorage.setItem("cj.tier", String(tier)) } catch { /* ignore */ }
+        setTierCache(String(tier))
       }
       // P0-2:SaaS 模式下激活会给当前账号挂 tier + 按 tier 赠 credits。
       // 重新拉一次 /auth/me 取到账后的最新额度展示给用户。

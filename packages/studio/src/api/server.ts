@@ -15523,6 +15523,69 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ error: "not found" }, 404);
         return c.json(provider);
     });
+    app.delete("/api/v1/llm-providers/:id", async (c) => {
+        const id = c.req.param("id");
+        const secrets = await loadSecrets(tenantRootOr(root));
+        secrets.services = secrets.services ?? {};
+        if (secrets.services?.[id]) {
+            delete secrets.services[id];
+            await saveSecrets(tenantRootOr(root), secrets);
+        }
+        const config = await loadRawConfig(root);
+        config.llm = config.llm ?? {};
+        const llm = config.llm;
+        llm.services = normalizeServiceConfig(llm.services).filter((entry) => serviceConfigKey(entry) !== id);
+        const isDeletedActive = llm.service === id || (typeof llm.service === "string" && llm.service.startsWith(`${id}:`));
+        if (isDeletedActive) {
+            const fallbackEntry = normalizeServiceConfig(llm.services).find((entry) => {
+                const serviceId = serviceConfigKey(entry);
+                return Boolean(secrets.services?.[serviceId]?.apiKey);
+            });
+            if (fallbackEntry) {
+                const nextId = serviceConfigKey(fallbackEntry);
+                llm.service = nextId;
+                llm.provider = resolveServiceEntryProviderFamily(nextId, fallbackEntry) ?? llm.provider ?? "openai";
+                llm.api = resolveServiceEntryApi(nextId, fallbackEntry);
+                llm.apiFormat = resolveServiceEntryApiFormat(nextId, fallbackEntry, llm.apiFormat ?? "chat");
+                const resolvedBaseUrl = fallbackEntry?.baseUrl ?? resolveServicePreset(nextId)?.baseUrl;
+                if (resolvedBaseUrl)
+                    llm.baseUrl = resolvedBaseUrl;
+            }
+            else {
+                llm.service = "";
+            }
+        }
+        const stripAgentRouting = (obj) => {
+            if (obj && typeof obj === "object")
+                for (const key of ["model", "service", "serviceName", "baseUrl", "provider", "apiFormat"])
+                    delete obj[key];
+        };
+        const isDeletedRoute = (value) => {
+            const service = normalizeAgentService(value, "");
+            return service === id || service.startsWith(`${id}:`);
+        };
+        const mo = config.modelOverrides;
+        if (mo && typeof mo === "object") {
+            for (const [agent, value] of Object.entries(mo)) {
+                const svc = value && typeof value === "object" ? value.service : undefined;
+                if (svc && isDeletedRoute(svc)) {
+                    stripAgentRouting(value);
+                    if (!value || typeof value !== "object" || !value.model)
+                        delete mo[agent];
+                }
+            }
+        }
+        const ap = config.agentProfiles;
+        if (ap && typeof ap === "object") {
+            for (const value of Object.values(ap)) {
+                const svc = value && typeof value === "object" ? value.service : undefined;
+                if (svc && isDeletedRoute(svc))
+                    stripAgentRouting(value);
+            }
+        }
+        await saveRawConfig(root, config);
+        return c.json({ ok: true, id });
+    });
     app.get("/api/v1/services/:service/models", async (c) => {
         const service = c.req.param("service");
         const refresh = c.req.query("refresh") === "1";

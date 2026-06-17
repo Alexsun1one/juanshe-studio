@@ -9,6 +9,7 @@ import {
   Boxes,
   Brain,
   CheckCircle2,
+  Check,
   CircleHelp,
   Cpu,
   Eye,
@@ -25,7 +26,9 @@ import {
   ServerCog,
   Settings2,
   Sparkles,
+  Trash2,
   Waypoints,
+  X,
   XCircle,
   Zap,
 } from "lucide-react"
@@ -41,6 +44,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import {
   createLLMProvider,
+  deleteLLMProvider,
   fetchLLMProviders,
   testLLMProvider,
   updateLLMProvider,
@@ -142,6 +146,9 @@ export default function LLMConfigPage() {
   const [saving, setSaving] = React.useState(false)
   const [confirmAction, setConfirmAction] = React.useState<LLMConfirmAction | null>(null)
   const [confirmBusy, setConfirmBusy] = React.useState(false)
+  const [editingKeyId, setEditingKeyId] = React.useState<string | null>(null)
+  const [keyDraft, setKeyDraft] = React.useState("")
+  const [savingKey, setSavingKey] = React.useState<Record<string, boolean>>({})
 
   const list = providers ?? []
   const configured = list.filter((p) => p.hasKey).length
@@ -231,6 +238,57 @@ export default function LLMConfigPage() {
       detail: `${p.name} · ${p.selectedModel ?? "未设置"} → ${selectedModel}`,
       confirmLabel: "确认切换",
       run: () => executeChangeModel(p, selectedModel),
+    })
+  }
+
+  const startEditKey = (p: LLMProvider) => {
+    setEditingKeyId(p.id)
+    setKeyDraft("")
+  }
+
+  const cancelEditKey = () => {
+    setEditingKeyId(null)
+    setKeyDraft("")
+  }
+
+  const executeSaveKey = async (p: LLMProvider) => {
+    const nextKey = keyDraft.trim()
+    if (!nextKey) {
+      toast.error("请粘贴 API Key")
+      return
+    }
+    setSavingKey((s) => ({ ...s, [p.id]: true }))
+    try {
+      await updateLLMProvider(p.id, { apiKey: nextKey })
+      toast.success("Key 已更新")
+      setEditingKeyId(null)
+      setKeyDraft("")
+      await mutate()
+    } catch (e) {
+      toast.error("Key 更新失败", { description: describeConnError(e instanceof Error ? e.message : String(e)) })
+    } finally {
+      setSavingKey((s) => ({ ...s, [p.id]: false }))
+    }
+  }
+
+  const executeDelete = async (p: LLMProvider) => {
+    try {
+      await deleteLLMProvider(p.id)
+      toast.success(`已删除 ${p.name}`)
+      if (editingKeyId === p.id) cancelEditKey()
+      await mutate()
+    } catch (e) {
+      toast.error("删除失败", { description: e instanceof Error ? e.message : String(e) })
+    }
+  }
+
+  const requestDelete = (p: LLMProvider) => {
+    setConfirmAction({
+      title: "删除这个模型服务？",
+      description: "删除后这个服务的配置和已保存的 Key 都会被移除,写作不再使用它。",
+      detail: `${p.name} · ${p.selectedModel ?? p.models[0] ?? "未选择模型"}`,
+      confirmLabel: "确认删除",
+      run: () => executeDelete(p),
     })
   }
 
@@ -389,6 +447,7 @@ export default function LLMConfigPage() {
                   const tested = res ?? (typeof p.lastTestOk === "boolean" ? { ok: p.lastTestOk, latencyMs: 0 } : undefined)
                   const status = connStatus(p, tested)
                   const Icon = providerIcon(p)
+                  const editingKey = editingKeyId === p.id
                   return (
                     <div className="llm-prov" key={p.id} data-state={status.tone}>
                       <span className="llm-prov-logo" aria-hidden>
@@ -433,6 +492,40 @@ export default function LLMConfigPage() {
                             </span>
                           )}
                         </div>
+                        {editingKey && (
+                          <div className="llm-key-edit">
+                            <KeyRound size={13} className="llm-key-edit-ic" aria-hidden />
+                            <input
+                              type="password"
+                              value={keyDraft}
+                              onChange={(e) => setKeyDraft(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") { e.preventDefault(); void executeSaveKey(p) }
+                                else if (e.key === "Escape") { e.preventDefault(); cancelEditKey() }
+                              }}
+                              placeholder="粘贴新的 API Key"
+                              autoComplete="off"
+                              autoFocus
+                              aria-label={`${p.name} API Key`}
+                            />
+                            <button
+                              type="button"
+                              className={`btn sm primary${savingKey[p.id] ? " is-loading" : ""}`}
+                              onClick={() => executeSaveKey(p)}
+                              disabled={savingKey[p.id]}
+                            >
+                              <Check size={12} /> 保存
+                            </button>
+                            <button
+                              type="button"
+                              className="btn sm ghost"
+                              onClick={cancelEditKey}
+                              disabled={savingKey[p.id]}
+                            >
+                              <X size={12} /> 取消
+                            </button>
+                          </div>
+                        )}
                       </div>
                       <div className="llm-prov-actions">
                         <button
@@ -444,6 +537,15 @@ export default function LLMConfigPage() {
                           title={p.enabled ? "已启用 · 点击停用" : "已停用 · 点击启用"}
                           aria-label={`${p.name}${p.enabled ? "已启用" : "已停用"}`}
                         />
+                        {!editingKey && (
+                          <button
+                            type="button"
+                            className="btn sm"
+                            onClick={() => startEditKey(p)}
+                          >
+                            <KeyRound size={12} /> {p.hasKey ? "更换 Key" : "配置 Key"}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className={`btn sm${testing[p.id] ? " is-loading" : ""}`}
@@ -452,6 +554,13 @@ export default function LLMConfigPage() {
                         >
                           {/* .btn.is-loading 自带居中转圈并淡化子元素,这里只保留静态图标,避免双重转圈 */}
                           <Zap size={12} /> 测试
+                        </button>
+                        <button
+                          type="button"
+                          className="btn sm danger"
+                          onClick={() => requestDelete(p)}
+                        >
+                          <Trash2 size={12} /> 删除
                         </button>
                       </div>
                     </div>
@@ -626,7 +735,7 @@ export default function LLMConfigPage() {
                   {confirmAction.detail}
                 </span>
               ) : null}
-              <span>确认前不会保存配置、切换模型或发起连通测试。</span>
+              <span>确认前不会执行任何配置改动。</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

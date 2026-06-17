@@ -279,6 +279,28 @@
   gap: 9px;
 }
 
+.cj-llm .llm-key-edit {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 9px;
+  animation: cj-fade-in var(--motion-base) var(--ease-out-cj, ease);
+}
+.cj-llm .llm-key-edit-ic {
+  flex: 0 0 auto;
+  color: var(--ink-400);
+}
+.cj-llm .llm-key-edit input {
+  width: min(320px, 100%);
+  height: 30px;
+  font-family: var(--font-sans-cj, var(--font-sans-ui));
+  font-size: 12px;
+}
+.cj-llm .llm-key-edit .btn {
+  height: 30px;
+}
+
 /* 启用开关 */
 .cj-llm .llm-switch {
   width: 34px;

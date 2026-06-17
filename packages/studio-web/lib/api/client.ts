@@ -995,6 +995,9 @@ export function updateLLMProvider(
 ): Promise<LLMProvider> {
   return patchJSON<LLMProvider>(ENDPOINTS.llmProvider(id), patch)
 }
+export function deleteLLMProvider(id: string): Promise<{ ok?: boolean; id?: string }> {
+  return postJSON(ENDPOINTS.llmProvider(id), undefined, { method: "DELETE" })
+}
 export function createLLMProvider(
   input: LLMProviderCreateInput,
 ): Promise<LLMProvider> {
