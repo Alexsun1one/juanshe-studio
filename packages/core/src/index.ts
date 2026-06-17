@@ -270,6 +270,7 @@ export {
   SERVICE_PRESETS,
   SERVICE_TO_PI_PROVIDER,
   normalizeServiceApi,
+  normalizeServiceBaseUrl,
   normalizeServiceProviderFamily,
   providerFamilyForServiceApi,
   resolveCustomServiceApi,

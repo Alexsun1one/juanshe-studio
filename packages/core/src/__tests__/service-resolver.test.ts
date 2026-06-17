@@ -227,7 +227,7 @@ describe("resolveServiceModel", () => {
     expect(result.model.id).toBe("claude-sonnet-4-6");
     expect(result.model.api).toBe("anthropic-messages");
     expect(result.model.provider).toBe("anthropic");
-    expect(result.model.baseUrl).toBe("https://relay.example.com/v1/messages");
+    expect(result.model.baseUrl).toBe("https://relay.example.com/v1");
   });
 
   it("resolves MiniMax using the preset provider family and anthropic endpoint", async () => {

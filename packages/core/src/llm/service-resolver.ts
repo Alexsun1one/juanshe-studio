@@ -2,6 +2,7 @@ import { getModel } from "@mariozechner/pi-ai";
 import type { Model, Api } from "@mariozechner/pi-ai";
 import {
   normalizeServiceApi,
+  normalizeServiceBaseUrl,
   providerFamilyForServiceApi,
   resolveCustomServiceApi,
   resolveServicePiProvider,
@@ -60,7 +61,7 @@ export async function resolveServiceModel(
     : isCustomService
       ? providerFamilyForServiceApi(apiType) ?? "openai"
       : resolveServicePiProvider(baseService) ?? "openai";
-  const configuredBaseUrl = customBaseUrl ?? preset?.baseUrl ?? "";
+  const configuredBaseUrl = normalizeServiceBaseUrl(customBaseUrl ?? preset?.baseUrl ?? "");
   // 端点内置的模型元数据（真实上下文窗口 / 最大输出），用于补全 pi-ai registry 缺失的值
   const endpointModel = endpoint?.models.find(
     (model) => model.id === modelId || model.deploymentName === modelId,

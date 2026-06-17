@@ -5,6 +5,7 @@ import { loadSecrets } from "../llm/secrets.js";
 import { getEndpoint } from "../llm/providers/index.js";
 import {
   guessServiceFromBaseUrl,
+  normalizeServiceBaseUrl,
   normalizeServiceApi,
   normalizeServiceProviderFamily,
   resolveCustomServiceApi,
@@ -191,11 +192,19 @@ async function applyProjectServiceConfig(
   },
 ): Promise<void> {
   llm.configSource = "studio";
-  const selectedEntry = selectServiceEntry(services, options.requestedService ?? llm.service)
+  let selectedEntry = selectServiceEntry(services, options.requestedService ?? llm.service)
     ?? synthesizeServiceEntry(options.requestedService ?? llm.service);
+  const fallbackEntry = options.requestedService
+    ? undefined
+    : await findKeyedFallbackServiceEntry(projectRoot, services, selectedEntry, llm.service);
+  const fallbackServiceKey = fallbackEntry ? serviceEntryKey(fallbackEntry) : undefined;
+  if (fallbackEntry) {
+    selectedEntry = fallbackEntry;
+  }
 
   if (selectedEntry) {
     applyServiceEntry(llm, selectedEntry);
+    if (fallbackServiceKey) llm.service = fallbackServiceKey;
     diagnostics.serviceSource = options.requestedService ? diagnostics.serviceSource : "project";
   }
 
@@ -334,7 +343,7 @@ function applyServiceEntry(llm: Record<string, unknown>, entry: ServiceConfigEnt
   const transportDefaults = endpoint?.transportDefaults;
   llm.service = entry.service;
   llm.provider = deriveProviderFromServiceEntry(entry);
-  llm.baseUrl = entry.baseUrl ?? resolveServicePreset(entry.service)?.baseUrl ?? "";
+  llm.baseUrl = normalizeServiceBaseUrl(entry.baseUrl ?? resolveServicePreset(entry.service)?.baseUrl ?? "");
   llm.api = entry.service === "custom" ? resolveCustomServiceApi(entry) : resolveServicePreset(entry.service)?.api;
 
   if (entry.temperature !== undefined) llm.temperature = entry.temperature;
@@ -374,6 +383,25 @@ async function getStudioServiceApiKey(projectRoot: string, serviceKey: string): 
   return secrets.services[serviceKey]?.apiKey ?? "";
 }
 
+async function findKeyedFallbackServiceEntry(
+  projectRoot: string,
+  services: readonly ServiceConfigEntry[],
+  selectedEntry: ServiceConfigEntry | undefined,
+  configuredService: unknown,
+): Promise<ServiceConfigEntry | undefined> {
+  const shouldFallback = !stringValue(configuredService)
+    || !selectedEntry
+    || !(await getStudioServiceApiKey(projectRoot, serviceEntryKey(selectedEntry)));
+  if (!shouldFallback) return undefined;
+
+  for (const entry of services) {
+    if (await getStudioServiceApiKey(projectRoot, serviceEntryKey(entry))) {
+      return entry;
+    }
+  }
+  return undefined;
+}
+
 function normalizeServiceEntries(raw: unknown): ServiceConfigEntry[] {
   if (Array.isArray(raw)) {
     return raw
@@ -381,7 +409,7 @@ function normalizeServiceEntries(raw: unknown): ServiceConfigEntry[] {
       .map((entry) => ({
         service: typeof entry.service === "string" && entry.service.length > 0 ? entry.service : "custom",
         ...(typeof entry.name === "string" && entry.name.length > 0 ? { name: entry.name } : {}),
-        ...(typeof entry.baseUrl === "string" && entry.baseUrl.length > 0 ? { baseUrl: entry.baseUrl } : {}),
+        ...(normalizedBaseUrl(entry.baseUrl) ? { baseUrl: normalizedBaseUrl(entry.baseUrl) } : {}),
         ...(normalizeServiceProviderFamily(entry.providerFamily) ? { providerFamily: normalizeServiceProviderFamily(entry.providerFamily) } : {}),
         ...(normalizeServiceApi(entry.api) ? { api: normalizeServiceApi(entry.api) } : {}),
         ...(typeof entry.temperature === "number" ? { temperature: entry.temperature } : {}),
@@ -405,7 +433,7 @@ function normalizeServiceEntryFromPatch(serviceId: string, value: Record<string,
     return {
       service: "custom",
       name: decodeURIComponent(serviceId.slice("custom:".length)),
-      ...(typeof value.baseUrl === "string" && value.baseUrl.length > 0 ? { baseUrl: value.baseUrl } : {}),
+      ...(normalizedBaseUrl(value.baseUrl) ? { baseUrl: normalizedBaseUrl(value.baseUrl) } : {}),
       ...(normalizeServiceProviderFamily(value.providerFamily) ? { providerFamily: normalizeServiceProviderFamily(value.providerFamily) } : {}),
       ...(normalizeServiceApi(value.api) ? { api: normalizeServiceApi(value.api) } : {}),
       ...(typeof value.temperature === "number" ? { temperature: value.temperature } : {}),
@@ -419,7 +447,7 @@ function normalizeServiceEntryFromPatch(serviceId: string, value: Record<string,
     return {
       service: "custom",
       ...(typeof value.name === "string" && value.name.length > 0 ? { name: value.name } : {}),
-      ...(typeof value.baseUrl === "string" && value.baseUrl.length > 0 ? { baseUrl: value.baseUrl } : {}),
+      ...(normalizedBaseUrl(value.baseUrl) ? { baseUrl: normalizedBaseUrl(value.baseUrl) } : {}),
       ...(normalizeServiceProviderFamily(value.providerFamily) ? { providerFamily: normalizeServiceProviderFamily(value.providerFamily) } : {}),
       ...(normalizeServiceApi(value.api) ? { api: normalizeServiceApi(value.api) } : {}),
       ...(typeof value.temperature === "number" ? { temperature: value.temperature } : {}),
@@ -458,6 +486,11 @@ function synthesizeServiceEntry(service: unknown): ServiceConfigEntry | undefine
     return { service };
   }
   return undefined;
+}
+
+function normalizedBaseUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length === 0) return undefined;
+  return normalizeServiceBaseUrl(value) || undefined;
 }
 
 function resolveServiceModel(

@@ -4,7 +4,7 @@ import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { serve } from "@hono/node-server";
 import archiver from "archiver";
-import { StateManager, PipelineRunner, ConsolidatorAgent, MemoryDB, createLLMClient, createLogger, createInteractionToolsFromDeps, computeAnalytics, loadProjectConfig, loadProjectSession, processProjectInteractionRequest, resolveSessionActiveBook, listBookSessions, loadBookSession, appendManualSessionMessages, createAndPersistBookSession, renameBookSession, deleteBookSession, migrateBookSession, SessionAlreadyMigratedError, runAgentSession, buildAgentSystemPrompt, normalizeServiceApi, normalizeServiceProviderFamily, providerFamilyForServiceApi, resolveCustomServiceApi, resolveCustomServiceProviderFamily, resolveServicePreset, resolveServiceProviderFamily, resolveServiceModelsBaseUrl, resolveServiceModel, serviceApiToApiFormat, loadSecrets, saveSecrets, listModelsForService, isApiKeyOptionalForEndpoint, getAllEndpoints, probeModelsFromUpstream, fetchWithProxy, chatCompletion, buildExportArtifact, GLOBAL_ENV_PATH, markdownToContentDocument, renderForPlatform, getContentTypeProfile, assembleContentType, buildWritingSystemPrompt, mountSkills, buildCriticSystemPrompt, buildReviserSystemPrompt, parseCritiqueReport, critiqueWantsRevision, critiquePasses, buildResearchQueries, buildResearchContext, emptyAccountStyle, evolveStyleProfile, buildAccountVoicePrompt, parseCharacterMatrix, parseRoleFile, parseEmotionalArcs, groupArcsByCharacter, tensionByChapter, parsePendingHooks, parseSubplotBoard, hooksByStartChapter, parseVolumeMap, parseChapterSummaries, appearanceCounts, parseStoryFrame, buildGovernanceRecommendation, analyzeStyle, EDITOR_IN_CHIEF_SYSTEM_PROMPT, buildEditorInChiefUserMessage, parseEditorialVerdict, listWechatTemplates, DEFAULT_WECHAT_TEMPLATE, analyzeAITells, aiToneScore, DEFAULT_AI_TONE_FLOOR, } from "@juanshe/core";
+import { StateManager, PipelineRunner, ConsolidatorAgent, MemoryDB, createLLMClient, createLogger, createInteractionToolsFromDeps, computeAnalytics, loadProjectConfig, loadProjectSession, processProjectInteractionRequest, resolveSessionActiveBook, listBookSessions, loadBookSession, appendManualSessionMessages, createAndPersistBookSession, renameBookSession, deleteBookSession, migrateBookSession, SessionAlreadyMigratedError, runAgentSession, buildAgentSystemPrompt, normalizeServiceApi, normalizeServiceBaseUrl, normalizeServiceProviderFamily, providerFamilyForServiceApi, resolveCustomServiceApi, resolveCustomServiceProviderFamily, resolveServicePreset, resolveServiceProviderFamily, resolveServiceModelsBaseUrl, resolveServiceModel, serviceApiToApiFormat, loadSecrets, saveSecrets, listModelsForService, isApiKeyOptionalForEndpoint, getAllEndpoints, probeModelsFromUpstream, fetchWithProxy, chatCompletion, buildExportArtifact, GLOBAL_ENV_PATH, markdownToContentDocument, renderForPlatform, getContentTypeProfile, assembleContentType, buildWritingSystemPrompt, mountSkills, buildCriticSystemPrompt, buildReviserSystemPrompt, parseCritiqueReport, critiqueWantsRevision, critiquePasses, buildResearchQueries, buildResearchContext, emptyAccountStyle, evolveStyleProfile, buildAccountVoicePrompt, parseCharacterMatrix, parseRoleFile, parseEmotionalArcs, groupArcsByCharacter, tensionByChapter, parsePendingHooks, parseSubplotBoard, hooksByStartChapter, parseVolumeMap, parseChapterSummaries, appearanceCounts, parseStoryFrame, buildGovernanceRecommendation, analyzeStyle, EDITOR_IN_CHIEF_SYSTEM_PROMPT, buildEditorInChiefUserMessage, parseEditorialVerdict, listWechatTemplates, DEFAULT_WECHAT_TEMPLATE, analyzeAITells, aiToneScore, DEFAULT_AI_TONE_FLOOR, } from "@juanshe/core";
 import { access, appendFile, chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createHash, createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
@@ -8187,12 +8187,17 @@ function resolveServiceEntryApiFormat(serviceId, entry, fallback = "chat") {
         return serviceApiToApiFormat(explicitApi);
     return entry?.apiFormat ?? serviceApiToApiFormat(resolveServiceEntryApi(serviceId, entry)) ?? fallback;
 }
+function normalizedServiceBaseUrl(value) {
+    if (typeof value !== "string" || value.length === 0)
+        return undefined;
+    return normalizeServiceBaseUrl(value) || undefined;
+}
 function normalizeServiceEntry(serviceId, value) {
     if (serviceId.startsWith("custom:")) {
         return {
             service: "custom",
             name: decodeURIComponent(serviceId.slice("custom:".length)),
-            ...(typeof value.baseUrl === "string" && value.baseUrl.length > 0 ? { baseUrl: value.baseUrl } : {}),
+            ...(normalizedServiceBaseUrl(value.baseUrl) ? { baseUrl: normalizedServiceBaseUrl(value.baseUrl) } : {}),
             ...(typeof value.model === "string" && value.model.length > 0 ? { model: value.model } : {}),
             ...(normalizeServiceProviderFamily(value.providerFamily) ? { providerFamily: normalizeServiceProviderFamily(value.providerFamily) } : {}),
             ...(normalizeServiceApi(value.api) ? { api: normalizeServiceApi(value.api) } : {}),
@@ -8205,7 +8210,7 @@ function normalizeServiceEntry(serviceId, value) {
         return {
             service: "custom",
             ...(typeof value.name === "string" && value.name.length > 0 ? { name: value.name } : {}),
-            ...(typeof value.baseUrl === "string" && value.baseUrl.length > 0 ? { baseUrl: value.baseUrl } : {}),
+            ...(normalizedServiceBaseUrl(value.baseUrl) ? { baseUrl: normalizedServiceBaseUrl(value.baseUrl) } : {}),
             ...(typeof value.model === "string" && value.model.length > 0 ? { model: value.model } : {}),
             ...(normalizeServiceProviderFamily(value.providerFamily) ? { providerFamily: normalizeServiceProviderFamily(value.providerFamily) } : {}),
             ...(normalizeServiceApi(value.api) ? { api: normalizeServiceApi(value.api) } : {}),
@@ -8216,7 +8221,7 @@ function normalizeServiceEntry(serviceId, value) {
     }
     return {
         service: serviceId,
-        ...(typeof value.baseUrl === "string" && value.baseUrl.length > 0 ? { baseUrl: value.baseUrl } : {}),
+        ...(normalizedServiceBaseUrl(value.baseUrl) ? { baseUrl: normalizedServiceBaseUrl(value.baseUrl) } : {}),
         ...(typeof value.model === "string" && value.model.length > 0 ? { model: value.model } : {}),
         ...(typeof value.temperature === "number" ? { temperature: value.temperature } : {}),
         ...(value.apiFormat === "chat" || value.apiFormat === "responses" ? { apiFormat: value.apiFormat } : {}),
@@ -8233,7 +8238,7 @@ function normalizeServiceConfig(raw) {
             .map((entry) => ({
             service: typeof entry.service === "string" && entry.service.length > 0 ? entry.service : "custom",
             ...(typeof entry.name === "string" && entry.name.length > 0 ? { name: entry.name } : {}),
-            ...(typeof entry.baseUrl === "string" && entry.baseUrl.length > 0 ? { baseUrl: entry.baseUrl } : {}),
+            ...(normalizedServiceBaseUrl(entry.baseUrl) ? { baseUrl: normalizedServiceBaseUrl(entry.baseUrl) } : {}),
             ...(typeof entry.model === "string" && entry.model.length > 0 ? { model: entry.model } : {}),
             ...(normalizeServiceProviderFamily(entry.providerFamily) ? { providerFamily: normalizeServiceProviderFamily(entry.providerFamily) } : {}),
             ...(normalizeServiceApi(entry.api) ? { api: normalizeServiceApi(entry.api) } : {}),
@@ -8316,15 +8321,16 @@ async function readEnvConfigStatus(root) {
 }
 async function resolveConfiguredServiceBaseUrl(root, serviceId, inlineBaseUrl) {
     if (inlineBaseUrl?.trim())
-        return inlineBaseUrl.trim();
+        return normalizeServiceBaseUrl(inlineBaseUrl);
     if (!isCustomServiceId(serviceId)) {
-        return resolveServicePreset(serviceId)?.baseUrl;
+        const presetBaseUrl = resolveServicePreset(serviceId)?.baseUrl;
+        return presetBaseUrl ? normalizeServiceBaseUrl(presetBaseUrl) : presetBaseUrl;
     }
     try {
         const config = await loadRawConfig(root);
         const services = normalizeServiceConfig(config.llm?.services);
         const matched = services.find((entry) => serviceConfigKey(entry) === serviceId);
-        return matched?.baseUrl;
+        return matched?.baseUrl ? normalizeServiceBaseUrl(matched.baseUrl) : matched?.baseUrl;
     }
     catch {
         return undefined;
@@ -10722,7 +10728,7 @@ export function createStudioServer(initialConfig, root) {
         }
         const baseService = isCustomServiceId(serviceId) ? "custom" : serviceId;
         const preset = resolveServicePreset(baseService);
-        const baseUrl = rawLlm.baseUrl || serviceEntry?.baseUrl || await resolveConfiguredServiceBaseUrl(root, serviceId) || preset?.baseUrl || "";
+        const baseUrl = normalizeServiceBaseUrl(rawLlm.baseUrl || serviceEntry?.baseUrl || await resolveConfiguredServiceBaseUrl(root, serviceId) || preset?.baseUrl || "");
         const model = String(rawLlm.model || rawLlm.defaultModel || config.llm?.model || config.llm?.defaultModel || "").trim();
         const provider = rawLlm.provider || resolveServiceEntryProviderFamily(serviceId, serviceEntry) || config.llm?.provider || "openai";
         const apiKey = rawLlm.apiKey || secrets.services?.[serviceId]?.apiKey || (serviceId === config.llm?.service ? config.llm?.apiKey : "") || "";
@@ -15075,7 +15081,7 @@ export function createStudioServer(initialConfig, root) {
         if (body.service !== undefined) {
             llm.service = body.service;
             const entry = normalizeServiceConfig(llm.services).find((serviceEntry) => serviceConfigKey(serviceEntry) === body.service);
-            const resolvedBaseUrl = entry?.baseUrl ?? resolveServicePreset(body.service)?.baseUrl;
+            const resolvedBaseUrl = normalizeServiceBaseUrl(entry?.baseUrl ?? resolveServicePreset(body.service)?.baseUrl ?? "");
             if (resolvedBaseUrl) {
                 llm.baseUrl = resolvedBaseUrl;
             }
@@ -15311,7 +15317,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ error: "invalid body" }, 400);
         }
         const rawName = typeof body.name === "string" ? body.name.trim() : "";
-        const baseUrl = typeof body.baseUrl === "string" ? body.baseUrl.trim() : "";
+        const baseUrl = typeof body.baseUrl === "string" ? normalizeServiceBaseUrl(body.baseUrl) : "";
         const model = typeof body.model === "string"
             ? body.model.trim()
             : Array.isArray(body.models) && typeof body.models[0] === "string"
@@ -15450,7 +15456,7 @@ export function createStudioServer(initialConfig, root) {
         const llm = config.llm;
         const serviceUpdates: Record<string, unknown> = {};
         if (typeof body.baseUrl === "string")
-            serviceUpdates.baseUrl = body.baseUrl.trim();
+            serviceUpdates.baseUrl = normalizeServiceBaseUrl(body.baseUrl);
         if (normalizeServiceProviderFamily(body.providerFamily))
             serviceUpdates.providerFamily = normalizeServiceProviderFamily(body.providerFamily);
         if (normalizeServiceApi(body.api))
@@ -15482,7 +15488,7 @@ export function createStudioServer(initialConfig, root) {
             llm.provider = resolveServiceEntryProviderFamily(id, entry) ?? llm.provider ?? "openai";
             llm.api = resolveServiceEntryApi(id, entry);
             llm.apiFormat = resolveServiceEntryApiFormat(id, entry, llm.apiFormat ?? "chat");
-            const resolvedBaseUrl = entry?.baseUrl ?? resolveServicePreset(id)?.baseUrl;
+            const resolvedBaseUrl = normalizeServiceBaseUrl(entry?.baseUrl ?? resolveServicePreset(id)?.baseUrl ?? "");
             if (resolvedBaseUrl)
                 llm.baseUrl = resolvedBaseUrl;
             // provider 切换自愈:把指向"非新激活 service"的 per-agent 模型路由回收到全局,
@@ -15547,7 +15553,7 @@ export function createStudioServer(initialConfig, root) {
                 llm.provider = resolveServiceEntryProviderFamily(nextId, fallbackEntry) ?? llm.provider ?? "openai";
                 llm.api = resolveServiceEntryApi(nextId, fallbackEntry);
                 llm.apiFormat = resolveServiceEntryApiFormat(nextId, fallbackEntry, llm.apiFormat ?? "chat");
-                const resolvedBaseUrl = fallbackEntry?.baseUrl ?? resolveServicePreset(nextId)?.baseUrl;
+                const resolvedBaseUrl = normalizeServiceBaseUrl(fallbackEntry?.baseUrl ?? resolveServicePreset(nextId)?.baseUrl ?? "");
                 if (resolvedBaseUrl)
                     llm.baseUrl = resolvedBaseUrl;
             }
@@ -17460,7 +17466,7 @@ export function createStudioServer(initialConfig, root) {
             const serviceDraft = body?.serviceDraft && typeof body.serviceDraft === "object" ? body.serviceDraft : {};
             const draftService = normalizeAgentService(serviceDraft.service, currentConfig.llm?.service || currentConfig.llm?.provider || "");
             const draftModel = typeof serviceDraft.model === "string" ? serviceDraft.model.trim() : "";
-            const draftBaseUrl = typeof serviceDraft.baseUrl === "string" ? serviceDraft.baseUrl.trim() : "";
+            const draftBaseUrl = typeof serviceDraft.baseUrl === "string" ? normalizeServiceBaseUrl(serviceDraft.baseUrl) : "";
             if (draftService) {
                 currentConfig.llm = currentConfig.llm ?? {};
                 currentConfig.llm.service = draftService;

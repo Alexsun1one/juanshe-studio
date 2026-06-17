@@ -1,7 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { resolveServicePreset, listModelsForService } from "../llm/service-presets.js";
+import { normalizeServiceBaseUrl, resolveServicePreset, listModelsForService } from "../llm/service-presets.js";
 
 describe("service-presets regression", () => {
+  describe("normalizeServiceBaseUrl", () => {
+    it("strips terminal chat/messages endpoint suffixes without adding /v1", () => {
+      expect(normalizeServiceBaseUrl("https://relay.example.com/v1/chat/completions///")).toBe("https://relay.example.com/v1");
+      expect(normalizeServiceBaseUrl("https://relay.example.com/chat/completions")).toBe("https://relay.example.com");
+      expect(normalizeServiceBaseUrl("https://relay.example.com/v1/messages/")).toBe("https://relay.example.com/v1");
+      expect(normalizeServiceBaseUrl("https://relay.example.com/messages")).toBe("https://relay.example.com");
+      expect(normalizeServiceBaseUrl("https://relay.example.com/custom/path")).toBe("https://relay.example.com/custom/path");
+    });
+  });
+
   describe("Kimi Code preset", () => {
     it("uses Anthropic protocol on the Kimi Code coding endpoint", () => {
       const preset = resolveServicePreset("kimicode");

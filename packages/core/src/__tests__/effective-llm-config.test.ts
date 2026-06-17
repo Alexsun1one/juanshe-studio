@@ -57,6 +57,59 @@ describe("resolveEffectiveLLMConfig", () => {
     expect(result.diagnostics.warnings.join("\n")).toContain("旧顶层");
   });
 
+  it("Studio active 为空时回退到第一个已保存 key 的服务", async () => {
+    await writeProject({
+      configSource: "studio",
+      service: "",
+      services: [
+        { service: "google" },
+        {
+          service: "custom",
+          name: "Relay",
+          baseUrl: "https://relay.example.com/v1/chat/completions/",
+          providerFamily: "openai",
+        },
+      ],
+      defaultModel: "relay-writer",
+    });
+    await writeSecrets({ "custom:Relay": { apiKey: "sk-relay" } });
+
+    const result = await resolveEffectiveLLMConfig({
+      consumer: "studio",
+      projectRoot: root,
+      envLayers: { global: {}, project: {}, process: {} },
+      requireApiKey: true,
+    });
+
+    expect(result.llm.service).toBe("custom:Relay");
+    expect(result.llm.provider).toBe("openai");
+    expect(result.llm.baseUrl).toBe("https://relay.example.com/v1");
+    expect(result.llm.apiKey).toBe("sk-relay");
+    expect(result.diagnostics.serviceSource).toBe("project");
+    expect(result.diagnostics.apiKeySource).toBe("studio-secret");
+  });
+
+  it("Studio active 没有已保存 key 时回退到第一个有 key 的配置服务", async () => {
+    await writeProject({
+      configSource: "studio",
+      service: "google",
+      services: [{ service: "google" }, { service: "moonshot" }],
+      defaultModel: "kimi-k2.5",
+    });
+    await writeSecrets({ moonshot: { apiKey: "sk-moon" } });
+
+    const result = await resolveEffectiveLLMConfig({
+      consumer: "studio",
+      projectRoot: root,
+      envLayers: { global: {}, project: {}, process: {} },
+      requireApiKey: true,
+    });
+
+    expect(result.llm.service).toBe("moonshot");
+    expect(result.llm.baseUrl).toBe("https://api.moonshot.cn/v1");
+    expect(result.llm.apiKey).toBe("sk-moon");
+  });
+
   it("CLI consumer 允许 AUTOW_LLM_SERVICE 切换服务，并从 provider bank 推导 baseUrl", async () => {
     await writeProject({
       configSource: "studio",

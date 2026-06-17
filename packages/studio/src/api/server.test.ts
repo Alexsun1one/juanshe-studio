@@ -233,6 +233,7 @@ vi.mock("@juanshe/core", async (importOriginal) => {
     migrateBookSession: migrateBookSessionMock,
     SessionAlreadyMigratedError: MockSessionAlreadyMigratedError,
     normalizeServiceApi: actual.normalizeServiceApi,
+    normalizeServiceBaseUrl: actual.normalizeServiceBaseUrl,
     normalizeServiceProviderFamily: actual.normalizeServiceProviderFamily,
     providerFamilyForServiceApi: actual.providerFamilyForServiceApi,
     resolveCustomServiceApi: actual.resolveCustomServiceApi,
@@ -1086,7 +1087,7 @@ describe("createStudioServer daemon lifecycle", () => {
     expect(raw.llm.services).toContainEqual({
       service: "custom",
       name: "ClaudeRelay",
-      baseUrl: "https://relay.example.com/v1/messages",
+      baseUrl: "https://relay.example.com/v1",
       model: "claude-sonnet-4-6",
       providerFamily: "anthropic",
       api: "anthropic-messages",
@@ -1132,11 +1133,11 @@ describe("createStudioServer daemon lifecycle", () => {
     const raw = JSON.parse(await readFile(join(root, "hardwrite.json"), "utf-8"));
     expect(raw.llm.provider).toBe("anthropic");
     expect(raw.llm.api).toBe("anthropic-messages");
-    expect(raw.llm.baseUrl).toBe("https://relay.example.com/v1/messages");
+    expect(raw.llm.baseUrl).toBe("https://relay.example.com/v1");
     expect(raw.llm.services).toContainEqual({
       service: "custom",
       name: "ClaudeRelay",
-      baseUrl: "https://relay.example.com/v1/messages",
+      baseUrl: "https://relay.example.com/v1",
       model: "claude-sonnet-4-6",
       providerFamily: "anthropic",
       api: "anthropic-messages",

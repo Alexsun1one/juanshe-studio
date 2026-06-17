@@ -13,7 +13,7 @@ import type {
   TextContent as PiTextContent,
   ToolCall as PiToolCall,
 } from "@mariozechner/pi-ai";
-import { normalizeServiceApi, resolveCustomServiceApi, resolveCustomServiceProviderFamily, resolveServicePreset } from "./service-presets.js";
+import { normalizeServiceApi, normalizeServiceBaseUrl, resolveCustomServiceApi, resolveCustomServiceProviderFamily, resolveServicePreset } from "./service-presets.js";
 import { getEndpoint } from "./providers/index.js";
 import { lookupModel } from "./providers/lookup.js";
 import { fetchWithProxy } from "../utils/proxy-fetch.js";
@@ -193,7 +193,9 @@ export interface ChatWithToolsResult {
 
 export function createLLMClient(config: LLMConfig): LLMClient {
   // C1 (v2.0.0)：config.maxTokens / maxTokensCap 已删除；defaults.maxTokens 完全从 modelCard 推导。
-  const _earlyCard = lookupModel(config.service ?? "custom", config.model);
+  const rawServiceName = config.service ?? "custom";
+  const baseServiceName = rawServiceName.startsWith("custom:") ? "custom" : rawServiceName;
+  const _earlyCard = lookupModel(baseServiceName, config.model);
   const defaults = {
     temperature: config.temperature ?? 0.7,
     maxTokens: _earlyCard?.maxOutput ?? UNKNOWN_MODEL_FALLBACK_MAX_TOKENS,
@@ -205,19 +207,19 @@ export function createLLMClient(config: LLMConfig): LLMClient {
   const stream = config.stream ?? true;
 
   // --- Build pi-ai Model object ---
-  const serviceName = config.service ?? "custom";
-  const preset = resolveServicePreset(serviceName);
-  const hardWriteProvider = getEndpoint(serviceName);
-  const modelCard = lookupModel(serviceName, config.model);
+  const serviceName = rawServiceName;
+  const preset = resolveServicePreset(baseServiceName);
+  const hardWriteProvider = getEndpoint(baseServiceName);
+  const modelCard = lookupModel(baseServiceName, config.model);
 
   const piApi = resolvePiApi(
-    serviceName,
+    baseServiceName,
     config.apiFormat,
     (hardWriteProvider?.api ?? preset?.api) as PiApi,
     config.provider,
     config.api,
   ) as PiApi;
-  const baseUrl = config.baseUrl || hardWriteProvider?.baseUrl || preset?.baseUrl || "";
+  const baseUrl = normalizeServiceBaseUrl(config.baseUrl || hardWriteProvider?.baseUrl || preset?.baseUrl || "");
   const extraHeaders = config.headers ?? parseEnvHeaders();
   const compat = piApi === "openai-completions"
     ? resolveProviderCompat(hardWriteProvider, baseUrl)
@@ -732,7 +734,8 @@ async function withTransientLLMRetry<T>(
 }
 
 function shouldUseNativeCustomTransport(client: LLMClient): boolean {
-  if (client.service === "custom") {
+  const service = client.service ?? "";
+  if (service === "custom" || service.startsWith("custom:")) {
     if (
       client.configSource === "studio"
       && (client.provider === "openai" || client.provider === "anthropic")
@@ -984,8 +987,12 @@ function extractAnthropicContent(json: any): string {
 }
 
 function anthropicMessagesUrl(baseUrl: string): string {
-  const normalized = baseUrl.replace(/\/$/, "");
-  return normalized.endsWith("/messages") ? normalized : `${normalized}/messages`;
+  const normalized = normalizeServiceBaseUrl(baseUrl);
+  return `${normalized}/messages`;
+}
+
+function openAIChatCompletionsUrl(baseUrl: string): string {
+  return `${normalizeServiceBaseUrl(baseUrl)}/chat/completions`;
 }
 
 async function chatCompletionViaCustomAnthropicCompatible(
@@ -1212,7 +1219,7 @@ async function chatCompletionViaCustomOpenAICompatible(
     payload.stream_options = { include_usage: true };
   }
 
-  const response = await fetchWithProxy(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+  const response = await fetchWithProxy(openAIChatCompletionsUrl(baseUrl), {
     method: "POST",
     headers,
     body: JSON.stringify(payload),
@@ -1316,7 +1323,7 @@ export async function embedTexts(
 ): Promise<number[][]> {
   if (texts.length === 0) return [];
   // baseUrlOverride 让嵌入走独立服务(如本地 Ollama bge-m3),不必和 chat 同 baseUrl。
-  const baseUrl = (baseUrlOverride ?? client._piModel?.baseUrl ?? "").replace(/\/$/, "");
+  const baseUrl = normalizeServiceBaseUrl(baseUrlOverride ?? client._piModel?.baseUrl ?? "");
   if (!baseUrl) throw new Error("embedTexts: 缺少 baseUrl");
   const headers = buildCustomHeaders(client);
   const errorCtx = { baseUrl, model: embeddingModel };

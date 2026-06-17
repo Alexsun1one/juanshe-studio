@@ -180,7 +180,7 @@ describe("loadProjectConfig local provider auth", () => {
 
     const config = await loadProjectConfig(root);
 
-    expect(config.llm.service).toBe("custom");
+    expect(config.llm.service).toBe("custom:内网GPT");
     expect(config.llm.provider).toBe("openai");
     expect(config.llm.baseUrl).toBe("https://llm.internal.corp/v1");
     expect(config.llm.model).toBe("corp-chat");
@@ -227,9 +227,9 @@ describe("loadProjectConfig local provider auth", () => {
 
     const config = await loadProjectConfig(root);
 
-    expect(config.llm.service).toBe("custom");
+    expect(config.llm.service).toBe("custom:ClaudeRelay");
     expect(config.llm.provider).toBe("anthropic");
-    expect(config.llm.baseUrl).toBe("https://relay.example.com/v1/messages");
+    expect(config.llm.baseUrl).toBe("https://relay.example.com/v1");
     expect(config.llm.model).toBe("claude-sonnet-4-6");
     expect(config.llm.apiKey).toBe("sk-claude-relay");
     expect(config.llm.api).toBe("anthropic-messages");

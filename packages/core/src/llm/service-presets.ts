@@ -76,6 +76,18 @@ export function serviceApiToApiFormat(api: unknown): ServiceApiFormat {
   return normalizeServiceApi(api) === "openai-responses" ? "responses" : "chat";
 }
 
+export function normalizeServiceBaseUrl(value: string): string {
+  const withoutTrailingSlashes = value.trim().replace(/\/+$/, "");
+  const lower = withoutTrailingSlashes.toLowerCase();
+  if (lower.endsWith("/chat/completions")) {
+    return withoutTrailingSlashes.slice(0, -"/chat/completions".length).replace(/\/+$/, "");
+  }
+  if (lower.endsWith("/messages")) {
+    return withoutTrailingSlashes.slice(0, -"/messages".length).replace(/\/+$/, "");
+  }
+  return withoutTrailingSlashes;
+}
+
 export function resolveCustomServiceApi(entry?: {
   readonly api?: unknown;
   readonly providerFamily?: unknown;
@@ -215,7 +227,7 @@ export async function listModelsForService(
   const byId = new Map<string, ModelInfo>();
 
   // 1) 先试 live /models probe
-  const probeBaseUrl = liveBaseUrl || provider?.modelsBaseUrl || provider?.baseUrl || resolveServiceModelsBaseUrl(service);
+  const probeBaseUrl = normalizeServiceBaseUrl(liveBaseUrl || provider?.modelsBaseUrl || provider?.baseUrl || resolveServiceModelsBaseUrl(service) || "");
   const providerFamily = preset?.providerFamily ?? (provider?.api.startsWith("anthropic") ? "anthropic" : "openai");
   const canProbeWithoutApiKey = isApiKeyOptionalForEndpoint({ provider: providerFamily, baseUrl: probeBaseUrl });
   if ((apiKey || canProbeWithoutApiKey) && probeBaseUrl) {

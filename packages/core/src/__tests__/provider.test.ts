@@ -646,6 +646,37 @@ describe("chatCompletion via pi-ai", () => {
     vi.unstubAllGlobals();
   });
 
+  it("strips pasted OpenAI chat endpoint before native fetch appends chat/completions", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "ok" } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = makeClient(0.7, {
+      service: "custom:Relay",
+      configSource: "studio",
+      stream: false,
+      _piModel: {
+        ...MOCK_PI_MODEL,
+        provider: "openai",
+        baseUrl: "https://gateway.example/v1/chat/completions/",
+      },
+    });
+    const result = await chatCompletion(client, "relay-model", [{ role: "user", content: "ping" }]);
+
+    expect(result.content).toBe("ok");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://gateway.example/v1/chat/completions",
+      expect.any(Object),
+    );
+
+    vi.unstubAllGlobals();
+  });
+
   it("uses native fetch transport for custom anthropic-compatible non-stream chat", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -664,7 +695,7 @@ describe("chatCompletion via pi-ai", () => {
         ...MOCK_PI_MODEL,
         provider: "anthropic",
         api: "anthropic-messages" as Api,
-        baseUrl: "https://gateway.example",
+        baseUrl: "https://gateway.example/v1/messages/",
       },
     });
     const result = await chatCompletion(client, "claude-sonnet-4-6", [{ role: "user", content: "nihao" }]);
@@ -673,6 +704,10 @@ describe("chatCompletion via pi-ai", () => {
     expect(result.usage.promptTokens).toBe(5);
     expect(result.usage.completionTokens).toBe(3);
     expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://gateway.example/v1/messages",
+      expect.any(Object),
+    );
     expect(mockCompleteSimple).not.toHaveBeenCalled();
     expect(mockStreamSimple).not.toHaveBeenCalled();
 
@@ -894,7 +929,7 @@ describe("createLLMClient with providers lookup", () => {
     expect(client.provider).toBe("anthropic");
     expect(client._piModel?.api).toBe("anthropic-messages");
     expect(client._piModel?.provider).toBe("anthropic");
-    expect(client._piModel?.baseUrl).toBe("https://relay.example.com/v1/messages");
+    expect(client._piModel?.baseUrl).toBe("https://relay.example.com/v1");
   });
 
   it("未知 model 走 8192 * 3 的写作兜底预算", async () => {
