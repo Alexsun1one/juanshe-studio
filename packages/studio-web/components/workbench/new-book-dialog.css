@@ -60,6 +60,41 @@
 .nb-input:focus { outline: none; border-color: var(--brand-500); box-shadow: 0 0 0 3px var(--brand-50); }
 .nb-input.nb-textarea { height: auto; padding: 10px 12px; line-height: 1.6; resize: vertical; min-height: 96px; }
 .nb-input.nb-num { font-family: var(--font-num); font-weight: 600; text-align: center; }
+/* 题材下拉:自由输入框 + chevron 弹常见题材建议(可选可自定义) */
+.nb-combo { position: relative; display: flex; align-items: center; }
+.nb-combo > .nb-input { padding-right: 34px; }
+.nb-combo-toggle {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: transparent; color: var(--ink-400); cursor: pointer;
+  border-radius: var(--r-xs);
+  transition: color var(--motion-fast, .14s) var(--ease-soft, ease), transform var(--motion-fast, .14s) var(--ease-soft, ease), background var(--motion-fast, .14s) var(--ease-soft, ease);
+}
+.nb-combo-toggle:hover { color: var(--brand-600); background: color-mix(in oklab, var(--brand-500) 9%, transparent); }
+.nb-combo-toggle.open { color: var(--brand-600); transform: translateY(-50%) rotate(180deg); }
+.nb-combo-toggle:focus-visible { outline: none; box-shadow: var(--ring); }
+.nb-combo-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
+  max-height: 248px; overflow-y: auto;
+  padding: 5px; display: grid; grid-template-columns: 1fr 1fr; gap: 3px;
+  background: var(--bg-card); border: 1px solid var(--line-1); border-radius: var(--r-md);
+  box-shadow: var(--sh-2, 0 14px 36px -12px rgba(0,0,0,.18));
+  animation: ws-pop var(--motion-fast, .14s) var(--ease-soft, ease);
+}
+.nb-combo-opt {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  padding: 7px 9px; border: none; background: transparent; border-radius: var(--r-sm);
+  font-size: 12.5px; color: var(--ink-700); cursor: pointer; text-align: left;
+  transition: background var(--motion-fast, .14s) var(--ease-soft, ease), color var(--motion-fast, .14s) var(--ease-soft, ease);
+}
+.nb-combo-opt:hover { background: color-mix(in oklab, var(--brand-500) 10%, transparent); color: var(--brand-700, var(--brand-600)); }
+.nb-combo-opt.sel { color: var(--brand-600); font-weight: 700; }
+.nb-combo-opt svg { flex: 0 0 auto; color: var(--brand-500); }
+.nb-combo-tip {
+  grid-column: 1 / -1; margin-top: 2px; padding: 7px 9px 3px;
+  border-top: 1px solid var(--line-1);
+  font-size: 11px; color: var(--ink-400); line-height: 1.5;
+}
 /* select.nb-input:去掉原生箭头,换自绘 chevron(和全站下拉框统一) */
 select.nb-input {
   appearance: none;

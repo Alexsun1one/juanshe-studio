@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Loader2, Sparkles, FileText, Upload, X, Trash2, ListChecks, Layers, AlertTriangle, ArrowRight, Lightbulb } from "lucide-react"
+import { Loader2, Sparkles, FileText, Upload, X, Trash2, ListChecks, Layers, AlertTriangle, ArrowRight, Lightbulb, ChevronDown, Check } from "lucide-react"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -22,6 +22,14 @@ import {
 import type { BookCreateStatus } from "@/lib/api/types"
 import { useWorkspace } from "@/lib/workspace-context"
 import "./new-book-dialog.css"
+
+// 题材下拉建议:常见网文题材,点选即填;输入框仍可自由改/自定义(题材是开放集)。
+const GENRE_OPTIONS = [
+  "都市现实", "都市异能", "玄幻修真", "仙侠武侠",
+  "科幻悬疑", "历史架空", "悬疑推理", "游戏竞技",
+  "奇幻冒险", "言情古言", "青春校园", "末世星际",
+  "灵异恐怖", "职场商战", "种田经营", "同人二创",
+]
 
 // 建书阶段:对应后端 BookCreateStatus.stage / pipeline
 const SETUP_STEPS: { id: string; label: string; hint: string }[] = [
@@ -55,6 +63,15 @@ export function NewBookDialog({
   const [statusSnap, setStatusSnap] = React.useState<BookCreateStatus | null>(null)
   const [activeStepIdx, setActiveStepIdx] = React.useState<number>(-1)
   const [errMsg, setErrMsg] = React.useState<string>("")
+  // 题材下拉:点 chevron 弹常见题材建议,点击外面收起;输入框始终可自由输入。
+  const [genreOpen, setGenreOpen] = React.useState(false)
+  const genreRef = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    if (!genreOpen) return
+    const onDoc = (e: MouseEvent) => { if (genreRef.current && !genreRef.current.contains(e.target as Node)) setGenreOpen(false) }
+    document.addEventListener("mousedown", onDoc)
+    return () => document.removeEventListener("mousedown", onDoc)
+  }, [genreOpen])
   // stalled 面板复用给两种情形:轮询超时(timeout) 与 用户主动取消(cancelled),标题/副标各自措辞。
   const [stalledKind, setStalledKind] = React.useState<"timeout" | "cancelled">("timeout")
   // 后端已经落盘的半成品书 id —— 取消建书 / 删除半成品 / 去补地基 都靠它。
@@ -379,15 +396,45 @@ export function NewBookDialog({
                   maxLength={64}
                 />
               </label>
-              <label className="nb-field">
+              <div className="nb-field">
                 <span className="nb-lab">题材</span>
-                <input
-                  className="nb-input"
-                  value={draft.genre}
-                  onChange={(e) => setDraft({ ...draft, genre: e.target.value })}
-                  placeholder="都市 / 科幻 / 仙侠 …"
-                />
-              </label>
+                <div className="nb-combo" ref={genreRef}>
+                  <input
+                    className="nb-input"
+                    value={draft.genre}
+                    onChange={(e) => setDraft({ ...draft, genre: e.target.value })}
+                    onFocus={() => setGenreOpen(true)}
+                    placeholder="都市 / 科幻 / 仙侠 …"
+                  />
+                  <button
+                    type="button"
+                    className={`nb-combo-toggle${genreOpen ? " open" : ""}`}
+                    aria-label="选择题材"
+                    aria-expanded={genreOpen}
+                    onClick={() => setGenreOpen((o) => !o)}
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+                  {genreOpen && (
+                    <div className="nb-combo-menu" role="listbox">
+                      {GENRE_OPTIONS.map((g) => (
+                        <button
+                          type="button"
+                          key={g}
+                          role="option"
+                          aria-selected={draft.genre === g}
+                          className={`nb-combo-opt${draft.genre === g ? " sel" : ""}`}
+                          onClick={() => { setDraft({ ...draft, genre: g }); setGenreOpen(false) }}
+                        >
+                          <span>{g}</span>
+                          {draft.genre === g && <Check size={13} aria-hidden />}
+                        </button>
+                      ))}
+                      <div className="nb-combo-tip">没有合适的?直接在上面输入框里自己写。</div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <label className="nb-field">

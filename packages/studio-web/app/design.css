@@ -1387,6 +1387,25 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
 .user-menu-item.danger { color: var(--err-600, #D8584F); }
 .user-menu-item.danger:hover { background: color-mix(in oklab, var(--err-500, #E5675C) 12%, transparent); }
 .user-menu-item:disabled { opacity: .6; cursor: default; }
+/* 改作者名:菜单头内联编辑(输入框回 sans 守字体铁律) */
+.user-menu-edit { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.user-menu-name-input {
+  flex: 1; min-width: 0; height: 30px; padding: 0 9px;
+  border: 1px solid var(--line-2); border-radius: var(--r-sm);
+  background: var(--bg-app); color: var(--ink-900);
+  font-family: var(--font-sans-ui); font-size: 13px;
+}
+.user-menu-name-input::placeholder { color: var(--ink-300); }
+.user-menu-name-input:focus-visible { outline: none; border-color: var(--brand-500); box-shadow: var(--ring); }
+.user-menu-save {
+  flex: 0 0 auto; width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--brand-100); border-radius: var(--r-sm);
+  background: var(--brand-50); color: var(--brand-600); cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-soft);
+}
+.user-menu-save:hover { background: var(--brand-100); }
+.user-menu-save:focus-visible { outline: none; box-shadow: var(--ring); }
 
 /* 桌面底栏 —— 明确应用窗口的下边界,承载状态而不是再堆卡片。 */
 .desktop-statusbar {

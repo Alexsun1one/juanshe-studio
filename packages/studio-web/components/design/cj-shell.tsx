@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { PixelBadge } from "./pixel-badge"
 import { CjLogo } from "./cj-logo"
 import { useTheme } from "next-themes"
-import { useAuthorName } from "@/lib/use-author-name"
+import { useAuthorName, setAuthorName } from "@/lib/use-author-name"
 import {
   Activity,
   BookOpenText,
@@ -30,6 +30,7 @@ import {
   Moon,
   Network,
   Newspaper,
+  Pencil,
   PenLine,
   PlayCircle,
   Radar,
@@ -487,8 +488,21 @@ function CjTopbar() {
   const [bookMenu, setBookMenu] = React.useState(false)
   const [userMenu, setUserMenu] = React.useState(false)
   const [loggingOut, setLoggingOut] = React.useState(false)
+  // 改作者名:注册时漏填只能用默认「作者大大」,这里给个随时可改的入口。
+  // SaaS 的作者名本就纯存 localStorage(publicUser 不回传 authorName),所以直接 setAuthorName 即可、不碰后端。
+  const [editingName, setEditingName] = React.useState(false)
+  const [nameDraft, setNameDraft] = React.useState("")
   const bookRef = React.useRef<HTMLDivElement>(null)
   const userRef = React.useRef<HTMLDivElement>(null)
+  const startEditName = React.useCallback(() => {
+    setNameDraft(authorName === "作者大大" ? "" : authorName)
+    setEditingName(true)
+  }, [authorName])
+  const saveAuthorName = React.useCallback(() => {
+    const next = nameDraft.trim()
+    if (next) setAuthorName(next)
+    setEditingName(false)
+  }, [nameDraft])
   React.useEffect(() => {
     setMounted(true)
     try {
@@ -510,6 +524,7 @@ function CjTopbar() {
     document.addEventListener("keydown", onKey)
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey) }
   }, [userMenu])
+  React.useEffect(() => { if (!userMenu) setEditingName(false) }, [userMenu])
 
   // 退出登录 / 切换激活码:SaaS 模式清后端会话(/auth/logout 清 cookie),
   // 桌面模式注销当前激活(activation.json → unlocked=false);两端都安全(无会话/无激活时各自 no-op)。
@@ -635,15 +650,52 @@ function CjTopbar() {
           {userMenu && (
             <div className="user-menu" role="menu">
               <div className="user-menu-head">
-                <div className="avatar lg">{authorName.slice(0, 1)}</div>
-                <div className="user-menu-id">
-                  <span className="user-menu-name">{authorName}</span>
-                  <span className="user-menu-sub">
-                    {tier === "ultra" ? "Ultra 会员" : tier === "pro" ? "Pro 会员" : "普通会员"}
-                    {mounted && email ? ` · ${email}` : ""}
-                  </span>
-                </div>
+                <div className="avatar lg">{(editingName ? nameDraft : authorName).slice(0, 1) || "作"}</div>
+                {editingName ? (
+                  <div className="user-menu-edit">
+                    <input
+                      className="user-menu-name-input"
+                      value={nameDraft}
+                      autoFocus
+                      maxLength={24}
+                      placeholder="你想被称作?"
+                      onChange={(e) => setNameDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); saveAuthorName() }
+                        else if (e.key === "Escape") { e.preventDefault(); setEditingName(false) }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="user-menu-save"
+                      onClick={saveAuthorName}
+                      title="保存"
+                      aria-label="保存作者名"
+                    >
+                      <Check size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="user-menu-id">
+                    <span className="user-menu-name">{authorName}</span>
+                    <span className="user-menu-sub">
+                      {tier === "ultra" ? "Ultra 会员" : tier === "pro" ? "Pro 会员" : "普通会员"}
+                      {mounted && email ? ` · ${email}` : ""}
+                    </span>
+                  </div>
+                )}
               </div>
+              {!editingName && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="user-menu-item"
+                  onClick={startEditName}
+                >
+                  <Pencil size={14} />
+                  改作者名
+                </button>
+              )}
               <button
                 type="button"
                 role="menuitem"
