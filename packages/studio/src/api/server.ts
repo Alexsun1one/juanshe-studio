@@ -11657,14 +11657,15 @@ export function createStudioServer(initialConfig, root) {
         const bookDir = state.bookDir(bookId);
         if (await pathExists(bookDir)) {
             if (body.resumeExisting === true) {
-                try {
-                    await access(join(bookDir, "book.json"));
-                    await access(join(bookDir, "story", "story_bible.md"));
+                // 只有「已写出章节」的真书才拒绝原地续建(避免覆盖在写的书);
+                // 仅有 story_bible/book.json 但 0 章节(地基复审失败/卡在 needs-foundation/未进写章)→ 允许续建:
+                // 落到下面重跑架构师 + 地基(配合地基降级放行,现在能过门),把卡住的半成品救活,而不是
+                // 报 "already exists" 把用户堵死(旧逻辑用 story_bible 存在判"已完整",地基失败的书也有 story_bible)。
+                const existingChapters = await state.loadChapterIndex(bookId).catch(() => []);
+                if (Array.isArray(existingChapters) && existingChapters.length > 0) {
                     return c.json({ error: `Book "${bookId}" already exists` }, 409);
                 }
-                catch {
-                    // The target book is not fully initialized yet, so creation can continue.
-                }
+                // 无已写章节 → 继续创建(原地续建)
             }
             else {
                 const archiveRoot = join(tenantRootOr(root), ".hardwrite", "archived-books");
