@@ -40,6 +40,10 @@ const LLM_TOTAL_TIMEOUT_MS = Math.max(30000, Number(process.env.HARDWRITE_LLM_TI
 // 默认 180s:推理模型(如 mimo / o1 系列)在大上下文上"先思考后吐字",首 token 常 >90s;
 // 90s 太紧会把正常的慢推理误判为挂起。可用 HARDWRITE_LLM_IDLE_TIMEOUT_MS 再调高/调低。
 const LLM_IDLE_TIMEOUT_MS = Math.max(15000, Number(process.env.HARDWRITE_LLM_IDLE_TIMEOUT_MS) || 180000);
+// 流式调用的「总时长」硬上限:idle 超时改为「任何流活动都复位」后,一个一直吐活动(思考/
+// keepalive/工具调用…)却永不收尾的流会永不触发 idle——这道天花板兜底,任何流式调用最多跑这么久。
+// 默认 20min(覆盖大上下文长章的正常生成),可用 HARDWRITE_LLM_STREAM_TIMEOUT_MS 调。
+const LLM_STREAM_TOTAL_TIMEOUT_MS = Math.max(60000, Number(process.env.HARDWRITE_LLM_STREAM_TIMEOUT_MS) || 1200000);
 
 function mergeUserAgent(headers?: Record<string, string>): Record<string, string> {
   return { "User-Agent": JUANSHE_USER_AGENT, ...(headers ?? {}) };
@@ -658,7 +662,10 @@ class LLMTimeoutError extends Error {
 /**
  * 给单次 LLM 调用加超时,把"挂起不返回"变成可抛出的超时错误,避免无限期冻结工作流。
  *   - 非流式:总超时(LLM_TOTAL_TIMEOUT_MS)。
- *   - 流式:空闲超时(每个 token delta 重置;LLM_IDLE_TIMEOUT_MS)——只杀真正卡死的流,不误杀慢但在产出的流。
+ *   - 流式:双闸——① 空闲超时(LLM_IDLE_TIMEOUT_MS),由「任何流活动」复位(正文/思考/工具/keepalive
+ *     等,见各 transport 的 reader 循环顶部 onTextDelta?.(""));② 总时长硬上限(LLM_STREAM_TOTAL_TIMEOUT_MS),
+ *     永不复位,兜住「一直有活动但永不收尾」。只杀真正卡死/失控的流,不误杀「慢但在思考/在产出」的流
+ *     ——治推理模型(MiMo/o1/kimi-thinking 等)思考阶段被误判挂起。
  * 注意:超时只解除"等待",底层 fetch 可能仍在后台跑完(可接受);目的是让上层能重试 / 走 recovery,而不是卡死。
  */
 async function withCallTimeout<T>(
@@ -668,23 +675,34 @@ async function withCallTimeout<T>(
   const streaming = Boolean(originalDelta);
   return await new Promise<T>((resolve, reject) => {
     let settled = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const arm = () => {
-      clearTimeout(timer);
-      const ms = streaming ? LLM_IDLE_TIMEOUT_MS : LLM_TOTAL_TIMEOUT_MS;
-      timer = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        reject(new LLMTimeoutError(ms, streaming ? "idle" : "total"));
-      }, ms);
+    let idleTimer: ReturnType<typeof setTimeout>;
+    let totalTimer: ReturnType<typeof setTimeout> | undefined;
+    const clearAll = () => { clearTimeout(idleTimer); if (totalTimer) clearTimeout(totalTimer); };
+    const fail = (ms: number, kind: "idle" | "total") => {
+      if (settled) return;
+      settled = true;
+      clearAll();
+      reject(new LLMTimeoutError(ms, kind));
     };
+    // idle:每次「流活动」复位(见 wrappedDelta);非流式则等同总超时。
+    const armIdle = () => {
+      clearTimeout(idleTimer);
+      const ms = streaming ? LLM_IDLE_TIMEOUT_MS : LLM_TOTAL_TIMEOUT_MS;
+      idleTimer = setTimeout(() => fail(ms, streaming ? "idle" : "total"), ms);
+    };
+    // 流式:总时长硬上限,永不复位——兜住「一直有活动但永不收尾」。
+    if (streaming) {
+      totalTimer = setTimeout(() => fail(LLM_STREAM_TOTAL_TIMEOUT_MS, "total"), LLM_STREAM_TOTAL_TIMEOUT_MS);
+    }
+    // 任何流活动(正文/思考/工具/keepalive)都经此复位 idle。
+    // 空串 = 纯心跳:只复位计时器,不转发给 UI delta 流(否则思考/keepalive 会把 '' 漏进正文流)。
     const wrappedDelta = originalDelta
-      ? (text: string) => { arm(); originalDelta(text); }
+      ? (text: string) => { armIdle(); if (text) originalDelta(text); }
       : undefined;
-    arm();
+    armIdle();
     start(wrappedDelta).then(
-      (value) => { if (!settled) { settled = true; clearTimeout(timer); resolve(value); } },
-      (error) => { if (!settled) { settled = true; clearTimeout(timer); reject(error); } },
+      (value) => { if (!settled) { settled = true; clearAll(); resolve(value); } },
+      (error) => { if (!settled) { settled = true; clearAll(); reject(error); } },
     );
   });
 }
@@ -1067,6 +1085,7 @@ async function chatCompletionViaCustomAnthropicCompatible(
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
+      onTextDelta?.(""); // 收到任意字节=流还活着→复位空闲超时(覆盖思考/keepalive/任意活动,不止正文)
       buffer += decoder.decode(value, { stream: true });
       const parsed = parseSseEvents(buffer);
       buffer = parsed.rest;
@@ -1169,6 +1188,7 @@ async function chatCompletionViaCustomOpenAICompatible(
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+        onTextDelta?.(""); // 收到任意字节=流还活着→复位空闲超时(覆盖思考/keepalive/任意活动,不止正文)
         buffer += decoder.decode(value, { stream: true });
         const parsed = parseSseEvents(buffer);
         buffer = parsed.rest;
@@ -1269,6 +1289,7 @@ async function chatCompletionViaCustomOpenAICompatible(
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
+      onTextDelta?.(""); // 收到任意字节=流还活着→复位空闲超时(覆盖思考/keepalive/任意活动,不止正文)
       buffer += decoder.decode(value, { stream: true });
       const parsed = parseSseEvents(buffer);
       buffer = parsed.rest;
@@ -1284,10 +1305,7 @@ async function chatCompletionViaCustomOpenAICompatible(
           const reasoningDelta = extractChatDeltaReasoningContent(json);
           if (reasoningDelta) {
             reasoningContent += reasoningDelta;
-            monitor.onChunk(reasoningDelta);
-            // 推理模型流式吐 reasoning_content 也是"活着"——复位空闲超时,别在思考阶段误判挂起。
-            // 空 delta 只复位计时器,不把思考灌进正文/UI。
-            onTextDelta?.("");
+            monitor.onChunk(reasoningDelta); // idle 已在读取层复位(任意字节);此处仅累计思考进度
           }
         }
         if (json?.usage) {
@@ -1606,17 +1624,15 @@ async function chatCompletionViaPiAi(
 
   try {
     for await (const event of eventStream) {
+      // 任何事件都说明「流还活着」→ 复位空闲超时。覆盖 thinking_delta(推理模型 MiMo/o1/kimi-thinking
+      // 先思考后吐字)、toolcall_delta(工具调用)、*_start/*_end 等所有非正文活动,不止某一种模型。
+      // 空串只复位计时器,不计入正文、不喷给 UI(思考/工具过程不入稿)。
+      // 否则:这些阶段 >180s 无 text_delta 会被误判"模型空闲挂起"、超时重试又重复挂="跑很久不出内容"。
+      onTextDelta?.("");
       if (event.type === "text_delta") {
         chunks.push(event.delta);
         monitor.onChunk(event.delta);
         onTextDelta?.(event.delta);
-      }
-      // 推理模型(小米 MiMo / o1 系列 / kimi-thinking 等)先吐思考(thinking_delta)再出正文。
-      // 思考也是"流还活着"的信号,必须复位空闲超时计时器——否则思考阶段 >180s 无 text_delta 会被
-      // 误判为"模型空闲挂起"、超时重试又重复挂,表现为"跑很久不出内容"。空 delta 只复位计时器,
-      // 不计入正文、不喷给 UI(思考内容不入稿)。
-      if (event.type === "thinking_delta") {
-        onTextDelta?.("");
       }
       if (event.type === "done" || event.type === "error") {
         const msg = event.type === "done" ? event.message : event.error;

@@ -171,7 +171,7 @@ describe("chatCompletion via pi-ai", () => {
     expect(mockStreamSimple).toHaveBeenCalledOnce();
   });
 
-  it("handles reasoning models: thinking_delta resets idle timer (empty delta) and never leaks into content", async () => {
+  it("handles reasoning models: thinking_delta is consumed (resets idle via heartbeat) without leaking into content or the UI delta stream", async () => {
     mockStreamSimple.mockReturnValue(makeThinkingThenTextStream("内部思考…", "正文内容"));
 
     const deltas: string[] = [];
@@ -186,10 +186,9 @@ describe("chatCompletion via pi-ai", () => {
     // 思考内容不入正文,只保留 text_delta 的正文
     expect(result.content).toBe("正文内容");
     expect(result.content).not.toContain("内部思考");
-    // 正文 delta 正常透出
-    expect(deltas).toContain("正文内容");
-    // 每个 thinking_delta 触发一次空串 onTextDelta(复位空闲超时,防推理阶段被误判挂起)
-    expect(deltas.filter((d) => d === "").length).toBeGreaterThanOrEqual(2);
+    // 思考/任意事件复位空闲超时走的是「纯心跳」——不把空串或思考漏进 UI delta 流,
+    // 消费者只收到真正的正文 delta(空串心跳已在 wrappedDelta 处被过滤)。
+    expect(deltas).toEqual(["正文内容"]);
   });
 
   it("throws when stream produces no text content", async () => {
