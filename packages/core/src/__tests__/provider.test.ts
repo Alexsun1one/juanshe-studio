@@ -81,6 +81,17 @@ function makeEmptyStream(): AsyncIterable<Record<string, unknown>> {
   ]);
 }
 
+/** Reasoning model: emits thinking_delta(s) before the actual text, then done. */
+function makeThinkingThenTextStream(thinking: string, text: string): AsyncIterable<Record<string, unknown>> {
+  const msg = makeAssistantMessage(text);
+  return makeEventStream([
+    { type: "thinking_delta", delta: thinking, partial: msg },
+    { type: "thinking_delta", delta: thinking, partial: msg },
+    { type: "text_delta", contentIndex: 0, delta: text, partial: msg },
+    { type: "done", reason: "stop", message: msg },
+  ]);
+}
+
 /** Stream that throws immediately. */
 function makeErrorStream(message: string): AsyncIterable<Record<string, unknown>> {
   return {
@@ -158,6 +169,27 @@ describe("chatCompletion via pi-ai", () => {
     expect(result.usage.completionTokens).toBe(7);
     expect(result.usage.totalTokens).toBe(18);
     expect(mockStreamSimple).toHaveBeenCalledOnce();
+  });
+
+  it("handles reasoning models: thinking_delta resets idle timer (empty delta) and never leaks into content", async () => {
+    mockStreamSimple.mockReturnValue(makeThinkingThenTextStream("内部思考…", "正文内容"));
+
+    const deltas: string[] = [];
+    const client = makeClient();
+    const result = await chatCompletion(
+      client,
+      "test-model",
+      [{ role: "user", content: "ping" }],
+      { onTextDelta: (t) => deltas.push(t) },
+    );
+
+    // 思考内容不入正文,只保留 text_delta 的正文
+    expect(result.content).toBe("正文内容");
+    expect(result.content).not.toContain("内部思考");
+    // 正文 delta 正常透出
+    expect(deltas).toContain("正文内容");
+    // 每个 thinking_delta 触发一次空串 onTextDelta(复位空闲超时,防推理阶段被误判挂起)
+    expect(deltas.filter((d) => d === "").length).toBeGreaterThanOrEqual(2);
   });
 
   it("throws when stream produces no text content", async () => {

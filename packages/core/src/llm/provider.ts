@@ -1285,6 +1285,9 @@ async function chatCompletionViaCustomOpenAICompatible(
           if (reasoningDelta) {
             reasoningContent += reasoningDelta;
             monitor.onChunk(reasoningDelta);
+            // 推理模型流式吐 reasoning_content 也是"活着"——复位空闲超时,别在思考阶段误判挂起。
+            // 空 delta 只复位计时器,不把思考灌进正文/UI。
+            onTextDelta?.("");
           }
         }
         if (json?.usage) {
@@ -1607,6 +1610,13 @@ async function chatCompletionViaPiAi(
         chunks.push(event.delta);
         monitor.onChunk(event.delta);
         onTextDelta?.(event.delta);
+      }
+      // 推理模型(小米 MiMo / o1 系列 / kimi-thinking 等)先吐思考(thinking_delta)再出正文。
+      // 思考也是"流还活着"的信号,必须复位空闲超时计时器——否则思考阶段 >180s 无 text_delta 会被
+      // 误判为"模型空闲挂起"、超时重试又重复挂,表现为"跑很久不出内容"。空 delta 只复位计时器,
+      // 不计入正文、不喷给 UI(思考内容不入稿)。
+      if (event.type === "thinking_delta") {
+        onTextDelta?.("");
       }
       if (event.type === "done" || event.type === "error") {
         const msg = event.type === "done" ? event.message : event.error;
