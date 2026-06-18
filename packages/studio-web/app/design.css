@@ -414,7 +414,10 @@
   position: relative;
   z-index: 1;
 }
-.app .cj-pane-scroll { min-height: 0; overflow-y: auto; overflow-x: hidden; }
+/* flex:1 1 auto 是关键:在 .cj-mainpane / .cj-inspector(flex 列)里,滚动区必须能被父高约束。
+   缺了它,滚动子项会长到内容高度→超出被父 overflow:hidden 裁掉→底部内容看不全且无滚动条
+   (元素自身=内容高,无可滚)。个别页(.ol-pane-scroll)手动补过,这里收到基类一次修全站。 */
+.app .cj-pane-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 @media (max-width: 1100px) {
   /* 窄窗:Inspector 收窄,极窄时叠到主区下方仍只在 pane 内滚 */
   .app .cj-screen-body { grid-template-columns: minmax(0, 1fr) 300px; }

@@ -189,7 +189,9 @@ export default function OutlinePage() {
           <div className="page-actions ol-actions">
             <button type="button" className="btn sm" onClick={copyPlanningPrompt}><Sparkles size={12} /> 复制推演提示</button>
             <button type="button" className="btn sm" onClick={exportOutline}><ListOrdered size={12} /> 导出大纲</button>
-            <Link className="btn primary sm" href="/editor"><PenLine size={12} /> 去编辑器</Link>
+            <Link className="btn sm" href="/editor"><PenLine size={12} /> 去编辑器</Link>
+            {/* 主行动:结构已成型,回工作台让编辑部接着写——治"到大纲页不知道怎么继续写"的断头路 */}
+            <Link className="btn primary sm" href="/"><PenLine size={12} /> 去工作台开写</Link>
           </div>
         </div>
         <div className="ol-kpis" role="group" aria-label="结构概览">
