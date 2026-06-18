@@ -58,6 +58,7 @@ export function toBook(book: BookSummary): Book {
     id: book.id,
     title: book.title,
     type: book.type,
+    brief: book.brief,
     cover: book.cover,
     totalWords: book.totalWords,
     chapterCount: book.chapterCount,

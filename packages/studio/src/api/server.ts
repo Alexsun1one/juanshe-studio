@@ -8162,7 +8162,7 @@ async function loadStudioBookListSummary(state, bookId) {
     const volumeMap = await readVolumeMapForBook(state, bookId).catch(() => "");
     const volumes = parseVolumePlan(volumeMap, book, chapters);
     const description = parseBookDescriptionMarkdown(await readOptionalText(join(state.bookDir(bookId), "story", "book_description.md")).catch(() => ""));
-    return { ...book, chaptersWritten: currentChapter, currentChapter, chapterCount: Math.max(chapters.length, currentChapter), totalWords, wordCount: totalWords, currentWords: totalWords, coverUrl: coverPath ? `/api/v1/books/${encodeURIComponent(bookId)}/cover` : "", firstVolumeTitle: volumes[0]?.title || "", volumeCount: volumes.length, volumes, description, oneLine: description?.oneLine || "", shortIntro: description?.shortIntro || "", fullIntro: description?.fullIntro || "", tags: description?.tags || [] };
+    return { ...book, id: bookId, brief: typeof book.brief === "string" ? book.brief : "", chaptersWritten: currentChapter, currentChapter, chapterCount: Math.max(chapters.length, currentChapter), totalWords, wordCount: totalWords, currentWords: totalWords, coverUrl: coverPath ? `/api/v1/books/${encodeURIComponent(bookId)}/cover` : "", firstVolumeTitle: volumes[0]?.title || "", volumeCount: volumes.length, volumes, description, oneLine: description?.oneLine || "", shortIntro: description?.shortIntro || "", fullIntro: description?.fullIntro || "", tags: description?.tags || [] };
 }
 function isCustomServiceId(serviceId) {
     return serviceId === "custom" || serviceId.startsWith("custom:");
@@ -11180,7 +11180,8 @@ export function createStudioServer(initialConfig, root) {
 	    app.get("/api/v1/books/:id", async (c) => {
 	        const id = c.req.param("id");
 	        try {
-	            const book = await state.loadBookConfig(id);
+	            const rawBook = await state.loadBookConfig(id);
+	            const book = { ...rawBook, id, brief: typeof rawBook.brief === "string" ? rawBook.brief : "" };
 	            const chapters = await state.loadChapterIndex(id);
 	            const nextChapter = await state.getNextChapterNumber(id);
 	            const quality = await buildBookQualitySummary(state, id).catch(() => null);

@@ -72,6 +72,8 @@ export type Book = {
   id: string
   title: { zh: string; en: string }
   type: "novel-long" | "novel-short" | "story"
+  /** 用户建书时填写的原始构思/一段话设定。只读展示用,不是密钥。 */
+  brief?: string
   cover?: string
   totalWords: number
   chapterCount: number
@@ -253,6 +255,22 @@ export type FoundationAssessment = {
   [key: string]: unknown
 }
 
+export type FoundationQualityWeakDim = {
+  key?: string
+  label?: string
+  score?: number
+  [key: string]: unknown
+}
+
+export type FoundationQualityReview = {
+  score?: number
+  pass?: boolean
+  blockers?: string[]
+  weakDims?: FoundationQualityWeakDim[]
+  summary?: string
+  [key: string]: unknown
+}
+
 export type BookFoundationValidateResult = {
   ok?: boolean
   bookId: string
@@ -261,6 +279,7 @@ export type BookFoundationValidateResult = {
   repaired: string[]
   blockers: string[]
   assessment?: FoundationAssessment
+  qualityReview?: FoundationQualityReview | null
   error?: string
   failureReason?: string
   suggestion?: string

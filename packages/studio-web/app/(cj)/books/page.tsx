@@ -40,7 +40,7 @@ import {
   validateBookFoundation,
   waitForBookCreateStatus,
 } from "@/lib/api/client"
-import type { BookExportFormat, BookSummary } from "@/lib/api/types"
+import type { BookExportFormat, BookFoundationValidateResult, BookSummary } from "@/lib/api/types"
 import { ENDPOINTS } from "@/lib/api/types"
 import { blockerLabels } from "@/lib/blocker-labels"
 import { useWorkspace } from "@/lib/workspace-context"
@@ -228,6 +228,15 @@ function bookTitle(book: BookSummary): string {
   return book.id
 }
 
+function bookBrief(book: BookSummary): string {
+  return typeof book.brief === "string" ? book.brief.trim() : ""
+}
+
+function briefPreview(brief: string): string {
+  const compact = brief.replace(/\s+/g, " ").trim()
+  return compact.length > 72 ? `${compact.slice(0, 72)}…` : compact
+}
+
 const fmtInt = (n: number | undefined | null) =>
   typeof n === "number" && Number.isFinite(n) ? n.toLocaleString("en-US") : "0"
 
@@ -312,13 +321,15 @@ export default function BooksPage() {
     id: string,
     kind: string,
     fn: () => Promise<void>,
+    onError?: (error: unknown) => void,
   ) {
     if (busy) return
     setBusy({ id, kind })
     try {
       await fn()
     } catch (e) {
-      toast.error(`操作失败:${e instanceof Error ? e.message : String(e)}`)
+      if (onError) onError(e)
+      else toast.error(`操作失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBusy(null)
     }
@@ -360,19 +371,43 @@ export default function BooksPage() {
 
   // 补地基:走既有 foundation/validate 入口(会尝试自动修复地基)
   async function repairFoundation(book: BookSummary) {
-    await run(book.id, "foundation", async () => {
-      const res = await validateBookFoundation(book.id)
-      await refreshBooks()
-      if (res.ready) {
-        toast.success(`《${bookTitle(book)}》地基已就绪`)
-      } else {
-        toast.message("地基仍有缺口", {
-          description:
-            blockerLabels(res.blockers).slice(0, 2).join(" · ") ||
-            "请到大纲页补齐设定后再续写。",
+    await run(
+      book.id,
+      "foundation",
+      async () => {
+        const res = await validateBookFoundation(book.id)
+        await refreshBooks()
+        if (res.ready) {
+          toast.success(`《${bookTitle(book)}》地基已就绪`, {
+            description: "已切换为当前作品，回到工作台继续创作；不会自动触发写章。",
+          })
+          enter(book)
+        } else {
+          toast.warning("地基还没过", {
+            description: foundationGapDescription(res),
+            action: {
+              label: "去大纲",
+              onClick: () => {
+                setBookId(book.id)
+                router.push("/outline")
+              },
+            },
+          })
+        }
+      },
+      (error) => {
+        toast.error("补地基没跑完", {
+          description: foundationErrorDescription(error),
+          action: {
+            label: "去大纲",
+            onClick: () => {
+              setBookId(book.id)
+              router.push("/outline")
+            },
+          },
         })
-      }
-    })
+      },
+    )
   }
 
   // 停止写作:既有 workflow/stop
@@ -573,6 +608,7 @@ export default function BooksPage() {
                   const rowBusy = isBusy(book.id)
                   const editing = editingId === book.id
                   const scale = bookScale(book)
+                  const brief = bookBrief(book)
                   return (
                     <div
                       key={book.id}
@@ -672,6 +708,20 @@ export default function BooksPage() {
                               <div className="bk-hint" data-tone={meta.tone}>
                                 {meta.hint}
                               </div>
+                            ) : null}
+                            {brief ? (
+                              <details className="bk-brief">
+                                <summary>
+                                  <span className="bk-brief-label">原始构思</span>
+                                  <span className="bk-brief-preview">{briefPreview(brief)}</span>
+                                </summary>
+                                <div
+                                  className="bk-brief-text scroll-thin"
+                                  aria-label={`《${bookTitle(book)}》原始构思`}
+                                >
+                                  {brief}
+                                </div>
+                              </details>
                             ) : null}
                           </div>
                         )}
@@ -903,6 +953,41 @@ export default function BooksPage() {
       </AlertDialog>
     </div>
   )
+}
+
+function foundationGapDescription(res: BookFoundationValidateResult) {
+  const blockers = blockerLabels(res.blockers).filter(Boolean)
+  const modules = Array.isArray(res.assessment?.modules)
+    ? res.assessment.modules
+        .filter((item) => item?.ready === false || Number(item?.score ?? 100) < 70 || (item?.blockers?.length ?? 0) > 0)
+        .map((item) => {
+          const label = item.label || item.id || "地基模块"
+          const why = item.blockers?.slice(0, 2).join("、")
+          return why ? `${label}:${why}` : `${label}还不够扎实`
+        })
+    : []
+  const weakDims = Array.isArray(res.qualityReview?.weakDims)
+    ? res.qualityReview.weakDims
+        .map((item) => {
+          if (!item || typeof item !== "object") return ""
+          const label = "label" in item ? String(item.label || "") : ""
+          const score = "score" in item ? Number(item.score) : NaN
+          return label ? `${label}${Number.isFinite(score) ? ` ${score}分` : ""}` : ""
+        })
+        .filter(Boolean)
+    : []
+  const reasons = [...modules, ...blockers, ...weakDims].slice(0, 3)
+  const repaired = res.repaired.length ? `本次已自动补强:${res.repaired.slice(0, 2).join("、")}。` : ""
+  const next = "下一步:去大纲页补故事框架、卷纲、角色动机或平台简介，补完再回这里重试。"
+  return [reasons.length ? `还差:${reasons.join("；")}。` : "结构或质量仍未达到开写线。", repaired, next]
+    .filter(Boolean)
+    .join(" ")
+}
+
+function foundationErrorDescription(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  const clean = message.replace(/^\[api\]\s*/i, "").slice(0, 140)
+  return `${clean || "模型、网络或后端这次没有完成验收"}。先检查模型配置/余额，再去大纲补设定或重试补地基。`
 }
 
 // ── 每个状态对应的内联恢复动作(紧凑文字按钮,非大按钮堆) ──────────────────
