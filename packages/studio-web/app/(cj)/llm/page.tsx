@@ -3,8 +3,10 @@
 import * as React from "react"
 import useSWR from "swr"
 import { toast } from "sonner"
+import Link from "next/link"
 import {
   Activity,
+  ArrowRight,
   Bot,
   Boxes,
   Brain,
@@ -50,6 +52,7 @@ import {
   updateLLMProvider,
 } from "@/lib/api/client"
 import type { LLMProvider } from "@/lib/api/types"
+import { useWorkspace } from "@/lib/workspace-context"
 import { providerKindLabel } from "@/lib/labels"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { PlatformHint } from "@/components/design/platform-hint"
@@ -137,6 +140,8 @@ function describeConnError(raw?: string): string {
 
 export default function LLMConfigPage() {
   const { data: providers, mutate, isLoading } = useSWR("llm-providers", fetchLLMProviders)
+  // 配完 Key 后的接力:这页历来配完就把人晾在这,没人推一把去建书——18 个有 Key 没建书的用户多半卡在此。
+  const { books } = useWorkspace()
   const [testing, setTesting] = React.useState<Record<string, boolean>>({})
   const [results, setResults] = React.useState<Record<string, TestState>>({})
 
@@ -160,6 +165,9 @@ export default function LLMConfigPage() {
   const testedOk = list.filter((p) => p.lastTestOk).length
   const enabledCount = list.filter((p) => p.enabled).length
   const defaultModel = list.find((p) => p.enabled && p.selectedModel)?.selectedModel
+  // 模型就绪(有 key 且启用)但一本书都没有 → 显式接力去建第一本书,堵"配完 Key 没建书"的漏。
+  const llmReady = list.some((p) => p.hasKey && p.enabled)
+  const showBuildNudge = llmReady && books.length === 0
 
   const pickPreset = (p: Preset) => {
     setPreset(p)
@@ -419,6 +427,19 @@ export default function LLMConfigPage() {
           />
         </div>
       </header>
+
+      {/* 配完 Key 的接力:模型就绪但还没作品 → 一把推去建第一本书(/?new=1 直接开建书弹窗),
+          堵住"配了 Key 却没建书"那道墙(占注册用户约 19%)。 */}
+      {showBuildNudge && (
+        <Link href="/?new=1" className="llm-build-nudge">
+          <span className="lbn-ic" aria-hidden><Sparkles size={18} /></span>
+          <span className="lbn-text">
+            <b>模型已就绪 —— 你还没有作品</b>
+            <span>编辑部待命中。说一句想写的样子,几十秒起好框架、角色、章节地图,就能开写。</span>
+          </span>
+          <span className="lbn-cta">去建第一本书 <ArrowRight size={15} /></span>
+        </Link>
+      )}
 
       {/* ── 主体:已接入服务(主区,pane 内滚) + 添加服务(Inspector)── */}
       <div className="cj-screen-body llm-body">
