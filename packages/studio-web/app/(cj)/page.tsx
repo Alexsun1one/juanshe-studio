@@ -293,6 +293,17 @@ export default function CjDashboard() {
     setDismissedError(text)
   }, [run.lastError])
   const showFailBanner = !isRunning && !!run.lastError && run.lastError !== dismissedError
+  // 把后端原始错误(常是英文/技术串,如 "Book foundation is incomplete.")翻成人话 + 指对下一步。
+  // 归类与 new-book-dialog 同源:① 地基没搭完 → 去作品管理补地基(续写会被地基闸挡,重试无意义);
+  // ② 模型/Key 坏了 → 去大模型配置;③ 其它瞬时错 → 直接重试续写。
+  const failRaw = run.lastError ?? ""
+  const failIsFoundation = /foundation\s+(is\s+)?incomplete|blocked-foundation|地基(未|没|还没|不完整)|需补地基|story[_\s]?bible|架构(未|没)完成/i.test(failRaw)
+  const failIsModel = /鉴权|API\s*Key|密钥|未授权|无可用渠道|no available channel|余额|额度|欠费|insufficient|限流|模型权限|网关|上游|过载|service unavailable|bad gateway|无法连接|连不上|模型.{0,8}(挂起|空闲|超时)|LLM_CALL_TIMEOUT|model not found|\b(401|402|403|429|500|502|503|504)\b/i.test(failRaw)
+  const failText = failIsFoundation
+    ? "这本书的「地基」还没搭完(故事框架/大纲没生成成功),没法直接续写正文 —— 先去作品管理补好地基,再开写。"
+    : failIsModel
+      ? "是你的大模型 / API Key 那边出了问题(跟故事无关):多半是 Key 失效、额度用尽或中转站不稳。去「大模型配置」修好再续写。"
+      : (failRaw.slice(0, 80) || "上次写作没能正常结束,可以直接重试续写。")
   // 「续写一开,创作流程自动进入剧场态」:刚从待命切到运行 → 把右栏滚进可视区
   React.useEffect(() => {
     const sig = isRunning ? (liveAgentId || "running") : "idle"
@@ -722,16 +733,22 @@ export default function CjDashboard() {
           <span className="rfb-ic" aria-hidden>!</span>
           <span className="rfb-text">
             <b>上次写作中断</b>
-            <span className="rfb-reason" title={run.lastError}>{(run.lastError ?? "").slice(0, 80)}</span>
+            <span className="rfb-reason" title={failRaw}>{failText}</span>
           </span>
           <span className="rfb-actions">
-            <button
-              type="button"
-              className="rfb-btn primary"
-              onClick={() => { dismissLastError(); openWorkflowConfirm("continue") }}
-            >
-              重试续写
-            </button>
+            {failIsFoundation ? (
+              <Link href="/books" className="rfb-btn primary" onClick={dismissLastError}>去补地基 →</Link>
+            ) : failIsModel ? (
+              <Link href="/llm" className="rfb-btn primary" onClick={dismissLastError}>去检查模型设置 →</Link>
+            ) : (
+              <button
+                type="button"
+                className="rfb-btn primary"
+                onClick={() => { dismissLastError(); openWorkflowConfirm("continue") }}
+              >
+                重试续写
+              </button>
+            )}
             <Link href="/runs" className="rfb-btn">去运行台 →</Link>
             <button type="button" className="rfb-btn ghost" onClick={dismissLastError}>知道了</button>
           </span>
