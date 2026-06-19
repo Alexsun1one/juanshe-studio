@@ -5,7 +5,7 @@ import { streamSSE } from "hono/streaming";
 import { serve } from "@hono/node-server";
 import archiver from "archiver";
 import { StateManager, PipelineRunner, ConsolidatorAgent, MemoryDB, createLLMClient, createLogger, createInteractionToolsFromDeps, computeAnalytics, loadProjectConfig, loadProjectSession, processProjectInteractionRequest, resolveSessionActiveBook, listBookSessions, loadBookSession, appendManualSessionMessages, createAndPersistBookSession, renameBookSession, deleteBookSession, migrateBookSession, SessionAlreadyMigratedError, runAgentSession, buildAgentSystemPrompt, normalizeServiceApi, normalizeServiceBaseUrl, normalizeServiceProviderFamily, providerFamilyForServiceApi, resolveCustomServiceApi, resolveCustomServiceProviderFamily, resolveServicePreset, resolveServiceProviderFamily, resolveServiceModelsBaseUrl, resolveServiceModel, serviceApiToApiFormat, loadSecrets, saveSecrets, listModelsForService, isApiKeyOptionalForEndpoint, getAllEndpoints, probeModelsFromUpstream, fetchWithProxy, chatCompletion, buildExportArtifact, GLOBAL_ENV_PATH, markdownToContentDocument, renderForPlatform, getContentTypeProfile, assembleContentType, buildWritingSystemPrompt, mountSkills, buildCriticSystemPrompt, buildReviserSystemPrompt, parseCritiqueReport, critiqueWantsRevision, critiquePasses, buildResearchQueries, buildResearchContext, emptyAccountStyle, evolveStyleProfile, buildAccountVoicePrompt, parseCharacterMatrix, parseRoleFile, parseEmotionalArcs, groupArcsByCharacter, tensionByChapter, parsePendingHooks, parseSubplotBoard, hooksByStartChapter, parseVolumeMap, parseChapterSummaries, appearanceCounts, parseStoryFrame, buildGovernanceRecommendation, analyzeStyle, EDITOR_IN_CHIEF_SYSTEM_PROMPT, buildEditorInChiefUserMessage, parseEditorialVerdict, listWechatTemplates, DEFAULT_WECHAT_TEMPLATE, analyzeAITells, aiToneScore, DEFAULT_AI_TONE_FLOOR, looksLikeReasoningNotProse, } from "@juanshe/core";
-import { access, appendFile, chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, appendFile, chmod, mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createHash, createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -5587,6 +5587,82 @@ async function buildV0Assets(state, root, bookId) {
         ...(typeof file.size === "number" ? { size: file.size } : {}),
         ...(file.updatedAt ? { updatedAt: file.updatedAt } : {}),
     }));
+}
+const EDITABLE_STORY_ASSET_RE = /\.(md|txt)$/i;
+function resolveStoryAssetPath(state, root, bookId, assetPath) {
+    if (!isSafeBookId(bookId))
+        throw new ApiError(400, "INVALID_BOOK", "Invalid book id");
+    const file = String(assetPath || "").trim();
+    if (!file || file.includes("\0") || file.includes("\\") || isAbsolute(file) || file.includes("..")) {
+        return null;
+    }
+    const storyDir = resolve(tenantRootOr(root), "books", bookId, "story");
+    const resolved = resolve(storyDir, file);
+    const relativePath = relative(storyDir, resolved);
+    if (relativePath === "" || relativePath.startsWith("..") || isAbsolute(relativePath)) {
+        return null;
+    }
+    return { storyDir, resolved, relativePath: relativePath.split("\\").join("/") };
+}
+function editableStoryAsset(relativePath) {
+    return EDITABLE_STORY_ASSET_RE.test(String(relativePath || ""));
+}
+// 真相/控制文件:故事圣经、卷纲、角色矩阵、伏笔、状态,以及 outline/chapters/snapshots/state 等目录——
+// 它们是编辑部的运行源、有各自专门编辑入口(大纲编辑走 truth 接口、章节走编辑器),禁止经"素材库"
+// 通用 CRUD 改/删,防用户在素材页误删 story_bible/volume_map 把整本书地基弄坏。
+const PROTECTED_STORY_ASSET_RE = /(^|\/)(story_bible|story_frame|volume_map|character_matrix|pending_hooks|subplot_board|emotional_arcs|current_state|locked_facts|chapter_summaries)\.md$/i;
+const PROTECTED_STORY_DIR_RE = /^(outline|chapters|snapshots|state|summaries|truth)\//i;
+function isProtectedStoryAsset(relativePath) {
+    const p = String(relativePath || "");
+    return PROTECTED_STORY_ASSET_RE.test(p) || PROTECTED_STORY_DIR_RE.test(p);
+}
+function cleanMaterialSegment(input, fallback) {
+    return String(input || fallback)
+        .replace(/\0/g, "")
+        .replace(/[<>:"|?*\x00-\x1f]/g, "")
+        .replace(/[\\/]+/g, " ")
+        .replace(/\s+/g, " ")
+        .replace(/^\.+/, "")
+        .trim()
+        .slice(0, 80) || fallback;
+}
+function sanitizeMaterialFilename(name) {
+    const base = String(name || "")
+        .split(/[\\/]/)
+        .pop()
+        ?.replace(/\.(md|txt)$/i, "") || "";
+    return `${cleanMaterialSegment(base, "素材")}.md`;
+}
+function normalizeMaterialFolder(folder) {
+    const raw = String(folder || "materials").trim();
+    if (!raw)
+        return "materials";
+    if (raw.includes("\0") || raw.includes("\\") || isAbsolute(raw) || raw.includes(".."))
+        return null;
+    const segments = raw
+        .replace(/^\/+|\/+$/g, "")
+        .split("/")
+        .map((segment) => cleanMaterialSegment(segment, ""))
+        .filter(Boolean);
+    return segments.length ? segments.join("/") : "materials";
+}
+async function storyAssetPayload(relativePath, fullPath) {
+    let info = null;
+    try {
+        info = await stat(fullPath);
+    }
+    catch { /* best-effort metadata */ }
+    const name = relativePath.split("/").pop() || relativePath;
+    return {
+        ok: true,
+        path: relativePath,
+        asset: {
+            id: v0Slug(relativePath, "asset"),
+            name: v0Text(relativePath, relativePath),
+            type: v0AssetType(name),
+            ...(info ? { size: info.size, updatedAt: info.mtime.toISOString() } : {}),
+        },
+    };
 }
 function v0Faction(id, zh, en, color, descZh, descEn = descZh) {
     return { id, name: v0Text(zh, en), color, desc: v0Text(descZh, descEn) };
@@ -12675,6 +12751,129 @@ export function createStudioServer(initialConfig, root) {
         }
     };
     app.get("/api/v1/books/:id/assets", (c) => v0BookJson(c, (id) => buildV0Assets(state, root, id)));
+    app.post("/api/v1/books/:id/assets", async (c) => {
+        const id = c.req.param("id");
+        const body = await c.req.json().catch(() => ({}));
+        try {
+            const folder = normalizeMaterialFolder(body.folder);
+            if (!folder) {
+                return c.json({ error: "Invalid asset folder" }, 400);
+            }
+            const filename = sanitizeMaterialFilename(body.name);
+            const relativePath = `${folder}/${filename}`;
+            const target = resolveStoryAssetPath(state, root, id, relativePath);
+            if (!target) {
+                return c.json({ error: "Invalid asset path" }, 400);
+            }
+            if (!editableStoryAsset(target.relativePath)) {
+                return c.json({ error: "Only markdown/text assets can be created" }, 400);
+            }
+            if (isProtectedStoryAsset(target.relativePath)) {
+                return c.json({ error: "这是编辑部的核心设定文件(故事圣经/卷纲/角色矩阵等),不能在素材库里新建到该位置;请用对应的设定或大纲编辑入口。" }, 403);
+            }
+            try {
+                await access(target.resolved);
+                return c.json({ error: "Asset already exists" }, 409);
+            }
+            catch { /* absent is expected */ }
+            await mkdir(dirname(target.resolved), { recursive: true });
+            await atomicWriteFile(target.resolved, String(body.content ?? ""));
+            return c.json(await storyAssetPayload(target.relativePath, target.resolved));
+        }
+        catch (error) {
+            if (error instanceof ApiError) {
+                return c.json({ error: error.message }, error.status);
+            }
+            return c.json({ error: String(error) }, 500);
+        }
+    });
+    app.get("/api/v1/books/:id/assets/:path{.+}", async (c) => {
+        const id = c.req.param("id");
+        const assetPath = c.req.param("path");
+        try {
+            const target = resolveStoryAssetPath(state, root, id, assetPath);
+            if (!target) {
+                return c.json({ error: "Invalid asset path" }, 400);
+            }
+            if (!editableStoryAsset(target.relativePath)) {
+                return c.json({ error: "Only markdown/text assets can be opened" }, 400);
+            }
+            try {
+                const content = await readFile(target.resolved, "utf-8");
+                return c.json({ path: target.relativePath, content });
+            }
+            catch {
+                return c.json({ error: "Asset not found" }, 404);
+            }
+        }
+        catch (error) {
+            if (error instanceof ApiError) {
+                return c.json({ error: error.message }, error.status);
+            }
+            return c.json({ error: String(error) }, 500);
+        }
+    });
+    app.put("/api/v1/books/:id/assets/:path{.+}", async (c) => {
+        const id = c.req.param("id");
+        const assetPath = c.req.param("path");
+        const body = await c.req.json().catch(() => ({}));
+        try {
+            const target = resolveStoryAssetPath(state, root, id, assetPath);
+            if (!target) {
+                return c.json({ error: "Invalid asset path" }, 400);
+            }
+            if (!editableStoryAsset(target.relativePath)) {
+                return c.json({ error: "Only markdown/text assets can be edited" }, 400);
+            }
+            if (isProtectedStoryAsset(target.relativePath)) {
+                return c.json({ error: "这是编辑部的核心设定文件(故事圣经/卷纲/角色矩阵等),不能在素材库里改;请用对应的设定或大纲编辑入口。" }, 403);
+            }
+            try {
+                await access(target.resolved);
+            }
+            catch {
+                return c.json({ error: "Asset not found" }, 404);
+            }
+            await mkdir(dirname(target.resolved), { recursive: true });
+            await atomicWriteFile(target.resolved, String(body.content ?? ""));
+            return c.json(await storyAssetPayload(target.relativePath, target.resolved));
+        }
+        catch (error) {
+            if (error instanceof ApiError) {
+                return c.json({ error: error.message }, error.status);
+            }
+            return c.json({ error: String(error) }, 500);
+        }
+    });
+    app.delete("/api/v1/books/:id/assets/:path{.+}", async (c) => {
+        const id = c.req.param("id");
+        const assetPath = c.req.param("path");
+        try {
+            const target = resolveStoryAssetPath(state, root, id, assetPath);
+            if (!target) {
+                return c.json({ error: "Invalid asset path" }, 400);
+            }
+            if (!editableStoryAsset(target.relativePath)) {
+                return c.json({ error: "Only markdown/text assets can be deleted" }, 400);
+            }
+            if (isProtectedStoryAsset(target.relativePath)) {
+                return c.json({ error: "这是编辑部的核心设定文件(故事圣经/卷纲/角色矩阵等),不能在素材库里删除——删了会毁掉建书地基;请用对应的设定或大纲编辑入口。" }, 403);
+            }
+            try {
+                await unlink(target.resolved);
+            }
+            catch {
+                return c.json({ error: "Asset not found" }, 404);
+            }
+            return c.json({ ok: true, path: target.relativePath });
+        }
+        catch (error) {
+            if (error instanceof ApiError) {
+                return c.json({ error: error.message }, error.status);
+            }
+            return c.json({ error: String(error) }, 500);
+        }
+    });
     app.get("/api/v1/books/:id/cast", (c) => v0BookJson(c, (id) => buildV0Cast(state, root, id)));
     // 真结构化角色数据(解析真相文件,供新前端"角色与设定"页)
     app.get("/api/v1/books/:id/characters", (c) => v0BookJson(c, (id) => buildBookCharacters(state, root, id)));

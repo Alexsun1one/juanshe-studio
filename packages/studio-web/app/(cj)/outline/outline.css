@@ -292,6 +292,118 @@
 .cj-outline .ol-next-desc { margin: 0 0 11px; font-size: var(--text-cap); line-height: 1.6; color: var(--ink-500); }
 .cj-outline .ol-next-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 
+/* ── 卷纲原文编辑模态:真实写入 truth file,不触发写作 ── */
+.cj-outline .ol-edit-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: color-mix(in oklab, var(--ink-900) 24%, transparent);
+  backdrop-filter: blur(2px);
+  animation: ol-edit-fade var(--motion-fast) var(--ease-soft);
+}
+.cj-outline .ol-edit-panel {
+  width: min(860px, calc(100vw - 32px));
+  max-height: min(760px, calc(100dvh - 32px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xl);
+  background: var(--bg-card);
+  box-shadow: var(--sh-pop);
+  animation: ol-edit-rise var(--motion-base) var(--ease-spring-cj);
+}
+@keyframes ol-edit-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ol-edit-rise { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.cj-outline .ol-edit-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--line-1);
+}
+.cj-outline .ol-edit-kicker {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: 1.4;
+  color: var(--ink-400);
+}
+.cj-outline .ol-edit-head h2 {
+  margin: 2px 0 0;
+  font-size: var(--text-h2);
+  line-height: 1.25;
+  color: var(--ink-900);
+}
+.cj-outline .ol-edit-x {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--bg-card);
+  color: var(--ink-500);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-soft), color var(--motion-fast) var(--ease-soft);
+}
+.cj-outline .ol-edit-x:hover { background: var(--bg-hover); color: var(--ink-800); }
+.cj-outline .ol-edit-x:focus-visible { outline: none; box-shadow: var(--ring); }
+.cj-outline .ol-edit-x:disabled { cursor: not-allowed; opacity: 0.55; }
+.cj-outline .ol-edit-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px 18px;
+  background:
+    radial-gradient(120% 160% at 0% 0%, color-mix(in srgb, var(--brand-500) 5%, transparent), transparent 58%),
+    var(--bg-card);
+}
+.cj-outline .ol-edit-tip {
+  margin: 0;
+  font-size: var(--text-cap);
+  line-height: 1.6;
+  color: var(--ink-500);
+}
+.cj-outline .ol-edit-loading {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  color: var(--ink-500);
+  font-size: var(--text-body);
+}
+.cj-outline .ol-edit-textarea {
+  min-height: 420px;
+  resize: vertical;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-lg);
+  background: var(--bg-canvas);
+  color: var(--ink-900);
+  padding: 13px 14px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.7;
+  outline: none;
+  white-space: pre-wrap;
+  tab-size: 2;
+}
+.cj-outline .ol-edit-textarea:focus { border-color: var(--brand-400, var(--brand-500)); box-shadow: var(--ring); }
+.cj-outline .ol-edit-textarea:disabled { opacity: 0.7; cursor: wait; }
+.cj-outline .ol-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 13px 18px;
+  border-top: 1px solid var(--line-1);
+  background: var(--bg-card);
+}
+
 /* ── 响应式 ── */
 @media (max-width: 1100px) {
   .cj-outline .ol-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -310,4 +422,14 @@
   .cj-outline .ol-hero-pixel { width: 40px; height: 40px; }
   .cj-outline .ol-pane-scroll { padding: 14px 12px 16px; }
   .cj-outline .chap-rows.two { grid-template-columns: 1fr; }
+  .cj-outline .ol-edit-overlay { padding: 10px; }
+  .cj-outline .ol-edit-panel { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); }
+  .cj-outline .ol-edit-head,
+  .cj-outline .ol-edit-body,
+  .cj-outline .ol-edit-actions { padding-left: 14px; padding-right: 14px; }
+  .cj-outline .ol-edit-textarea { min-height: 340px; font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cj-outline .ol-edit-overlay,
+  .cj-outline .ol-edit-panel { animation: none; }
 }

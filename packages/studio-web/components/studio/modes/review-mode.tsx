@@ -1,14 +1,27 @@
 "use client"
 
 import * as React from "react"
-import { AlertTriangle, CheckCircle2, Info, ScanSearch, X } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Info, Loader2, ScanSearch, Wand2, X } from "lucide-react"
+import { toast } from "sonner"
+import { useSWRConfig } from "swr"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useT, useLocale } from "@/lib/i18n"
 import { useStudio } from "@/lib/studio-context"
 import { useManuscript, useReviewIssues } from "@/hooks/use-studio"
+import { applyChapterSuggestion } from "@/lib/api/client"
 import { type ReviewIssue } from "@/lib/studio-data"
 
 export function ReviewMode() {
@@ -18,12 +31,37 @@ export function ReviewMode() {
   const { bookId, currentChapter } = useStudio()
   const { data: manuscript } = useManuscript(bookId, currentChapter)
   const { data: issues } = useReviewIssues(bookId, currentChapter)
+  const { mutate } = useSWRConfig()
   const paragraphs = manuscript?.paragraphs ?? []
   const allIssues = issues ?? []
   const [dismissed, setDismissed] = React.useState<Set<string>>(new Set())
   const [fixed, setFixed] = React.useState<Set<string>>(new Set())
+  const [pendingApply, setPendingApply] = React.useState<ReviewIssue | null>(null)
+  const [applyingId, setApplyingId] = React.useState<string | null>(null)
 
   const active = allIssues.filter((r) => !dismissed.has(r.id) && !fixed.has(r.id))
+  const applyPendingIssue = async () => {
+    if (!bookId || !currentChapter || !pendingApply) return
+    const issue = pendingApply
+    setPendingApply(null)
+    setApplyingId(issue.id)
+    toast.info(lang === "zh" ? "正在按建议修复本章…" : "Applying this suggestion…")
+    try {
+      await applyChapterSuggestion(bookId, currentChapter, suggestionInstruction(issue, lang))
+      setFixed((s) => new Set([...s, issue.id]))
+      await Promise.all([
+        mutate(["manuscript", bookId, currentChapter]),
+        mutate(["quality", bookId, currentChapter]),
+        mutate(["review-issues", bookId, currentChapter]),
+        mutate(["chapters", bookId]),
+      ])
+      toast.success(lang === "zh" ? "已按建议修复本章" : "Suggestion applied")
+    } catch (e) {
+      toast.error(`${lang === "zh" ? "按建议修复失败" : "Apply failed"}:${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setApplyingId(null)
+    }
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -75,6 +113,8 @@ export function ReviewMode() {
                         lang={lang}
                         onFix={() => setFixed((s) => new Set([...s, r.id]))}
                         onDismiss={() => setDismissed((s) => new Set([...s, r.id]))}
+                        onApply={() => setPendingApply(r)}
+                        applying={applyingId === r.id}
                       />
                     )
                   })}
@@ -122,6 +162,8 @@ export function ReviewMode() {
                   isDismissed={dismissed.has(r.id)}
                   onFix={() => setFixed((s) => new Set([...s, r.id]))}
                   onDismiss={() => setDismissed((s) => new Set([...s, r.id]))}
+                  onApply={() => setPendingApply(r)}
+                  applying={applyingId === r.id}
                 />
               ))}
             </ul>
@@ -131,6 +173,38 @@ export function ReviewMode() {
           <QualitySummary lang={lang} fixedCount={fixed.size} total={allIssues.length} />
         </aside>
       </div>
+      <AlertDialog open={pendingApply !== null} onOpenChange={(open) => { if (!open && !applyingId) setPendingApply(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{lang === "zh" ? "按这条建议改写本章？" : "Apply this suggestion?"}</AlertDialogTitle>
+            <AlertDialogDescription className="grid gap-3 text-left text-xs leading-relaxed">
+              <span>
+                {lang === "zh"
+                  ? "这会让编辑部按该建议改写本章，触发 LLM 并消耗额度。"
+                  : "This will rewrite the chapter with the editor, trigger the LLM, and consume quota."}
+              </span>
+              <span className="border-border bg-secondary text-foreground/80 rounded-md border px-3 py-2">
+                {pendingApply?.note[lang] ?? ""}
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button" disabled={Boolean(applyingId)}>
+              {lang === "zh" ? "保持当前状态" : "Cancel"}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              disabled={Boolean(applyingId)}
+              onClick={(event) => {
+                event.preventDefault()
+                void applyPendingIssue()
+              }}
+            >
+              {lang === "zh" ? "确认修复" : "Apply"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -140,11 +214,15 @@ function InlineIssueBadge({
   lang,
   onFix,
   onDismiss,
+  onApply,
+  applying,
 }: {
   issue: ReviewIssue
   lang: "zh" | "en"
   onFix: () => void
   onDismiss: () => void
+  onApply: () => void
+  applying: boolean
 }) {
   const colors: Record<ReviewIssue["severity"], string> = {
     high: "bg-status-error/10 text-status-error border-status-error/30",
@@ -162,8 +240,16 @@ function InlineIssueBadge({
       <span className="flex-1 leading-snug">{issue.note[lang]}</span>
       <span className="text-muted-foreground/70 shrink-0 text-[10px]">{issue.agent[lang]}</span>
       <button
+        onClick={onApply}
+        disabled={applying}
+        className="ml-1 shrink-0 rounded px-1 py-0.5 font-medium hover:bg-black/5 disabled:cursor-wait disabled:opacity-60 dark:hover:bg-white/10"
+        title={lang === "zh" ? "按此建议真改正文" : "Apply suggestion to manuscript"}
+      >
+        {applying ? <Loader2 className="size-3 animate-spin" /> : <Wand2 className="size-3" />}
+      </button>
+      <button
         onClick={onFix}
-        className="ml-1 shrink-0 rounded px-1 py-0.5 font-medium hover:bg-black/5 dark:hover:bg-white/10"
+        className="shrink-0 rounded px-1 py-0.5 font-medium hover:bg-black/5 dark:hover:bg-white/10"
         title={lang === "zh" ? "标记已处理，不改正文" : "Mark handled; manuscript unchanged"}
       >
         <CheckCircle2 className="size-3" />
@@ -186,6 +272,8 @@ function IssueCard({
   isDismissed,
   onFix,
   onDismiss,
+  onApply,
+  applying,
 }: {
   issue: ReviewIssue
   lang: "zh" | "en"
@@ -193,6 +281,8 @@ function IssueCard({
   isDismissed: boolean
   onFix: () => void
   onDismiss: () => void
+  onApply: () => void
+  applying: boolean
 }) {
   const colors: Record<ReviewIssue["severity"], string> = {
     high: "border-status-error/30 bg-status-error/5",
@@ -220,8 +310,12 @@ function IssueCard({
       </blockquote>
       <p className="text-foreground/80 leading-snug">{issue.note[lang]}</p>
       {!isFixed && !isDismissed && (
-        <div className="mt-2 flex gap-1.5">
-          <Button size="sm" className="h-6 flex-1 text-[10px]" onClick={onFix}>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <Button size="sm" className="h-6 flex-1 text-[10px]" onClick={onApply} disabled={applying}>
+            {applying ? <Loader2 className="size-3 animate-spin" /> : <Wand2 className="size-3" />}
+            {lang === "zh" ? "按此修复" : "Apply"}
+          </Button>
+          <Button size="sm" variant="secondary" className="h-6 flex-1 text-[10px]" onClick={onFix}>
             <CheckCircle2 className="size-3" />
             {lang === "zh" ? "标记已处理" : "Mark handled"}
           </Button>
@@ -243,6 +337,12 @@ function IssueCard({
       )}
     </li>
   )
+}
+
+function suggestionInstruction(issue: ReviewIssue, lang: "zh" | "en") {
+  const note = issue.note[lang] || issue.note.zh || issue.note.en
+  const excerpt = issue.excerpt[lang] || issue.excerpt.zh || issue.excerpt.en
+  return [`按这条审稿建议修复本章：${note}`, excerpt ? `相关引文：${excerpt}` : ""].filter(Boolean).join("\n")
 }
 
 function IssueSummary({

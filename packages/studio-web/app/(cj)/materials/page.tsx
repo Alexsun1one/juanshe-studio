@@ -14,17 +14,31 @@ import {
   FolderOpen,
   Image as ImageIcon,
   Layers,
+  Loader2,
   Music,
+  Pencil,
+  Plus,
   Search,
+  Trash2,
   Video,
   X,
 } from "lucide-react"
 import { toast } from "sonner"
-import { fetchAssets } from "@/lib/api/client"
+import { createMaterial, deleteMaterial, fetchAssets, fetchMaterial, updateMaterial } from "@/lib/api/client"
 import { useWorkspace } from "@/lib/workspace-context"
 import { CjPlaceholder, EmptyArt } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import "./materials.css"
 
 type AssetItem = { id: string; name: { zh: string; en: string }; type: "doc" | "image" | "audio" | "video"; size?: number; updatedAt?: string }
@@ -34,6 +48,8 @@ const TYPE_LABEL = { doc: "文档", image: "图片", audio: "音频", video: "�
 const TYPE_TONE = { doc: "info", image: "brand", audio: "amber", video: "rose" } as const
 const basename = (p: string) => p.split("/").pop() ?? p
 const folderOf = (p: string) => (p.includes("/") ? p.split("/").slice(0, -1).join("/") : "根目录")
+const isEditableTextAsset = (asset: AssetItem | null | undefined) =>
+  Boolean(asset && asset.type === "doc" && /\.(md|txt)$/i.test(asset.name.zh))
 // 过滤掉内部流水线产物(状态/日志/草稿/复审/统计/恢复),素材库只展示真正的创作资料
 const isInternalAsset = (p: string) => {
   const lower = p.toLowerCase()
@@ -67,10 +83,18 @@ const relTime = (s?: string): string => {
 export default function MaterialsPage() {
   const { books, bookId, booksLoading } = useWorkspace()
   const active = books.find((b) => b.id === bookId)
-  const { data, error } = useSWR(bookId ? ["assets", bookId] : null, () => fetchAssets(bookId) as Promise<AssetItem[]>, soft)
+  const { data, error, mutate } = useSWR(bookId ? ["assets", bookId] : null, () => fetchAssets(bookId) as Promise<AssetItem[]>, soft)
   const [q, setQ] = React.useState("")
   const [folder, setFolder] = React.useState("all")
   const [selected, setSelected] = React.useState<AssetItem | null>(null)
+  const [editor, setEditor] = React.useState<null | { mode: "create" | "edit"; asset?: AssetItem }>(null)
+  const [draftName, setDraftName] = React.useState("")
+  const [draftFolder, setDraftFolder] = React.useState("materials")
+  const [draftContent, setDraftContent] = React.useState("")
+  const [loadingDraft, setLoadingDraft] = React.useState(false)
+  const [savingDraft, setSavingDraft] = React.useState(false)
+  const [deleteTarget, setDeleteTarget] = React.useState<AssetItem | null>(null)
+  const [deleting, setDeleting] = React.useState(false)
 
   if (!booksLoading && !bookId) {
     return <CjPlaceholder title="素材库" sub="本地工作区还没有作品,创建后这里会出现素材与资产文件。" />
@@ -107,6 +131,74 @@ export default function MaterialsPage() {
       toast.error("复制失败,请手动选择路径复制")
     }
   }
+  const openCreate = () => {
+    setSelected(null)
+    setEditor({ mode: "create" })
+    setDraftName("")
+    setDraftFolder(folder === "all" || folder === "根目录" ? "materials" : folder)
+    setDraftContent("")
+    setLoadingDraft(false)
+  }
+  const openEdit = async (asset: AssetItem) => {
+    if (!bookId || !isEditableTextAsset(asset)) return
+    setSelected(null)
+    setEditor({ mode: "edit", asset })
+    setDraftName(basename(asset.name.zh))
+    setDraftFolder(folderOf(asset.name.zh) === "根目录" ? "materials" : folderOf(asset.name.zh))
+    setDraftContent("")
+    setLoadingDraft(true)
+    try {
+      const file = await fetchMaterial(bookId, asset.name.zh)
+      setDraftContent(file.content)
+    } catch (e) {
+      toast.error(`读取素材失败:${e instanceof Error ? e.message : String(e)}`)
+      setEditor(null)
+    } finally {
+      setLoadingDraft(false)
+    }
+  }
+  const saveDraft = async () => {
+    if (!bookId || !editor) return
+    if (editor.mode === "create" && !draftName.trim()) {
+      toast.info("请先给素材起个名字")
+      return
+    }
+    setSavingDraft(true)
+    try {
+      if (editor.mode === "create") {
+        await createMaterial(bookId, {
+          name: draftName,
+          folder: draftFolder,
+          content: draftContent,
+        })
+        toast.success("素材已新建")
+      } else if (editor.asset) {
+        await updateMaterial(bookId, editor.asset.name.zh, draftContent)
+        toast.success("素材已保存")
+      }
+      setEditor(null)
+      await mutate()
+    } catch (e) {
+      toast.error(`保存素材失败:${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSavingDraft(false)
+    }
+  }
+  const confirmDelete = async () => {
+    if (!bookId || !deleteTarget) return
+    setDeleting(true)
+    try {
+      await deleteMaterial(bookId, deleteTarget.name.zh)
+      toast.success("素材已删除")
+      if (selected?.id === deleteTarget.id) setSelected(null)
+      setDeleteTarget(null)
+      await mutate()
+    } catch (e) {
+      toast.error(`删除素材失败:${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="cj-screen cj-materials">
@@ -131,6 +223,7 @@ export default function MaterialsPage() {
               </button>
             )}
           </div>
+          <button type="button" className="btn primary sm mt-new-btn" onClick={openCreate}><Plus size={13} /> 新建素材</button>
         </div>
         <div className="mt-kpis" role="group" aria-label="素材概览">
           <KpiChip label="素材总数" value={assets.length} unit="项" tone="brand" />
@@ -181,7 +274,8 @@ export default function MaterialsPage() {
                     <div className="empty-title">素材箱还没拆封</div>
                     <div className="empty-desc">导入参考资料、图片或设定文档后,它们会按目录汇集成这本书的可检索资产库。</div>
                     <div className="mt-empty-actions">
-                      <Link href="/import" className="btn primary sm"><FileInput size={13} /> 去导入素材</Link>
+                      <button type="button" className="btn primary sm" onClick={openCreate}><Plus size={13} /> 新建素材</button>
+                      <Link href="/import" className="btn sm"><FileInput size={13} /> 去导入素材</Link>
                       <Link href="/editor?chapter=1" className="btn sm">先写第一章</Link>
                     </div>
                   </>
@@ -349,11 +443,95 @@ export default function MaterialsPage() {
             </div>
             <div className="mat-actions">
               <button type="button" className="btn sm" onClick={() => copyPath(selected)}><Copy size={12} /> 复制路径</button>
+              {isEditableTextAsset(selected) && (
+                <>
+                  <button type="button" className="btn sm" onClick={() => void openEdit(selected)}><Pencil size={12} /> 编辑</button>
+                  <button type="button" className="btn ghost sm mat-danger" onClick={() => setDeleteTarget(selected)}><Trash2 size={12} /> 删除</button>
+                </>
+              )}
               <button type="button" className="btn primary sm" onClick={() => setSelected(null)}><Check size={12} /> 完成</button>
             </div>
           </div>
         </div>
       )}
+
+      {editor && (
+        <div className="mat-overlay" role="presentation" onClick={() => !savingDraft && setEditor(null)}>
+          <div className="mat-panel mat-editor" role="dialog" aria-modal="true" aria-label={editor.mode === "create" ? "新建素材" : "编辑素材"} onClick={(e) => e.stopPropagation()}>
+            <div className="mat-head">
+              <span className="mt-ico lg doc"><FileText size={20} /></span>
+              <div className="mat-head-text">
+                <div className="mat-kicker">{editor.mode === "create" ? "New material" : "Text material"}</div>
+                <h2>{editor.mode === "create" ? "新建文本素材" : basename(editor.asset?.name.zh ?? "素材")}</h2>
+              </div>
+              <button type="button" className="mat-x" onClick={() => setEditor(null)} disabled={savingDraft} aria-label="关闭素材编辑"><X size={16} /></button>
+            </div>
+            <div className="mat-body mat-edit-body">
+              {editor.mode === "create" && (
+                <div className="mat-fields">
+                  <label>
+                    <span>素材名</span>
+                    <input value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="例如:门派设定" disabled={savingDraft} />
+                  </label>
+                  <label>
+                    <span>目录</span>
+                    <input value={draftFolder} onChange={(e) => setDraftFolder(e.target.value)} placeholder="materials" disabled={savingDraft} />
+                  </label>
+                </div>
+              )}
+              <p className="mat-edit-hint">
+                {editor.mode === "create" ? "会在本书 story 目录内创建 .md 素材。" : "只编辑文本素材原文；图片、音频、视频保持只读。"}
+              </p>
+              {loadingDraft ? (
+                <div className="mat-edit-loading"><Loader2 size={14} className="spin" /> 正在读取素材…</div>
+              ) : (
+                <textarea
+                  className="mat-edit-textarea"
+                  value={draftContent}
+                  onChange={(e) => setDraftContent(e.target.value)}
+                  disabled={savingDraft}
+                  spellCheck={false}
+                  aria-label="素材 markdown 原文"
+                />
+              )}
+            </div>
+            <div className="mat-actions">
+              <button type="button" className="btn sm" onClick={() => setEditor(null)} disabled={savingDraft}>取消</button>
+              <button type="button" className={`btn primary sm${savingDraft ? " is-loading" : ""}`} onClick={saveDraft} disabled={savingDraft || loadingDraft}>
+                {savingDraft ? <Loader2 size={12} className="spin" /> : <Check size={12} />} 保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open && !deleting) setDeleteTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除这个素材？</AlertDialogTitle>
+            <AlertDialogDescription className="grid gap-3 text-left text-xs leading-relaxed">
+              <span>这会从本书 story 目录中删除该文本素材，删除后需要从备份或版本记录恢复。</span>
+              <span className="border-border bg-secondary text-foreground/80 rounded-md border px-3 py-2 font-mono text-[11px] leading-relaxed">
+                {deleteTarget?.name.zh ?? "—"}
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button" disabled={deleting}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              disabled={deleting}
+              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20"
+              onClick={(event) => {
+                event.preventDefault()
+                void confirmDelete()
+              }}
+            >
+              {deleting ? "删除中…" : "确认删除"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

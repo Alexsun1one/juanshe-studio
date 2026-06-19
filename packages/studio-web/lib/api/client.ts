@@ -28,6 +28,9 @@ import type {
   LLMProvider,
   LLMProviderCreateInput,
   LLMProviderPatch,
+  MaterialCreateInput,
+  MaterialFile,
+  MaterialSaveResult,
   Manuscript,
   MarketOpportunity,
   OutlineAct,
@@ -41,6 +44,7 @@ import type {
   Streak,
   StyleFingerprint,
   SystemHealth,
+  TruthFile,
   WikiNode,
   WikiResponse,
   WorkflowContract,
@@ -64,6 +68,8 @@ type Asset = {
   id: string
   name: { zh: string; en: string }
   type: "doc" | "image" | "audio" | "video"
+  size?: number
+  updatedAt?: string
 }
 
 export class ApiClientError extends Error {
@@ -162,6 +168,28 @@ async function patchJSON<T>(
   })
   if (!res.ok) {
     throw await apiError("PATCH", url, res)
+  }
+  return res.json() as Promise<T>
+}
+
+async function putJSON<T>(
+  url: string,
+  body?: unknown,
+  init?: RequestInit,
+): Promise<T> {
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...(init?.headers ?? {}),
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+    ...init,
+  })
+  if (!res.ok) {
+    throw await apiError("PUT", url, res)
   }
   return res.json() as Promise<T>
 }
@@ -869,8 +897,51 @@ export function fetchAssets(bookId: string): Promise<Asset[]> {
   return getJSON<Asset[]>(ENDPOINTS.assets(bookId))
 }
 
+export function fetchMaterial(
+  bookId: string,
+  path: string,
+): Promise<MaterialFile> {
+  return getJSON<MaterialFile>(ENDPOINTS.asset(bookId, path))
+}
+
+export function createMaterial(
+  bookId: string,
+  input: MaterialCreateInput,
+): Promise<MaterialSaveResult> {
+  return postJSON<MaterialSaveResult>(ENDPOINTS.assets(bookId), input)
+}
+
+export function updateMaterial(
+  bookId: string,
+  path: string,
+  content: string,
+): Promise<MaterialSaveResult> {
+  return putJSON<MaterialSaveResult>(ENDPOINTS.asset(bookId, path), { content })
+}
+
+export function deleteMaterial(
+  bookId: string,
+  path: string,
+): Promise<MaterialSaveResult> {
+  return postJSON<MaterialSaveResult>(ENDPOINTS.asset(bookId, path), undefined, {
+    method: "DELETE",
+  })
+}
+
 export function fetchOutline(bookId: string): Promise<OutlineAct[]> {
   return getJSON<OutlineAct[]>(ENDPOINTS.outline(bookId))
+}
+
+export function fetchTruthFile(bookId: string, file: string): Promise<TruthFile> {
+  return getJSON<TruthFile>(ENDPOINTS.truthFile(bookId, file))
+}
+
+export function saveTruthFile(
+  bookId: string,
+  file: string,
+  content: string,
+): Promise<{ ok: true }> {
+  return putJSON<{ ok: true }>(ENDPOINTS.truthFile(bookId, file), { content })
 }
 
 export function fetchPublishChannels(
@@ -892,6 +963,17 @@ export function saveManuscript(
   input: { content: string; locale?: "zh" | "en" },
 ): Promise<Manuscript> {
   return patchJSON<Manuscript>(ENDPOINTS.manuscript(bookId, chapterNum), input)
+}
+
+export function applyChapterSuggestion(
+  bookId: string,
+  chapterNum: number,
+  instruction: string,
+): Promise<Manuscript & { ok?: true; quality?: unknown; qualityReport?: unknown }> {
+  return postJSON(ENDPOINTS.chapterEnhance(bookId, chapterNum), {
+    instruction,
+    apply: true,
+  })
 }
 
 export function fetchChapterStats(

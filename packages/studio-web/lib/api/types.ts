@@ -366,6 +366,29 @@ export type Asset = {
   updatedAt?: string
 }
 
+export type TruthFile = {
+  file: string
+  content: string | null
+  legacy?: boolean
+}
+
+export type MaterialCreateInput = {
+  name: string
+  content: string
+  folder?: string
+}
+
+export type MaterialFile = {
+  path: string
+  content: string
+}
+
+export type MaterialSaveResult = {
+  ok: true
+  path?: string
+  asset?: Asset
+}
+
 // ---------- 质量与审稿 ----------
 export type { ReviewIssue }
 
@@ -1003,14 +1026,20 @@ export const ENDPOINTS = {
     `${chapterEndpoint(id, num)}/quality`,
   knowledge: (id: string) => `${bookEndpoint(id)}/knowledge`,
   assets: (id: string) => `${bookEndpoint(id)}/assets`,
+  asset: (id: string, path: string) =>
+    `${bookEndpoint(id)}/assets/${pathSegment(path)}`,
   cast: (id: string) => `${bookEndpoint(id)}/cast`,
   world: (id: string) => `${bookEndpoint(id)}/world`,
   outline: (id: string) => `${bookEndpoint(id)}/outline`,
+  truthFile: (id: string, file: string) =>
+    `${bookEndpoint(id)}/truth/${pathSegment(file)}`,
   publishChannels: (id: string) => `${bookEndpoint(id)}/publish-channels`,
   reviewIssues: (id: string, num: number) =>
     `${chapterEndpoint(id, num)}/review-issues`,
   manuscript: (id: string, num: number) =>
     `${chapterEndpoint(id, num)}/manuscript`,
+  chapterEnhance: (id: string, num: number) =>
+    `${chapterEndpoint(id, num)}/enhance`,
   chapterStats: (id: string, num: number) =>
     `${chapterEndpoint(id, num)}/stats`,
   rewriteProposal: (id: string, num: number, style?: string) =>

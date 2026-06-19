@@ -333,4 +333,77 @@ describe("Phase 5 hotfix 1 — Studio truth file endpoints", () => {
     const shimEntry = body.files.find((f) => f.name === "book_rules.md");
     expect(shimEntry?.legacy).toBe(true);
   });
+
+  it("creates, reads, updates, and deletes editable story assets inside story/", async () => {
+    const { createStudioServer } = await import("./server.js");
+    const app = createStudioServer(cloneProjectConfig() as never, root);
+
+    const createRes = await app.request("http://localhost/api/v1/books/hotfix-book/assets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "素材甲", content: "# old" }),
+    });
+    expect(createRes.status).toBe(200);
+    const created = await createRes.json() as { path: string };
+    expect(created.path).toBe("materials/素材甲.md");
+    await expect(readFile(join(storyDir, "materials/素材甲.md"), "utf-8")).resolves.toContain("# old");
+
+    const assetPath = encodeURIComponent("materials/素材甲.md");
+    const getRes = await app.request(`http://localhost/api/v1/books/hotfix-book/assets/${assetPath}`);
+    expect(getRes.status).toBe(200);
+    await expect(getRes.json()).resolves.toMatchObject({ path: "materials/素材甲.md", content: "# old" });
+
+    const putRes = await app.request(`http://localhost/api/v1/books/hotfix-book/assets/${assetPath}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "# new" }),
+    });
+    expect(putRes.status).toBe(200);
+    await expect(readFile(join(storyDir, "materials/素材甲.md"), "utf-8")).resolves.toBe("# new");
+
+    const deleteRes = await app.request(`http://localhost/api/v1/books/hotfix-book/assets/${assetPath}`, {
+      method: "DELETE",
+    });
+    expect(deleteRes.status).toBe(200);
+    await expect(readFile(join(storyDir, "materials/素材甲.md"), "utf-8")).rejects.toThrow();
+  });
+
+  it("rejects asset path traversal attempts", async () => {
+    const { createStudioServer } = await import("./server.js");
+    const app = createStudioServer(cloneProjectConfig() as never, root);
+
+    const response = await app.request(
+      `http://localhost/api/v1/books/hotfix-book/assets/${encodeURIComponent("../../etc/passwd")}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: "nope" }),
+      },
+    );
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "Invalid asset path" });
+  });
+
+  it("keeps binary assets read-only for write/delete routes", async () => {
+    await mkdir(join(storyDir, "images"), { recursive: true });
+    await writeFile(join(storyDir, "images", "cover.png"), "not really png", "utf-8");
+    const { createStudioServer } = await import("./server.js");
+    const app = createStudioServer(cloneProjectConfig() as never, root);
+    const assetPath = encodeURIComponent("images/cover.png");
+
+    const putRes = await app.request(`http://localhost/api/v1/books/hotfix-book/assets/${assetPath}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "nope" }),
+    });
+    expect(putRes.status).toBe(400);
+    await expect(putRes.json()).resolves.toEqual({ error: "Only markdown/text assets can be edited" });
+
+    const deleteRes = await app.request(`http://localhost/api/v1/books/hotfix-book/assets/${assetPath}`, {
+      method: "DELETE",
+    });
+    expect(deleteRes.status).toBe(400);
+    await expect(deleteRes.json()).resolves.toEqual({ error: "Only markdown/text assets can be deleted" });
+    await expect(readFile(join(storyDir, "images", "cover.png"), "utf-8")).resolves.toBe("not really png");
+  });
 });

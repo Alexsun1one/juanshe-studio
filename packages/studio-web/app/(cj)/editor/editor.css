@@ -164,6 +164,9 @@
 .cj-editor .erv-did { margin: 3px 0 0; font-size: 12.5px; color: var(--ink-600); line-height: 1.6; }
 .cj-editor .erv-issue { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: var(--r-sm); background: var(--bg-sunken); margin: 0 0 6px; font-size: 13px; }
 .cj-editor .erv-issue .erv-sev { flex: 0 0 auto; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: var(--r-pill); background: var(--line-2); color: var(--ink-700); }
+.cj-editor .erv-issue .erv-msg { flex: 1 1 auto; min-width: 0; }
+.cj-editor .erv-fix,
+.cj-editor .eic-fix { flex: 0 0 auto; margin-left: auto; white-space: nowrap; }
 .cj-editor .erv-issue.high .erv-sev, .cj-editor .erv-issue.critical .erv-sev { background: var(--err-50, #fdecea); color: var(--err-600, #d4453b); }
 .cj-editor .erv-issue.medium .erv-sev { background: var(--warn-50, #fdf4e3); color: var(--warn-600, #c2790a); }
 .cj-editor .erv-msg { color: var(--ink-700); line-height: 1.6; }
@@ -181,7 +184,8 @@
 .cj-editor .erv-list.risk li { color: var(--err-600, #d4453b); }
 .cj-editor .erv-rework, .cj-editor .erv-dir { margin: 8px 0 0; font-size: 12.5px; color: var(--ink-700); line-height: 1.6; }
 .cj-editor .erv-rework .l, .cj-editor .erv-dir .l { display: block; font-size: 11px; font-weight: 700; color: var(--ink-500); margin-bottom: 4px; }
-.cj-editor .erv-rt { margin: 0 0 3px; }
+.cj-editor .erv-rt { margin: 0 0 3px; display: flex; align-items: flex-start; gap: 8px; }
+.cj-editor .erv-rt > span { flex: 1 1 auto; min-width: 0; }
 .cj-editor .erv-rt b { color: var(--brand-600); }
 .cj-editor .erv-empty { padding: 4px 0; }
 /* diff 对比 */
@@ -313,7 +317,8 @@
 .cj-editor .eic-list.risk .lab { color: var(--warn-500); }
 .cj-editor .eic-list li { color: var(--ink-700); line-height: 1.55; }
 .cj-editor .eic-rework { font-size: 12px; }
-.cj-editor .eic-rt { padding: 6px 9px; border: 1px solid var(--line-2); border-radius: var(--r-md); margin-bottom: 6px; color: var(--ink-700); line-height: 1.5; }
+.cj-editor .eic-rt { padding: 6px 9px; border: 1px solid var(--line-2); border-radius: var(--r-md); margin-bottom: 6px; color: var(--ink-700); line-height: 1.5; display: flex; align-items: flex-start; gap: 8px; }
+.cj-editor .eic-rt > span { flex: 1 1 auto; min-width: 0; }
 .cj-editor .eic-rt b { color: var(--brand-600); font-weight: 700; margin-right: 4px; }
 .cj-editor .eic-dir { font-size: 12px; color: var(--ink-700); line-height: 1.6; padding: 8px 10px; background: var(--brand-50); border-radius: var(--r-md); }
 .cj-editor .eic-by { font-size: 10.5px; color: var(--ink-400); font-family: var(--font-num); padding-top: 2px; border-top: 1px dashed var(--line-2); }

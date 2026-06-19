@@ -10,12 +10,15 @@ import {
   GitBranch,
   Grid3x3,
   ListOrdered,
+  Loader2,
   Milestone,
   PenLine,
   Sparkles,
+  SquarePen,
+  X as XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
-import { fetchOutline, fetchPlotProgress, fetchProjectPrefs } from "@/lib/api/client"
+import { fetchOutline, fetchPlotProgress, fetchProjectPrefs, fetchTruthFile, saveTruthFile } from "@/lib/api/client"
 import type { OutlineAct, OutlineChapter } from "@/lib/api/types"
 import { useWorkspace } from "@/lib/workspace-context"
 import { CjPlaceholder } from "@/components/design/cj-placeholder"
@@ -29,6 +32,7 @@ const fmt = (n: number | undefined | null) =>
   typeof n === "number" && Number.isFinite(n) ? n.toLocaleString("en-US") : "—"
 
 const VOL_MARKS = ["壹", "贰", "叁", "肆", "伍", "陆", "柒", "捌"]
+const VOLUME_MAP_FILE = "outline/volume_map.md"
 
 // 章节状态 → 设计系统 pill 的 data-state(语义色只走状态,不用裸文字/杂色)+ 中文标签
 function chTag(status: string): { state: string; label: string } {
@@ -59,10 +63,14 @@ function downloadText(filename: string, text: string) {
 export default function OutlinePage() {
   const { books, bookId, booksLoading } = useWorkspace()
   const active = books.find((b) => b.id === bookId)
-  const { data: outline } = useSWR(bookId ? ["outline", bookId] : null, () => fetchOutline(bookId), soft)
+  const { data: outline, mutate: mutateOutline } = useSWR(bookId ? ["outline", bookId] : null, () => fetchOutline(bookId), soft)
   const { data: plot } = useSWR(bookId ? ["plot", bookId] : null, () => fetchPlotProgress(bookId), soft)
   // 与工作台同 key 共享缓存:热力图达标基准要用质量门禁同一口径的目标字数,不能拿全书平均自归一化
   const { data: prefs } = useSWR("prefs", fetchProjectPrefs, soft)
+  const [editing, setEditing] = React.useState(false)
+  const [rawOutline, setRawOutline] = React.useState("")
+  const [loadingRaw, setLoadingRaw] = React.useState(false)
+  const [savingRaw, setSavingRaw] = React.useState(false)
 
   if (!booksLoading && !bookId) {
     return <CjPlaceholder title="大纲与规划" sub="本地工作区还没有作品,创建后这里会出现张力曲线、卷看板与节拍表。" />
@@ -170,6 +178,34 @@ export default function OutlinePage() {
     downloadText(`${active?.title.zh ?? "AutoW"}-大纲与规划.md`, outlineMarkdown)
     toast.success("大纲已导出")
   }
+  const openOutlineEditor = async () => {
+    if (!bookId) return
+    setEditing(true)
+    setLoadingRaw(true)
+    try {
+      const file = await fetchTruthFile(bookId, VOLUME_MAP_FILE)
+      setRawOutline(file.content ?? "")
+    } catch (e) {
+      toast.error(`读取卷纲失败:${e instanceof Error ? e.message : String(e)}`)
+      setEditing(false)
+    } finally {
+      setLoadingRaw(false)
+    }
+  }
+  const saveOutlineEditor = async () => {
+    if (!bookId) return
+    setSavingRaw(true)
+    try {
+      await saveTruthFile(bookId, VOLUME_MAP_FILE, rawOutline)
+      toast.success("卷纲已保存", { description: "编辑部会按新的卷纲继续推进。" })
+      setEditing(false)
+      await mutateOutline()
+    } catch (e) {
+      toast.error(`保存卷纲失败:${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSavingRaw(false)
+    }
+  }
 
   return (
     <div className="cj-screen cj-outline">
@@ -187,6 +223,7 @@ export default function OutlinePage() {
             </div>
           </div>
           <div className="page-actions ol-actions">
+            <button type="button" className="btn sm" onClick={openOutlineEditor}><SquarePen size={12} /> 编辑大纲</button>
             <button type="button" className="btn sm" onClick={copyPlanningPrompt}><Sparkles size={12} /> 复制推演提示</button>
             <button type="button" className="btn sm" onClick={exportOutline}><ListOrdered size={12} /> 导出大纲</button>
             <Link className="btn sm" href="/editor"><PenLine size={12} /> 去编辑器</Link>
@@ -497,6 +534,43 @@ export default function OutlinePage() {
           </div>
         </aside>
       </div>
+
+      {editing && (
+        <div className="ol-edit-overlay" role="presentation" onClick={() => !savingRaw && setEditing(false)}>
+          <div className="ol-edit-panel" role="dialog" aria-modal="true" aria-label="编辑卷纲原文" onClick={(e) => e.stopPropagation()}>
+            <div className="ol-edit-head">
+              <div>
+                <div className="ol-edit-kicker">story/{VOLUME_MAP_FILE}</div>
+                <h2>编辑大纲原文</h2>
+              </div>
+              <button type="button" className="ol-edit-x" onClick={() => setEditing(false)} disabled={savingRaw} aria-label="关闭编辑大纲">
+                <XIcon size={16} />
+              </button>
+            </div>
+            <div className="ol-edit-body">
+              <p className="ol-edit-tip">直接编辑卷纲原文,保存后编辑部按新卷纲推进。</p>
+              {loadingRaw ? (
+                <div className="ol-edit-loading"><Loader2 size={14} className="spin" /> 正在读取卷纲…</div>
+              ) : (
+                <textarea
+                  className="ol-edit-textarea"
+                  value={rawOutline}
+                  onChange={(e) => setRawOutline(e.target.value)}
+                  spellCheck={false}
+                  disabled={savingRaw}
+                  aria-label="卷纲 markdown 原文"
+                />
+              )}
+            </div>
+            <div className="ol-edit-actions">
+              <button type="button" className="btn sm" onClick={() => setEditing(false)} disabled={savingRaw}>取消</button>
+              <button type="button" className={`btn primary sm${savingRaw ? " is-loading" : ""}`} onClick={saveOutlineEditor} disabled={savingRaw || loadingRaw}>
+                {savingRaw ? <Loader2 size={12} className="spin" /> : <Check size={12} />} 保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -38,6 +38,7 @@ import {
 import Link from "next/link"
 import {
   approveChapter,
+  applyChapterSuggestion,
   fetchChapters,
   fetchManuscript,
   fetchQuality,
@@ -86,7 +87,7 @@ import "./editor.css"
 const soft = { shouldRetryOnError: false }
 const CH_STATE: Record<string, string> = { published: "已发布", done: "完成", review: "审校", writing: "写作中", queued: "排队", draft: "草稿", "audit-failed": "待修硬伤" }
 // approve 不是 AI 动作(纯状态变更、不耗 token),但低分强制签发要借同一个确认弹窗把语义说清
-type EditorAiAction = "continue" | "repair" | "polish" | "expand" | "review" | "eic-review" | "approve"
+type EditorAiAction = "continue" | "repair" | "polish" | "expand" | "review" | "eic-review" | "approve" | "suggestion"
 
 // 章节状态 → 设计系统状态 pill 的 data-state(语义色只走状态)+ 一个贴切的 lucide 图标。
 // 不新增配色:直接复用 .pill[data-state] 的 10 态;图标只为「一眼可辨」。
@@ -134,6 +135,7 @@ export default function EditorPage() {
   const [review, setReview] = React.useState<EditorialReview | null>(null)
   const [reviewBusy, setReviewBusy] = React.useState(false)
   const [confirmAction, setConfirmAction] = React.useState<EditorAiAction | null>(null)
+  const [suggestionInstruction, setSuggestionInstruction] = React.useState("")
   // 画布视图:正文 ⇄ 编辑部评审(每个 agent 的意见/建议 + 修改 diff)
   const [view, setView] = React.useState<"text" | "review">("text")
   // 评审视图才拉修订快照(写手原稿→定稿 + 每轮修复 before/after)
@@ -342,8 +344,47 @@ export default function EditorPage() {
       await runEditorialReview()
     } else if (action === "approve") {
       await doApprove()
+    } else if (action === "suggestion") {
+      await applySuggestionToChapter()
     } else {
       await aiAction(action)
+    }
+  }
+
+  const openSuggestionConfirm = (instruction: string) => {
+    if (!bookId || !cur) return
+    if (!instruction.trim()) return
+    if (run.isRunning || live.active) {
+      toast.info("正在写作中", { description: "等当前生成结束,或在工作台停止后再按建议修复。" })
+      return
+    }
+    setSuggestionInstruction(instruction.trim())
+    setConfirmAction("suggestion")
+  }
+
+  const applySuggestionToChapter = async () => {
+    if (!bookId || !cur || !suggestionInstruction.trim()) return
+    setBusy(true)
+    toast.info("正在按建议修复本章…")
+    try {
+      await applyChapterSuggestion(bookId, cur, suggestionInstruction)
+      loadedKey.current = ""
+      setDirty(false)
+      await Promise.all([
+        mutate(["ms", bookId, cur]),
+        mutate(["manuscript", bookId, cur]),
+        mutate(["quality", bookId, cur]),
+        mutate(["handoff", bookId, cur]),
+        mutate(["revisions", bookId, cur]),
+        mutate(["chapters", bookId]),
+      ])
+      fetchEditorialReview(bookId, cur).then((d) => setReview(d.review)).catch(() => {})
+      toast.success("已按建议修复本章", { description: "正文、质量和审议信息已重新刷新。" })
+    } catch (e) {
+      toast.error(`按建议修复失败:${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setBusy(false)
+      setSuggestionInstruction("")
     }
   }
 
@@ -651,6 +692,14 @@ export default function EditorPage() {
                       <div className={`erv-issue ${String(i.severity).toLowerCase()}`} key={idx}>
                         <span className="erv-sev">{severityLabel(i.severity)}</span>
                         <span className="erv-msg">{i.message}</span>
+                        <button
+                          type="button"
+                          className="btn ghost sm erv-fix"
+                          onClick={() => openSuggestionConfirm(`按这条审校意见修复本章：${i.message}`)}
+                          disabled={aiBusy || !cur}
+                        >
+                          <Wand2 size={12} /> 按此修复
+                        </button>
                       </div>
                     ))}
                     {handoff.opinions.reader && (
@@ -665,7 +714,19 @@ export default function EditorPage() {
                     <p className="erv-note">{review.rationale}</p>
                     {review.strengths.length > 0 && <div className="erv-list ok"><span className="l">亮点</span><ul>{review.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul></div>}
                     {review.risks.length > 0 && <div className="erv-list risk"><span className="l">风险</span><ul>{review.risks.map((s, i) => <li key={i}>{s}</li>)}</ul></div>}
-                    {review.reworkTargets.length > 0 && <div className="erv-rework"><span className="l">返工派工</span>{review.reworkTargets.map((t, i) => <div className="erv-rt" key={i}><b>{t.agent}</b> {t.what}</div>)}</div>}
+                    {review.reworkTargets.length > 0 && <div className="erv-rework"><span className="l">返工派工</span>{review.reworkTargets.map((t, i) => (
+                      <div className="erv-rt" key={i}>
+                        <span><b>{t.agent}</b> {t.what}</span>
+                        <button
+                          type="button"
+                          className="btn ghost sm erv-fix"
+                          onClick={() => openSuggestionConfirm(`按总编返工建议修复本章：${t.agent}：${t.what}`)}
+                          disabled={aiBusy || !cur}
+                        >
+                          <Wand2 size={12} /> 按此修复
+                        </button>
+                      </div>
+                    ))}</div>}
                     {review.nextDirection && <div className="erv-dir"><span className="l">下一程方向</span>{review.nextDirection}</div>}
                   </div>
                 ) : (
@@ -933,7 +994,19 @@ export default function EditorPage() {
                 <p className="eic-note">{review.rationale}</p>
                 {review.strengths.length > 0 && <div className="eic-list ok"><span className="lab"><Lightbulb size={11} aria-hidden /> 亮点</span><ul>{review.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul></div>}
                 {review.risks.length > 0 && <div className="eic-list risk"><span className="lab"><TriangleAlert size={11} aria-hidden /> 风险</span><ul>{review.risks.map((s, i) => <li key={i}>{s}</li>)}</ul></div>}
-                {review.reworkTargets.length > 0 && <div className="eic-rework"><span className="lab">返工派工</span>{review.reworkTargets.map((t, i) => <div className="eic-rt" key={i}><b>{t.agent}</b> {t.what}</div>)}</div>}
+                {review.reworkTargets.length > 0 && <div className="eic-rework"><span className="lab">返工派工</span>{review.reworkTargets.map((t, i) => (
+                  <div className="eic-rt" key={i}>
+                    <span><b>{t.agent}</b> {t.what}</span>
+                    <button
+                      type="button"
+                      className="btn ghost sm eic-fix"
+                      onClick={() => openSuggestionConfirm(`按总编返工建议修复本章：${t.agent}：${t.what}`)}
+                      disabled={aiBusy || !cur}
+                    >
+                      <Wand2 size={12} /> 按此修复
+                    </button>
+                  </div>
+                ))}</div>}
                 {review.nextDirection && <div className="eic-dir"><span className="lab"><ArrowDownWideNarrow size={11} aria-hidden /> 下一程方向</span>{review.nextDirection}</div>}
                 {(review.model || review.skill) && <div className="eic-by">{review.model}{review.skill ? ` · 挂载技能 ${review.skill}` : ""}</div>}
               </div>
@@ -957,6 +1030,11 @@ export default function EditorPage() {
                 <span className="border-border bg-secondary text-foreground/80 rounded-md border px-3 py-2 font-mono text-[11px] leading-relaxed">
                   《{activeTitle ?? "—"}》 · 第 {cur ?? "—"} 章 · 当前字数 {wordCount.toLocaleString()} · 当前质量 {quality ? Math.round(quality.overall) : "—"}
                 </span>
+                {confirmAction === "suggestion" && suggestionInstruction && (
+                  <span className="border-border bg-secondary text-foreground/80 rounded-md border px-3 py-2 text-[11px] leading-relaxed">
+                    {suggestionInstruction}
+                  </span>
+                )}
                 <span>{confirmCopy.guardrail}</span>
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -1040,6 +1118,14 @@ function editorActionCopy(action: EditorAiAction, cur: number, lastChapterNum: n
         description: `第 ${cur || "—"} 章${qualityOverall != null ? `当前质量 ${qualityOverall} 分,未达 85 分门禁` : "还没有质量评分"}。批准是无视分数的强制签发 —— 签发后它会被当作定稿,续写不再回头修它。`,
         guardrail: "纯状态变更,不耗 token;想先把分拉上去再签,请保持当前状态并改用“修复本章”。",
         confirmLabel: "确认强制签发",
+        destructive: false,
+      }
+    case "suggestion":
+      return {
+        title: "按这条建议改写本章？",
+        description: "这会让编辑部按该建议改写本章,调用整章 enhance,触发 LLM 并消耗额度。",
+        guardrail: "这是直接落地改稿,会更新本章正文并刷新质量/审议信息;只想本地记账请保持当前状态。",
+        confirmLabel: "确认按建议修复",
         destructive: false,
       }
   }
