@@ -43,6 +43,8 @@ import {
 import type { BookExportFormat, BookFoundationValidateResult, BookSummary } from "@/lib/api/types"
 import { ENDPOINTS } from "@/lib/api/types"
 import { blockerLabels } from "@/lib/blocker-labels"
+import { diagnoseWriteError } from "@/lib/diagnose-write-error"
+import { RECOVERY_DEST } from "@/lib/recovery"
 import { useWorkspace } from "@/lib/workspace-context"
 import { getBookReadiness } from "@/lib/studio/book-readiness"
 import { AgentPixel } from "@/components/design/agent-pixel"
@@ -396,15 +398,19 @@ export default function BooksPage() {
         }
       },
       (error) => {
+        // 补地基失败最常见的根因是"没配/配坏模型"——这时给「去配模型」才是真出口,而不是去大纲改设定。
+        const isModel = diagnoseWriteError(error).kind === "model"
         toast.error("补地基没跑完", {
           description: foundationErrorDescription(error),
-          action: {
-            label: "去大纲",
-            onClick: () => {
-              setBookId(book.id)
-              router.push("/outline")
-            },
-          },
+          action: isModel
+            ? { label: RECOVERY_DEST.model.label, onClick: () => router.push(RECOVERY_DEST.model.href) }
+            : {
+                label: "去大纲",
+                onClick: () => {
+                  setBookId(book.id)
+                  router.push("/outline")
+                },
+              },
         })
       },
     )

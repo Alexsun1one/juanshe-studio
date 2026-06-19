@@ -9,6 +9,8 @@ import { toast } from "sonner"
 import { fetchChapters, fetchQuality, repairLowScore, startRepairQualityBatch } from "@/lib/api/client"
 import type { QualityMetrics } from "@/lib/api/types"
 import { useWorkspace } from "@/lib/workspace-context"
+import { showWriteBlockToast } from "@/lib/write-block-toast"
+import { useRecoveryActions } from "@/lib/use-recovery-actions"
 import { blockerLabel, blockerLabels } from "@/lib/blocker-labels"
 import { CjPlaceholder } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
@@ -83,6 +85,8 @@ function qualityPrompt(scan: Scan) {
 export default function ConsistencyPage() {
   const { books, bookId, booksLoading } = useWorkspace()
   const router = useRouter()
+  // 统一恢复动作:这页历史上撞 LLM_NOT_CONFIGURED/地基没过只得裸 toast、没有任何按钮,补上同款引导。
+  const recovery = useRecoveryActions(bookId)
   const active = books.find((b) => b.id === bookId)
   const { data: chapters } = useSWR(bookId ? ["chapters", bookId] : null, () => fetchChapters(bookId), soft)
 
@@ -168,7 +172,7 @@ export default function ConsistencyPage() {
         description: "复修后自动复验质量;过一会儿回来刷新看新分。",
       })
     } catch (e) {
-      toast.error(`复修触发失败:${e instanceof Error ? e.message : String(e)}`)
+      if (!showWriteBlockToast(e, recovery)) toast.error(`复修触发失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setRepairing(null)
     }
@@ -198,7 +202,7 @@ export default function ConsistencyPage() {
         action: { label: "去运行台", onClick: () => router.push("/runs") },
       })
     } catch (e) {
-      toast.error(`批量复修触发失败:${e instanceof Error ? e.message : String(e)}`)
+      if (!showWriteBlockToast(e, recovery)) toast.error(`批量复修触发失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBatchBusy(false)
     }

@@ -17,7 +17,6 @@ import {
   startWriteNextChapter,
   stopBookWorkflow,
   approveQualifyingChapters,
-  approveChapter,
   repairLowScore,
 } from "@/lib/api/client"
 import { useWorkspace } from "@/lib/workspace-context"
@@ -48,6 +47,9 @@ import { useAgentActivity } from "@/lib/use-agent-activity"
 import { useTypewriter } from "@/lib/use-typewriter"
 import { toFrontendAgentId } from "@/lib/api/agent-aliases"
 import { showWriteBlockToast } from "@/lib/write-block-toast"
+import { useRecoveryActions } from "@/lib/use-recovery-actions"
+import { classifyErrorText } from "@/lib/diagnose-write-error"
+import { RECOVERY_DEST } from "@/lib/recovery"
 import { blockerLabels } from "@/lib/blocker-labels"
 import { Meter } from "@/components/design/kit"
 import { AgentPixel } from "@/components/design/agent-pixel"
@@ -243,7 +245,7 @@ export default function CjDashboard() {
   const showModelKeyHint = React.useCallback(() => {
     toast.info("还没配写作模型,先去配一把钥匙 →", {
       description: "去「大模型配置」粘贴 Key 并启用服务,编辑部才会接活。",
-      action: { label: "去配置", onClick: () => router.push("/llm") },
+      action: { label: RECOVERY_DEST.model.label, onClick: () => router.push(RECOVERY_DEST.model.href) },
     })
   }, [router])
   // 新建书向导:工作台直接打开,不再跳 /books
@@ -294,16 +296,12 @@ export default function CjDashboard() {
   }, [run.lastError])
   const showFailBanner = !isRunning && !!run.lastError && run.lastError !== dismissedError
   // 把后端原始错误(常是英文/技术串,如 "Book foundation is incomplete.")翻成人话 + 指对下一步。
-  // 归类与 new-book-dialog 同源:① 地基没搭完 → 去作品管理补地基(续写会被地基闸挡,重试无意义);
-  // ② 模型/Key 坏了 → 去大模型配置;③ 其它瞬时错 → 直接重试续写。
+  // 判定走全站唯一诊断器(diagnose-write-error),不再本地另写正则 —— 撞同一堵墙,横幅、toast、建书弹窗口径一致。
   const failRaw = run.lastError ?? ""
-  const failIsFoundation = /foundation\s+(is\s+)?incomplete|blocked-foundation|地基(未|没|还没|不完整)|需补地基|story[_\s]?bible|架构(未|没)完成/i.test(failRaw)
-  const failIsModel = /鉴权|API\s*Key|密钥|未授权|无可用渠道|no available channel|余额|额度|欠费|insufficient|限流|模型权限|网关|上游|过载|service unavailable|bad gateway|无法连接|连不上|模型.{0,8}(挂起|空闲|超时)|LLM_CALL_TIMEOUT|model not found|\b(401|402|403|429|500|502|503|504)\b/i.test(failRaw)
-  const failText = failIsFoundation
-    ? "这本书的「地基」还没搭完(故事框架/大纲没生成成功),没法直接续写正文 —— 先去作品管理补好地基,再开写。"
-    : failIsModel
-      ? "是你的大模型 / API Key 那边出了问题(跟故事无关):多半是 Key 失效、额度用尽或中转站不稳。去「大模型配置」修好再续写。"
-      : (failRaw.slice(0, 80) || "上次写作没能正常结束,可以直接重试续写。")
+  const failDiag = classifyErrorText(failRaw)
+  const failIsFoundation = failDiag.kind === "foundation"
+  const failIsModel = failDiag.kind === "model"
+  const failText = failIsFoundation || failIsModel ? failDiag.human : (failRaw.slice(0, 80) || "上次写作没能正常结束,可以直接重试续写。")
   // 「续写一开,创作流程自动进入剧场态」:刚从待命切到运行 → 把右栏滚进可视区
   React.useEffect(() => {
     const sig = isRunning ? (liveAgentId || "running") : "idle"
@@ -353,7 +351,7 @@ export default function CjDashboard() {
       setPreparing(false)
       toast.warning("模型迟迟没动静", {
         description: "可能是 LLM 配置或后端没响应 —— 去检查模型配置,或到「系统」看运行日志。",
-        action: { label: "去配模型", onClick: () => router.push("/llm") },
+        action: { label: RECOVERY_DEST.model.label, onClick: () => router.push(RECOVERY_DEST.model.href) },
       })
     }, 30000)
     return () => window.clearTimeout(t)
@@ -381,13 +379,7 @@ export default function CjDashboard() {
       toast.success("已唤醒编辑部,模型准备中…", { description: "规划师正在读取设定与记忆,马上开写。" })
       run.refresh()
     } catch (e) {
-      if (!showWriteBlockToast(e, {
-        onConfigureLlm: () => router.push("/llm"),
-        onFixFoundation: () => router.push("/books"),
-        onApproveQualifying: bookId ? async () => { await approveQualifyingChapters(bookId, { targetScore: targetQuality }) } : undefined,
-        onSignOffChapter: bookId ? async (n: number) => { await approveChapter(bookId, n) } : undefined,
-        bookId: bookId ?? undefined,
-      })) toast.error(`触发失败:${e instanceof Error ? e.message : String(e)}`)
+      if (!showWriteBlockToast(e, recovery)) toast.error(`触发失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBusy(false)
     }
@@ -409,12 +401,7 @@ export default function CjDashboard() {
       })
       run.refresh()
     } catch (e) {
-      if (!showWriteBlockToast(e, {
-        onConfigureLlm: () => router.push("/llm"),
-        onFixFoundation: () => router.push("/books"),
-        onSignOffChapter: bookId ? async (n: number) => { await approveChapter(bookId, n) } : undefined,
-        bookId: bookId ?? undefined,
-      })) toast.error(`复修触发失败:${e instanceof Error ? e.message : String(e)}`)
+      if (!showWriteBlockToast(e, recovery)) toast.error(`复修触发失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBusy(false)
     }
@@ -484,13 +471,7 @@ export default function CjDashboard() {
       })
       run.refresh()
     } catch (e) {
-      if (!showWriteBlockToast(e, {
-        onConfigureLlm: () => router.push("/llm"),
-        onFixFoundation: () => router.push("/books"),
-        onApproveQualifying: bookId ? async () => { await approveQualifyingChapters(bookId, { targetScore: targetQuality }) } : undefined,
-        onSignOffChapter: bookId ? async (n: number) => { await approveChapter(bookId, n) } : undefined,
-        bookId: bookId ?? undefined,
-      })) toast.error(`触发失败:${e instanceof Error ? e.message : String(e)}`)
+      if (!showWriteBlockToast(e, recovery)) toast.error(`触发失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBusy(false)
     }
@@ -563,6 +544,9 @@ export default function CjDashboard() {
   // 有效门槛:用户在写作器里改了就用 batchScore,否则跟着项目默认走
   const prefDefaultQuality = prefs?.defaultRun.targetQuality ?? 90
   const targetQuality = batchScore ?? prefDefaultQuality
+  // 统一恢复动作:撞墙(没配模型/地基没过/分数卡门)时一律给同一套按钮+落点。
+  // onContinue/onRepair/onBatch 在闭包里引用,调用时(用户点击后)才求值,此处声明顺序无碍。
+  const recovery = useRecoveryActions(bookId, { targetScore: targetQuality })
   // 低分诊断:从最弱维度 + 具体门禁阻塞推导"为什么没到门槛",摆到分数旁,省去跳 /consistency 翻原因。
   // 排除冗余的 quality-below-target(它只是"没达标",与诊断标题循环),只留具体阻塞(critical/状态链等)。
   const weakDims = [...dims].filter((d) => d.v < 82).sort((a, b) => a.v - b.v).slice(0, 3)
@@ -740,9 +724,9 @@ export default function CjDashboard() {
           </span>
           <span className="rfb-actions">
             {failIsFoundation ? (
-              <Link href="/books" className="rfb-btn primary" onClick={dismissLastError}>去补地基 →</Link>
+              <Link href={RECOVERY_DEST.foundation.href} className="rfb-btn primary" onClick={dismissLastError}>{RECOVERY_DEST.foundation.label} →</Link>
             ) : failIsModel ? (
-              <Link href="/llm" className="rfb-btn primary" onClick={dismissLastError}>去检查模型设置 →</Link>
+              <Link href={RECOVERY_DEST.model.href} className="rfb-btn primary" onClick={dismissLastError}>{RECOVERY_DEST.model.label} →</Link>
             ) : (
               <button
                 type="button"

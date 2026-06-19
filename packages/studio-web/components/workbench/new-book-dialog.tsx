@@ -21,6 +21,8 @@ import {
 } from "@/lib/api/client"
 import type { BookCreateStatus } from "@/lib/api/types"
 import { useWorkspace } from "@/lib/workspace-context"
+import { classifyErrorText } from "@/lib/diagnose-write-error"
+import { RECOVERY_DEST } from "@/lib/recovery"
 import "./new-book-dialog.css"
 
 // 题材下拉建议:常见网文题材,点选即填;输入框仍可自由改/自定义(题材是开放集)。
@@ -305,19 +307,18 @@ export function NewBookDialog({
     router.push(path)
   }
 
-  // 去补地基:把这本残稿设为当前作品,再进路线图(大纲/地基确认)。
-  // 跟 new-book-mode 的 needs-foundation 处理一致 —— 不硬写正文,先补大纲/伏笔/人物动机。
+  // 去补地基:把这本残稿设为当前作品,再进作品管理 —— 全站「补地基」统一落点(那里有补地基/重试建书,
+  // 且能看到每本书真实状态),不再各入口送往不同页面。
   function goFixFoundation() {
     if (createdBookId) setBookId(createdBookId)
     close()
-    router.push("/outline")
+    router.push(RECOVERY_DEST.foundation.href)
   }
 
-  // 模型/Key/上游类故障(403 鉴权、无可用渠道、余额不足、模型挂起超时、网关过载、连不上…)——
-  // 这类是"你的模型/Key/中转站坏了",不是"你的故事设定不行"。必须最高优先识别:否则会把用户引到
-  // "改构思"的死路上(白改,书还是建不出来),正是"操作失败了不知道下一步"的摩擦之源。
+  // 模型/Key/上游故障判定 —— 统一走全站唯一的诊断器(diagnose-write-error),不再本地另写一套正则,
+  // 避免「同一个上游错误,在这个弹窗认成模型坏、在工作台只给重试」这种口径漂移。
   function isModelConfigFailure(raw: string): boolean {
-    return /鉴权|API\s*Key|密钥|令牌|无效或过期|未授权|请求被拒绝?|无可用渠道|no available channel|余额|额度|欠费|insufficient|限流|请求过多|请求过于频繁|模型权限|网关|上游|过载|service unavailable|bad gateway|无法连接|连不上|模型.{0,8}(挂起|空闲|超时)|LLM_CALL_TIMEOUT|模型不存在|未上架|model not found|\b(401|402|403|429|500|502|503|504)\b/i.test(String(raw || ""))
+    return classifyErrorText(raw).kind === "model"
   }
 
   function foundationGuidance(raw: string): string {
@@ -377,8 +378,8 @@ export function NewBookDialog({
             >
               重试
             </button>
-            <button type="button" className="nb-btn primary" onClick={() => goTo("/llm")}>
-              <KeyRound size={14} /> 去检查模型设置
+            <button type="button" className="nb-btn primary" onClick={() => goTo(RECOVERY_DEST.model.href)}>
+              <KeyRound size={14} /> {RECOVERY_DEST.model.label}
             </button>
           </>
         ) : variant === "needs-foundation" ? (

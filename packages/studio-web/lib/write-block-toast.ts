@@ -2,10 +2,13 @@
 
 import { toast } from "sonner"
 import { ApiClientError } from "@/lib/api/client"
+import { RECOVERY_LABEL } from "@/lib/recovery"
 
 /**
  * 把后端"写作被挡"的结构化原因翻译成人话 toast(质量门禁 / 地基未完成)。
  * 返回 true = 已处理并弹了具体提示;false = 不是已知拦截,调用方自行弹通用错误。
+ * 按钮文案统一从 RECOVERY_LABEL 取(去配模型 / 一键放行 / 签发并继续 / 去补地基),
+ * 配合 useRecoveryActions 传齐回调,做到「撞同一堵墙,到哪都是同一套按钮」。
  */
 export function showWriteBlockToast(
   e: unknown,
@@ -31,7 +34,7 @@ export function showWriteBlockToast(
   if (errObj?.code === "LLM_NOT_CONFIGURED") {
     toast.error("还没配置写作模型(BYOK)", {
       description: String(errObj.message ?? "请填入你的 LLM API Key,保存后即可开始写作。"),
-      action: opts?.onConfigureLlm ? { label: "去配置", onClick: opts.onConfigureLlm } : undefined,
+      action: opts?.onConfigureLlm ? { label: RECOVERY_LABEL.configModel, onClick: opts.onConfigureLlm } : undefined,
       duration: 12000,
     })
     return true
@@ -69,12 +72,12 @@ export function showWriteBlockToast(
     toast.warning(`续写卡在第 ${ch} 章 · ${sc}/${tg} 分`, {
       description:
         blockingCh != null && opts?.onSignOffChapter
-          ? `第 ${ch} 章还差 ${tg - scoreNum} 分未达标。点「签发并继续」认下这一章、往下写(事后还能再修);或在工作台点「修复」让编辑部自动重修到达标。`
-          : `第 ${ch} 章还差 ${tg - scoreNum} 分未达标。在工作台点「修复」让编辑部自动重修,达标后自动继续。`,
+          ? `第 ${ch} 章还差 ${tg - scoreNum} 分未达标。点「${RECOVERY_LABEL.signOffChapter}」认下这一章、往下写(事后还能再修);或点「${RECOVERY_LABEL.repairChapter}」让编辑部自动重修到达标。`
+          : `第 ${ch} 章还差 ${tg - scoreNum} 分未达标。点「${RECOVERY_LABEL.repairChapter}」让编辑部自动重修,达标后自动继续。`,
       action:
         blockingCh != null && opts?.onSignOffChapter
           ? {
-              label: "✅ 签发并继续",
+              label: RECOVERY_LABEL.signOffChapter,
               onClick: () => {
                 toast.promise(opts.onSignOffChapter!(blockingCh), {
                   loading: `正在签发第 ${blockingCh} 章…`,
@@ -96,7 +99,7 @@ export function showWriteBlockToast(
           gate.suggestion ||
           "请先补齐大纲 / 人物 / 主线设定，编辑部才能开始写。",
       ),
-      action: opts?.onFixFoundation ? { label: "去补地基", onClick: opts.onFixFoundation } : undefined,
+      action: opts?.onFixFoundation ? { label: RECOVERY_LABEL.fixFoundation, onClick: opts.onFixFoundation } : undefined,
       duration: 12000,
     })
     return true

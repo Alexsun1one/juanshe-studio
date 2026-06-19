@@ -36,7 +36,6 @@ import {
   X,
 } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import {
   approveChapter,
   applyChapterSuggestion,
@@ -73,6 +72,7 @@ import { StreamingProse } from "@/components/workbench/streaming-prose"
 import { StreamFollowChip } from "@/components/workbench/stream-follow-chip"
 import { useStickToBottom } from "@/hooks/use-stick-to-bottom"
 import { showWriteBlockToast } from "@/lib/write-block-toast"
+import { useRecoveryActions } from "@/lib/use-recovery-actions"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -113,8 +113,9 @@ function initialChapterFromLocation() {
 }
 
 export default function EditorPage() {
-  const router = useRouter()
   const { books, bookId, booksLoading } = useWorkspace()
+  // 统一恢复动作:撞墙时(没配模型/地基没过/分数卡门)给同一套按钮+落点,补上编辑器历史漏接的「一键放行」。
+  const recovery = useRecoveryActions(bookId)
   const active = books.find((b) => b.id === bookId)
   const activeTitle = typeof active?.title === "string" ? active.title : active?.title?.zh
   // 章节列表会随后端改写/回滚变化:定时+聚焦自动重拉,避免显示已被删除的"幽灵章"
@@ -428,12 +429,7 @@ export default function EditorPage() {
       else { await triggerRewrite(bookId, cur, { style: kind === "polish" ? "润色" : "扩写" }); toast.success(kind === "polish" ? "已触发润色" : "已触发扩写") }
       run.refresh()
     } catch (e) {
-      if (!showWriteBlockToast(e, {
-        onConfigureLlm: () => router.push("/llm"),
-        onFixFoundation: () => router.push("/books"),
-        onSignOffChapter: bookId ? async (n: number) => { await approveChapter(bookId, n) } : undefined,
-        bookId: bookId ?? undefined,
-      })) toast.error(`操作失败:${e instanceof Error ? e.message : String(e)}`)
+      if (!showWriteBlockToast(e, recovery)) toast.error(`操作失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBusy(false)
     }
@@ -452,12 +448,7 @@ export default function EditorPage() {
       toast.success(`已开始原地修复第 ${cur} 章到 90 分`, { description: "只修这一章,不影响后面的章节。修完会自动刷新。" })
       run.refresh()
     } catch (e) {
-      if (!showWriteBlockToast(e, {
-        onConfigureLlm: () => router.push("/llm"),
-        onFixFoundation: () => router.push("/books"),
-        onSignOffChapter: bookId ? async (n: number) => { await approveChapter(bookId, n) } : undefined,
-        bookId: bookId ?? undefined,
-      })) toast.error(`修复失败:${e instanceof Error ? e.message : String(e)}`)
+      if (!showWriteBlockToast(e, recovery)) toast.error(`修复失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBusy(false)
     }
