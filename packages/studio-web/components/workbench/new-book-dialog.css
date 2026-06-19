@@ -532,3 +532,38 @@ select.nb-input {
   .nb-guidetip-row { flex-wrap: wrap; }
   .nb-guidetip-bad { max-width: 100%; }
 }
+
+/* ── 一句话灵感示例 chip(点一个填进 brief)+ 建好后的双 CTA ─────────────── */
+.nb-brief-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 7px 0 8px;
+}
+.nb-brief-ex-lead {
+  font-size: 11.5px;
+  color: var(--ink-400, var(--ink-500));
+  margin-right: 2px;
+}
+.nb-chip {
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: color-mix(in oklab, var(--brand-500) 4%, var(--bg-card));
+  font-size: 12px;
+  color: var(--ink-700);
+  cursor: pointer;
+  transition: border-color .12s ease, background .12s ease, color .12s ease;
+}
+.nb-chip:hover {
+  border-color: var(--brand-500);
+  color: var(--brand-700, var(--brand-600));
+  background: color-mix(in oklab, var(--brand-500) 12%, var(--bg-card));
+}
+.nb-done-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}

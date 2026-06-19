@@ -33,6 +33,15 @@ const GENRE_OPTIONS = [
   "灵异恐怖", "职场商战", "种田经营", "同人二创",
 ]
 
+// 一句话灵感示例:点一个就把「想写的样子」整段填进去(可再改)——降低"对着空白框不知写啥"的门槛。
+// 每条都是合格 brief 的样板:具体的人 + 正在发生的事 + 能感到的基调 + 节奏。
+const BRIEF_EXAMPLES: { label: string; genre: string; brief: string }[] = [
+  { label: "都市 · 温暖治愈", genre: "都市现实", brief: "在老城区开深夜食堂的女主,接待每个带着心事的客人,一道菜勾出一段往事;基调温暖治愈,每章一位客人一道菜,三章串起店主自己的旧伤。" },
+  { label: "悬疑 · 层层反转", genre: "悬疑推理", brief: "刑警重启一桩十年悬案,唯一证人是当年失忆、如今已长大的小女孩;基调冷峻压抑,每章揭一层、三章一个大反转,真凶藏在最信任的人里。" },
+  { label: "玄幻 · 热血逆袭", genre: "玄幻修真", brief: "灵根被废的少年靠一本残缺功法逆天改命,从宗门杂役一步步问鼎;基调热血爽快,每章一个小突破、三章一场硬仗,仇敌越来越强。" },
+  { label: "末世 · 紧张求生", genre: "末世星际", brief: "丧尸爆发第七天,程序员女主带着一群陌生人在商场里建据点;基调紧张克制,每章一个生存难题、三章一次据点危机,人心比丧尸更险。" },
+]
+
 // 建书阶段:对应后端 BookCreateStatus.stage / pipeline
 const SETUP_STEPS: { id: string; label: string; hint: string }[] = [
   { id: "init",       label: "落盘工作区",   hint: "创建本地目录、初始化配置文件" },
@@ -469,6 +478,19 @@ export function NewBookDialog({
 
             <label className="nb-field">
               <span className="nb-lab">想写的样子 / 一段话设定</span>
+              <div className="nb-brief-examples" role="group" aria-label="灵感示例,点一个填进去再改">
+                <span className="nb-brief-ex-lead">没头绪?点个示例填进去再改:</span>
+                {BRIEF_EXAMPLES.map((ex) => (
+                  <button
+                    type="button"
+                    key={ex.label}
+                    className="nb-chip"
+                    onClick={() => setDraft({ ...draft, brief: ex.brief, genre: draft.genre.trim() || ex.genre })}
+                  >
+                    {ex.label}
+                  </button>
+                ))}
+              </div>
               <textarea
                 className="nb-input nb-textarea"
                 rows={5}
@@ -666,10 +688,26 @@ export function NewBookDialog({
           <div className="nb-done">
             <div className="nb-done-mark">✓</div>
             <h3>建好了</h3>
-            <p>《{draft.title}》已经落库,故事框架 / 角色矩阵 / 章节地图都到位。点下方按钮去工作台开写。</p>
-            <DialogFooter>
-              <button type="button" className="nb-btn primary" onClick={close}>
-                去工作台 →
+            <p>《{draft.title}》已经落库,故事框架 / 角色矩阵 / 章节地图都到位。让编辑部直接写第一章,或先去看看大纲。</p>
+            <DialogFooter className="nb-done-actions">
+              <button
+                type="button"
+                className="nb-btn ghost"
+                onClick={() => { if (createdBookId) setBookId(createdBookId); close(); router.push("/outline") }}
+              >
+                先看看大纲
+              </button>
+              <button
+                type="button"
+                className="nb-btn primary"
+                onClick={() => {
+                  // 接力到工作台并自动写第一章(/?start=<id> 由工作台接住触发),堵"建好书却从没写第一章"那道墙。
+                  if (createdBookId) setBookId(createdBookId)
+                  close()
+                  router.push(createdBookId ? `/?start=${encodeURIComponent(createdBookId)}` : "/")
+                }}
+              >
+                <Sparkles size={14} /> 让编辑部写第一章 →
               </button>
             </DialogFooter>
           </div>

@@ -626,13 +626,13 @@
   margin: 0 0 16px;
   padding: 14px 18px;
   border-radius: var(--r-lg, 14px);
-  border: 1px solid var(--accent-200, rgba(124, 92, 196, .28));
-  background: linear-gradient(100deg, var(--accent-50, #f5f1fb), var(--bg-card, #fff) 70%);
+  border: 1px solid color-mix(in oklab, var(--brand-500) 28%, transparent);
+  background: linear-gradient(100deg, color-mix(in oklab, var(--brand-500) 8%, var(--bg-card)), var(--bg-card) 70%);
   text-decoration: none;
   transition: box-shadow .15s ease, transform .15s ease;
 }
 .llm-build-nudge:hover {
-  box-shadow: 0 6px 20px rgba(124, 92, 196, .14);
+  box-shadow: 0 6px 20px color-mix(in oklab, var(--brand-500) 18%, transparent);
   transform: translateY(-1px);
 }
 .llm-build-nudge .lbn-ic {
@@ -642,8 +642,8 @@
   width: 38px;
   height: 38px;
   border-radius: var(--r-md, 10px);
-  background: var(--accent-100, rgba(124, 92, 196, .14));
-  color: var(--accent-600, var(--accent-500));
+  background: color-mix(in oklab, var(--brand-500) 14%, var(--bg-card));
+  color: var(--brand-600);
 }
 .llm-build-nudge .lbn-text {
   flex: 1 1 auto;
@@ -661,7 +661,7 @@
   gap: 5px;
   padding: 9px 16px;
   border-radius: var(--r-md, 10px);
-  background: var(--accent-600, var(--accent-500));
+  background: linear-gradient(135deg, var(--brand-500), #9D8AFF);
   color: #fff;
   font-size: 13px;
   font-weight: 600;

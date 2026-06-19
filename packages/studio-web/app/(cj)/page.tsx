@@ -384,6 +384,26 @@ export default function CjDashboard() {
       setBusy(false)
     }
   }
+  // 建书成功 →「让编辑部写第一章」接力:建书弹窗跳 /?start=<bookId>,这里接住——等当前书切到该书、
+  // 已配模型、章节加载完且为 0、未在写,自动触发第一章写作一次,随即抹掉 ?start 防刷新重复。
+  // 堵"建好书(有大纲)却从没写第一章"那道墙(0 章卡住里最大的一类)。
+  const autoStartFiredRef = React.useRef(false)
+  React.useEffect(() => {
+    if (autoStartFiredRef.current || typeof window === "undefined") return
+    const startId = new URLSearchParams(window.location.search).get("start")
+    if (!startId || bookId !== startId) return
+    if (!llmReady || isRunning) return
+    if (chapters === undefined) return        // 章节还在加载,等
+    if (chapters.length > 0) return            // 已有章节,不自动写
+    autoStartFiredRef.current = true
+    try {
+      const url = new URL(window.location.href)
+      url.searchParams.delete("start")
+      window.history.replaceState({}, "", url.pathname + url.search)
+    } catch { /* ignore */ }
+    void onContinue()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookId, llmReady, isRunning, chapters])
   // 低分章一键复修:把"分数没到 → 我该怎么办"从"自己去翻流程"降成"就地点一下"。
   // 会触发真实写作流水线(消耗 token),所以仅在未达标时暴露、需用户显式点击;后端自带防重复 + 熔断。
   const onRepair = async () => {
