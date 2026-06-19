@@ -1256,7 +1256,11 @@ export function subscribeAgentEvents(
 ): () => void {
   if (typeof window === "undefined") return () => {}
   const url = `/api/v1/books/${encodeURIComponent(bookId)}/events`
-  const es = new EventSource(url)
+
+  let es: EventSource | null = null
+  let stopped = false
+  let attempt = 0
+  let retryTimer: ReturnType<typeof setTimeout> | undefined
 
   const handleEvent = (msg: MessageEvent) => {
     try {
@@ -1266,10 +1270,39 @@ export function subscribeAgentEvents(
       // ignore malformed
     }
   }
-  es.onmessage = handleEvent
-  SSE_EVENT_NAMES.forEach((name) => es.addEventListener(name, handleEvent))
-  if (onError) es.onerror = onError
-  return () => es.close()
+
+  const connect = () => {
+    if (stopped) return
+    es = new EventSource(url)
+    es.onopen = () => { attempt = 0 } // 连上即重置退避
+    es.onmessage = handleEvent
+    SSE_EVENT_NAMES.forEach((name) => es!.addEventListener(name, handleEvent))
+    es.onerror = (ev) => {
+      onError?.(ev)
+      // 关键修复:EventSource 在“永久失败”(连接时拿到 401/404/502 HTML、内容类型不对等)会进入
+      // CLOSED 且【浏览器不再自动重连】——旧代码只把它当“重连中”,于是 UI 永远转“重连中”、再也连不回来
+      // (用户反馈“一直在重连”的根)。这里检测 CLOSED,自己带指数退避重建,后端恢复后能自愈。
+      // CONNECTING 态是浏览器在自重连,交给它、不插手。
+      if (es && es.readyState === EventSource.CLOSED) {
+        es.close()
+        es = null
+        if (!stopped) {
+          attempt += 1
+          const delay = Math.min(2000 * 2 ** (attempt - 1), 30000) // 2s,4s,8s…封顶30s
+          retryTimer = setTimeout(connect, delay)
+        }
+      }
+    }
+  }
+
+  connect()
+
+  return () => {
+    stopped = true
+    if (retryTimer) clearTimeout(retryTimer)
+    es?.close()
+    es = null
+  }
 }
 
 function normalizeAgentEvent(raw: unknown): AgentEvent | null {

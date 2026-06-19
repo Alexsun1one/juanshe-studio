@@ -333,6 +333,30 @@ export default function CjDashboard() {
     prevRunning.current = isRunning
   }, [isRunning, bookId, curChapter, refreshBooks])
 
+  // 一章真正写完(completedTick 递增):立刻拉回新章正文 + 章节索引 + 推进 currentChapter,
+  // 别等 6s 轮询——否则流式一停,writer-body 会塌回"上一章"(currentChapter 没及时推进)。
+  const completedRef = React.useRef(0)
+  React.useEffect(() => {
+    if (!live.completedTick || live.completedTick === completedRef.current) return
+    completedRef.current = live.completedTick
+    if (!bookId) return
+    void refreshBooks()
+    void mutate(["chapters", bookId])
+    if (curChapter) void mutate(["ms", bookId, curChapter])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live.completedTick])
+
+  // 保住"最后那段流式正文":写作被停止/中断/掉线时 live.active 翻 false,旧逻辑会让刚写出来的
+  // 半章瞬间消失、倒退显示上一章(用户反馈"写一半丢失看不到")。这里把最后的流式文本连同它属于
+  // 哪一章存下来;live 复活(新流)或章号推进(新章已落库)后再清——中断态就能继续把半章显示出来。
+  const [tailDraft, setTailDraft] = React.useState<{ text: string; chapter: number } | null>(null)
+  React.useEffect(() => {
+    if (live.active && live.text) setTailDraft({ text: live.text, chapter: curChapter })
+  }, [live.active, live.text, curChapter])
+  React.useEffect(() => {
+    setTailDraft((d) => (d && d.chapter !== curChapter ? null : d))
+  }, [curChapter])
+
   const handoffCurrentId = isRunning ? (liveAgentId || "planner") : "planner"
   const handoffCurrentIndex = agentList.findIndex((a) => toFrontendAgentId(a.id) === handoffCurrentId)
   const handoffCurrentAgent = handoffCurrentIndex >= 0 ? agentList[handoffCurrentIndex] : undefined
@@ -873,6 +897,14 @@ export default function CjDashboard() {
                   {/* 流式按空行分段渲染(与定稿同构),已完成段 memo 冻结,每 tick 只重分词尾段 */}
                   <StreamingProse text={typed} dict={proseDict} caret={<span className="dash-caret" aria-hidden />} />
                   <StreamFollowChip show={!stick.following} onJump={stick.jumpToBottom} />
+                </>
+              ) : tailDraft && tailDraft.chapter === curChapter && !isRunning ? (
+                <>
+                  {/* 上次流式被停下/中断:保住那段半章正文别让它凭空消失,并说清"还没落库" */}
+                  <StreamingProse text={tailDraft.text} dict={proseDict} />
+                  <p className="writer-tail-note" role="status">
+                    上次写到这里停下了 —— 这段还没存进稿件。点「继续写」接着写完它(会从这里续),或它会在下次写作时被覆盖。
+                  </p>
                 </>
               ) : manuscript?.paragraphs?.length ? (
                 <>
