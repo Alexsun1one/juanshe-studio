@@ -21,6 +21,9 @@ type Ctx = {
   books: BookSummary[]
   /** true while the initial books fetch has not yet resolved */
   booksLoading: boolean
+  /** 作品列表多次重试仍拉取失败(后端抖动/重启窗口期)——区别于"真没有作品"。
+   *  界面据此显示「重连中·重试」而不是把人当新用户弹首屏("被初始化"惊吓)。 */
+  booksLoadFailed: boolean
   refreshBooks: () => Promise<BookSummary[]>
   upsertBook: (book: BookSummary) => void
 
@@ -35,12 +38,15 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [bookId, setRawBookId] = React.useState<string>("")
   const [books, setBooks] = React.useState<BookSummary[]>([])
   const [booksLoading, setBooksLoading] = React.useState(true)
+  const [booksLoadFailed, setBooksLoadFailed] = React.useState(false)
   const [chromeFocused, setChromeFocused] = React.useState(false)
   const booksRef = React.useRef<BookSummary[]>([])
 
   const applyBooks = React.useCallback((nextBooks: BookSummary[]) => {
     booksRef.current = nextBooks
     setBooks(nextBooks)
+    setBooksLoadFailed(false) // 成功拿到结果(哪怕真为空)就清除失败态
+
     setRawBookId((current) => {
       if (nextBooks.some((book) => book.id === current)) return current
       let stored = ""
@@ -102,7 +108,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         }
       }
       if (!cancelled) {
-        applyBooks([])
+        // 多次重试仍失败:别 applyBooks([]) 把 bookId 也清空(那会把人当新用户弹首屏 = "被初始化"惊吓)。
+        // 保留现状、亮出失败态,界面显示「重连中·重试」即可。
+        setBooksLoadFailed(true)
         setBooksLoading(false)
       }
     }
@@ -119,12 +127,13 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       setBookId,
       books,
       booksLoading,
+      booksLoadFailed,
       refreshBooks,
       upsertBook,
       chromeFocused,
       setChromeFocused,
     }),
-    [bookId, books, booksLoading, chromeFocused, refreshBooks, upsertBook],
+    [bookId, books, booksLoading, booksLoadFailed, chromeFocused, refreshBooks, upsertBook],
   )
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>

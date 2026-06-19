@@ -1421,3 +1421,44 @@
   background: var(--bg-hover);
 }
 .cj-dashboard .wb-theatre-dismiss:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* ── 作品列表拉取失败时的「重连中」态(替代吓人的首屏"被初始化")──────────── */
+.cj-reconnect {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 9px;
+  padding: 72px 24px 40px;
+  max-width: 440px;
+  margin: 0 auto;
+}
+.cj-reconnect-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--brand-500);
+  box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand-500) 55%, transparent);
+  animation: cj-reconnect-pulse 1.4s ease-out infinite;
+}
+@keyframes cj-reconnect-pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand-500) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 12px color-mix(in oklab, var(--brand-500) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand-500) 0%, transparent); }
+}
+.cj-reconnect h3 { margin: 4px 0 0; font-size: 16px; color: var(--ink-900); }
+.cj-reconnect p { margin: 0; font-size: 13px; color: var(--ink-500); line-height: 1.65; }
+.cj-reconnect p b { color: var(--ink-800); font-weight: 600; }
+.cj-reconnect-btn {
+  margin-top: 8px;
+  padding: 8px 20px;
+  border: none;
+  border-radius: var(--r-md, 10px);
+  background: linear-gradient(135deg, var(--brand-500), #9D8AFF);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter .15s ease, transform .15s ease;
+}
+.cj-reconnect-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }

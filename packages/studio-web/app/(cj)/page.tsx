@@ -176,7 +176,7 @@ function dashboardWorkflowActionCopy(input: {
 
 export default function CjDashboard() {
   const router = useRouter()
-  const { books, bookId, booksLoading, refreshBooks } = useWorkspace()
+  const { books, bookId, booksLoading, booksLoadFailed, refreshBooks } = useWorkspace()
   const active = books.find((b) => b.id === bookId)
   const key = (name: string) => (bookId ? [name, bookId] : null)
 
@@ -613,6 +613,22 @@ export default function CjDashboard() {
 
   // 长短期记忆卡已下沉到 /memory 专页;首页不再重复展示统计 + 片段。
   const milestones = plot?.milestones ?? []
+
+  // 作品列表拉取失败(后端抖动/部署重启窗口期):显示「重连中·重试」,绝不把人当新用户弹首屏。
+  // 这正是用户"刷新一下→被初始化了"的惊吓来源——其实书没丢,只是这一刻没拉到。
+  if (!booksLoading && booksLoadFailed && !active) {
+    return (
+      <div className="page cj-dashboard">
+        <FeedStrip />
+        <div className="cj-reconnect" role="status">
+          <span className="cj-reconnect-dot" aria-hidden />
+          <h3>正在重连…</h3>
+          <p>这一下没连上后端(多半是后台在更新或网络抖动)——<b>你的作品没丢</b>,稍等几秒,或点重试。</p>
+          <button type="button" className="cj-reconnect-btn" onClick={() => { void refreshBooks() }}>重试</button>
+        </div>
+      </div>
+    )
+  }
 
   if (!booksLoading && !active) {
     return (
