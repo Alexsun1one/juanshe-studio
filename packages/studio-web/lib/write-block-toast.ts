@@ -15,6 +15,8 @@ export function showWriteBlockToast(
     onApproveQualifying?: () => Promise<void>
     /** 强制签发卡住的低分章(调 /chapters/:num/approve),解除门禁阻塞、可继续往下写 */
     onSignOffChapter?: (chapterNumber: number) => Promise<void>
+    /** 地基没搭好时,跳去作品管理(那里有补地基 / 重试建书),别让用户卡在"知道要补但不知去哪补" */
+    onFixFoundation?: () => void
     bookId?: string
   },
 ): boolean {
@@ -94,7 +96,8 @@ export function showWriteBlockToast(
           gate.suggestion ||
           "请先补齐大纲 / 人物 / 主线设定，编辑部才能开始写。",
       ),
-      duration: 10000,
+      action: opts?.onFixFoundation ? { label: "去补地基", onClick: opts.onFixFoundation } : undefined,
+      duration: 12000,
     })
     return true
   }

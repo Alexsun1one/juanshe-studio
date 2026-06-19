@@ -36,6 +36,7 @@ import {
   X,
 } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   approveChapter,
   applyChapterSuggestion,
@@ -112,6 +113,7 @@ function initialChapterFromLocation() {
 }
 
 export default function EditorPage() {
+  const router = useRouter()
   const { books, bookId, booksLoading } = useWorkspace()
   const active = books.find((b) => b.id === bookId)
   const activeTitle = typeof active?.title === "string" ? active.title : active?.title?.zh
@@ -426,7 +428,12 @@ export default function EditorPage() {
       else { await triggerRewrite(bookId, cur, { style: kind === "polish" ? "润色" : "扩写" }); toast.success(kind === "polish" ? "已触发润色" : "已触发扩写") }
       run.refresh()
     } catch (e) {
-      if (!showWriteBlockToast(e)) toast.error(`操作失败:${e instanceof Error ? e.message : String(e)}`)
+      if (!showWriteBlockToast(e, {
+        onConfigureLlm: () => router.push("/llm"),
+        onFixFoundation: () => router.push("/books"),
+        onSignOffChapter: bookId ? async (n: number) => { await approveChapter(bookId, n) } : undefined,
+        bookId: bookId ?? undefined,
+      })) toast.error(`操作失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBusy(false)
     }
@@ -445,7 +452,12 @@ export default function EditorPage() {
       toast.success(`已开始原地修复第 ${cur} 章到 90 分`, { description: "只修这一章,不影响后面的章节。修完会自动刷新。" })
       run.refresh()
     } catch (e) {
-      if (!showWriteBlockToast(e)) toast.error(`修复失败:${e instanceof Error ? e.message : String(e)}`)
+      if (!showWriteBlockToast(e, {
+        onConfigureLlm: () => router.push("/llm"),
+        onFixFoundation: () => router.push("/books"),
+        onSignOffChapter: bookId ? async (n: number) => { await approveChapter(bookId, n) } : undefined,
+        bookId: bookId ?? undefined,
+      })) toast.error(`修复失败:${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBusy(false)
     }

@@ -383,6 +383,7 @@ export default function CjDashboard() {
     } catch (e) {
       if (!showWriteBlockToast(e, {
         onConfigureLlm: () => router.push("/llm"),
+        onFixFoundation: () => router.push("/books"),
         onApproveQualifying: bookId ? async () => { await approveQualifyingChapters(bookId, { targetScore: targetQuality }) } : undefined,
         onSignOffChapter: bookId ? async (n: number) => { await approveChapter(bookId, n) } : undefined,
         bookId: bookId ?? undefined,
@@ -410,6 +411,7 @@ export default function CjDashboard() {
     } catch (e) {
       if (!showWriteBlockToast(e, {
         onConfigureLlm: () => router.push("/llm"),
+        onFixFoundation: () => router.push("/books"),
         onSignOffChapter: bookId ? async (n: number) => { await approveChapter(bookId, n) } : undefined,
         bookId: bookId ?? undefined,
       })) toast.error(`复修触发失败:${e instanceof Error ? e.message : String(e)}`)
@@ -484,6 +486,7 @@ export default function CjDashboard() {
     } catch (e) {
       if (!showWriteBlockToast(e, {
         onConfigureLlm: () => router.push("/llm"),
+        onFixFoundation: () => router.push("/books"),
         onApproveQualifying: bookId ? async () => { await approveQualifyingChapters(bookId, { targetScore: targetQuality }) } : undefined,
         onSignOffChapter: bookId ? async (n: number) => { await approveChapter(bookId, n) } : undefined,
         bookId: bookId ?? undefined,
