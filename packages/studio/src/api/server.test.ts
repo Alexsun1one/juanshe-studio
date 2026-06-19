@@ -471,7 +471,9 @@ describe("createStudioServer daemon lifecycle", () => {
   });
 
   afterEach(async () => {
-    await rm(root, { recursive: true, force: true });
+    // 临时根目录清理:部分用例(如续建半成品)响应返回后,后台异步建书仍在写盘,
+    // rm 可能撞上 ENOTEMPTY(目录非空)。加 maxRetries/retryDelay 容忍这种 teardown race。
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     await rm(join(tmpdir(), "autow-global.env"), { force: true });
   });
 
@@ -1794,6 +1796,20 @@ describe("createStudioServer daemon lifecycle", () => {
   });
 
   it("rejects create requests when a complete book with the same id already exists", async () => {
+    // 一本"完整"的书 = 已写过章节(章节索引非空)。建书重试守卫(fd11579)按"有无已写章节"判定:
+    // 有章节 → 拒绝重复 create(409);0 章节的地基失败半成品则允许原地续建(见下一条用例)。
+    loadChapterIndexMock.mockResolvedValue([
+      {
+        number: 1,
+        title: "Chapter One",
+        status: "done",
+        wordCount: 1800,
+        createdAt: "2026-04-07T00:00:00.000Z",
+        updatedAt: "2026-04-07T00:00:00.000Z",
+        auditIssues: [],
+        lengthWarnings: [],
+      },
+    ] as never);
     await mkdir(join(root, "books", "existing-book", "story"), { recursive: true });
     await writeFile(join(root, "books", "existing-book", "book.json"), JSON.stringify({ id: "existing-book" }), "utf-8");
     await writeFile(join(root, "books", "existing-book", "story", "story_bible.md"), "# existing", "utf-8");
@@ -1819,6 +1835,35 @@ describe("createStudioServer daemon lifecycle", () => {
     });
     expect(processProjectInteractionRequestMock).not.toHaveBeenCalled();
     await expect(access(join(root, "books", "existing-book", "story", "story_bible.md"))).resolves.toBeUndefined();
+  });
+
+  it("allows resuming a foundation-failed book that has story_bible but zero written chapters", async () => {
+    // fd11579:地基复审失败的半成品(有 story_bible、0 章节)应允许原地续建(重跑架构师+地基),
+    // 不再被 "already exists" 堵死。守卫只看"有无已写章节",章节索引为空 → 放行(返回 200,而非 409)。
+    loadChapterIndexMock.mockResolvedValue([] as never);
+    await mkdir(join(root, "books", "existing-book", "story"), { recursive: true });
+    await writeFile(join(root, "books", "existing-book", "book.json"), JSON.stringify({ id: "existing-book" }), "utf-8");
+    await writeFile(join(root, "books", "existing-book", "story", "story_bible.md"), "# half-built", "utf-8");
+
+    const { createStudioServer } = await import("./server.js");
+    const app = createStudioServer(cloneProjectConfig() as never, root);
+
+    const response = await app.request("http://localhost/api/v1/books/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Existing Book",
+        genre: "xuanhuan",
+        platform: "qidian",
+        language: "zh",
+        resumeExisting: true,
+      }),
+    });
+
+    // 关键:0 章节的地基失败书不再被拒(旧守卫会 409),而是放行续建。
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(JSON.stringify(body)).not.toContain("already exists");
   });
 
   it("returns fallback book description when the selected book config is missing", async () => {
