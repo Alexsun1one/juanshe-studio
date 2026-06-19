@@ -2,6 +2,7 @@ import { BaseAgent } from "./base.js";
 import type { ChapterHeatTarget, ChapterMemo } from "../models/input-governance.js";
 import { renderChapterHeatCraftBlock, resolveChapterHeatTarget } from "../utils/narrative-control.js";
 import { applySpotFixPatches, parseSpotFixPatches } from "../utils/spot-fix-patches.js";
+import { looksLikeReasoningNotProse } from "../utils/chapter-prose-guards.js";
 
 export type PolisherMode = "patch" | "rewrite";
 
@@ -132,7 +133,8 @@ export class PolisherAgent extends BaseAgent {
       const stripped = stripWrappingFence(raw);
       const looksLikeChapter = stripped.length > input.chapterContent.length * 0.4
         && !stripped.includes("--- PATCH")
-        && !stripped.includes("=== PATCHES ===");
+        && !stripped.includes("=== PATCHES ===")
+        && !looksLikeReasoningNotProse(stripped);
       if (looksLikeChapter) {
         return {
           polishedContent: stripped,
@@ -155,7 +157,9 @@ export class PolisherAgent extends BaseAgent {
 
     // ─ rewrite 模式(legacy / 显式指定) ───────────────────────────
     const stripped = stripWrappingFence(raw);
-    const polishedContent = stripped.length > 0 ? stripped : input.chapterContent;
+    const polishedContent = stripped.length > 0 && !looksLikeReasoningNotProse(stripped)
+      ? stripped
+      : input.chapterContent;
     return {
       polishedContent,
       changed: polishedContent !== input.chapterContent,

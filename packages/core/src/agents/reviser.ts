@@ -13,6 +13,7 @@ import {
   mergeTableMarkdownByKey,
 } from "../utils/governed-working-set.js";
 import { applySpotFixPatches, parseSpotFixPatches } from "../utils/spot-fix-patches.js";
+import { looksLikeReasoningNotProse } from "../utils/chapter-prose-guards.js";
 import {
   buildNarrativeIntentBrief,
   renderChapterHeatCraftBlock,
@@ -338,6 +339,13 @@ ${sanitizeNarrativeEvidenceBlock(hookDebtBlock, resolvedLanguage) ?? ""}${saniti
       updatedHooks: extract("UPDATED_HOOKS") || "(伏笔池未更新)",
     });
 
+    const makeRewriteResult = (revisedContent: string): ReviseOutput => {
+      if (!revisedContent || looksLikeReasoningNotProse(revisedContent)) {
+        return makeResult(originalChapter, false);
+      }
+      return makeResult(revisedContent, true);
+    };
+
     // Auto mode: route by issue type — structural issues require REVISED_CONTENT,
     // local-only issues only accept PATCHES, mixed sets accept either.
     if (mode === "auto") {
@@ -357,18 +365,14 @@ ${sanitizeNarrativeEvidenceBlock(hookDebtBlock, resolvedLanguage) ?? ""}${saniti
 
       if (autoOutputMode === "rewrite-only") {
         const revisedContent = extract("REVISED_CONTENT");
-        if (revisedContent) {
-          return makeResult(revisedContent, true);
-        }
+        if (revisedContent) return makeRewriteResult(revisedContent);
         // No rewrite produced — don't fall back to patches; structural issues
         // cannot be safely patched. Return original unchanged.
         return makeResult(originalChapter, false);
       }
 
       const revisedContent = extract("REVISED_CONTENT");
-      if (revisedContent) {
-        return makeResult(revisedContent, true);
-      }
+      if (revisedContent) return makeRewriteResult(revisedContent);
       const patchesRaw = extract("PATCHES");
       if (patchesRaw) {
         const patches = parseSpotFixPatches(patchesRaw);
@@ -392,7 +396,7 @@ ${sanitizeNarrativeEvidenceBlock(hookDebtBlock, resolvedLanguage) ?? ""}${saniti
 
     // Legacy rewrite/polish/rework/anti-detect: full content
     const revisedContent = extract("REVISED_CONTENT");
-    return makeResult(revisedContent || originalChapter, revisedContent.length > 0);
+    return makeRewriteResult(revisedContent);
   }
 
   private buildAutoSystemPrompt(params: {

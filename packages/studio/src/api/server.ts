@@ -4,7 +4,7 @@ import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { serve } from "@hono/node-server";
 import archiver from "archiver";
-import { StateManager, PipelineRunner, ConsolidatorAgent, MemoryDB, createLLMClient, createLogger, createInteractionToolsFromDeps, computeAnalytics, loadProjectConfig, loadProjectSession, processProjectInteractionRequest, resolveSessionActiveBook, listBookSessions, loadBookSession, appendManualSessionMessages, createAndPersistBookSession, renameBookSession, deleteBookSession, migrateBookSession, SessionAlreadyMigratedError, runAgentSession, buildAgentSystemPrompt, normalizeServiceApi, normalizeServiceBaseUrl, normalizeServiceProviderFamily, providerFamilyForServiceApi, resolveCustomServiceApi, resolveCustomServiceProviderFamily, resolveServicePreset, resolveServiceProviderFamily, resolveServiceModelsBaseUrl, resolveServiceModel, serviceApiToApiFormat, loadSecrets, saveSecrets, listModelsForService, isApiKeyOptionalForEndpoint, getAllEndpoints, probeModelsFromUpstream, fetchWithProxy, chatCompletion, buildExportArtifact, GLOBAL_ENV_PATH, markdownToContentDocument, renderForPlatform, getContentTypeProfile, assembleContentType, buildWritingSystemPrompt, mountSkills, buildCriticSystemPrompt, buildReviserSystemPrompt, parseCritiqueReport, critiqueWantsRevision, critiquePasses, buildResearchQueries, buildResearchContext, emptyAccountStyle, evolveStyleProfile, buildAccountVoicePrompt, parseCharacterMatrix, parseRoleFile, parseEmotionalArcs, groupArcsByCharacter, tensionByChapter, parsePendingHooks, parseSubplotBoard, hooksByStartChapter, parseVolumeMap, parseChapterSummaries, appearanceCounts, parseStoryFrame, buildGovernanceRecommendation, analyzeStyle, EDITOR_IN_CHIEF_SYSTEM_PROMPT, buildEditorInChiefUserMessage, parseEditorialVerdict, listWechatTemplates, DEFAULT_WECHAT_TEMPLATE, analyzeAITells, aiToneScore, DEFAULT_AI_TONE_FLOOR, } from "@juanshe/core";
+import { StateManager, PipelineRunner, ConsolidatorAgent, MemoryDB, createLLMClient, createLogger, createInteractionToolsFromDeps, computeAnalytics, loadProjectConfig, loadProjectSession, processProjectInteractionRequest, resolveSessionActiveBook, listBookSessions, loadBookSession, appendManualSessionMessages, createAndPersistBookSession, renameBookSession, deleteBookSession, migrateBookSession, SessionAlreadyMigratedError, runAgentSession, buildAgentSystemPrompt, normalizeServiceApi, normalizeServiceBaseUrl, normalizeServiceProviderFamily, providerFamilyForServiceApi, resolveCustomServiceApi, resolveCustomServiceProviderFamily, resolveServicePreset, resolveServiceProviderFamily, resolveServiceModelsBaseUrl, resolveServiceModel, serviceApiToApiFormat, loadSecrets, saveSecrets, listModelsForService, isApiKeyOptionalForEndpoint, getAllEndpoints, probeModelsFromUpstream, fetchWithProxy, chatCompletion, buildExportArtifact, GLOBAL_ENV_PATH, markdownToContentDocument, renderForPlatform, getContentTypeProfile, assembleContentType, buildWritingSystemPrompt, mountSkills, buildCriticSystemPrompt, buildReviserSystemPrompt, parseCritiqueReport, critiqueWantsRevision, critiquePasses, buildResearchQueries, buildResearchContext, emptyAccountStyle, evolveStyleProfile, buildAccountVoicePrompt, parseCharacterMatrix, parseRoleFile, parseEmotionalArcs, groupArcsByCharacter, tensionByChapter, parsePendingHooks, parseSubplotBoard, hooksByStartChapter, parseVolumeMap, parseChapterSummaries, appearanceCounts, parseStoryFrame, buildGovernanceRecommendation, analyzeStyle, EDITOR_IN_CHIEF_SYSTEM_PROMPT, buildEditorInChiefUserMessage, parseEditorialVerdict, listWechatTemplates, DEFAULT_WECHAT_TEMPLATE, analyzeAITells, aiToneScore, DEFAULT_AI_TONE_FLOOR, looksLikeReasoningNotProse, } from "@juanshe/core";
 import { access, appendFile, chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { createHash, createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
@@ -3294,6 +3294,9 @@ function assertCleanChapterText(text, source = "模型返回") {
         throw new ApiError(422, "CHAPTER_TEXT_EMPTY", `${source}为空，已阻止落库。`);
     if (/^\s*\{[\s\S]{0,240}"(?:revised|body|content|chapter|text)"\s*:/.test(cleaned) || /\\n\\n/.test(cleaned.slice(0, 1200))) {
         throw new ApiError(422, "CHAPTER_TEXT_JSON_WRAPPER", `${source}仍包含 JSON 外壳或转义换行，已阻止覆盖正文。`);
+    }
+    if (looksLikeReasoningNotProse(cleaned)) {
+        throw new ApiError(422, "CHAPTER_TEXT_REASONING_LEAK", `${source}疑似包含模型推理或修订元数据，已阻止覆盖正文。`);
     }
     return cleaned;
 }
@@ -12768,26 +12771,64 @@ export function createStudioServer(initialConfig, root) {
         }
     });
     // --- Chapter Save ---
+    const saveChapterContent = async (id, num, content, source = "章节保存内容") => {
+        const chapter = await resolveChapterFile(state, id, num);
+        const safeContent = assertCleanChapterText(content, source);
+        await atomicWriteFile(chapter.fullPath, safeContent);
+        const chapters = await state.loadChapterIndex(id).catch(() => []);
+        const current = chapters.find((entry) => Number(entry.chapterNumber ?? entry.number) === num);
+        const words = countWritingChars(safeContent);
+        const updatedAt = new Date().toISOString();
+        if (current) {
+            current.wordCount = words;
+            current.updatedAt = updatedAt;
+            await state.saveChapterIndex(id, chapters);
+        }
+        await buildBooksIndex(root, state).catch(() => null);
+        const quality = await buildChapterQualityPayload(state, id, num, safeContent).catch(() => null);
+        return { chapter, safeContent, words, updatedAt, quality };
+    };
     app.put("/api/v1/books/:id/chapters/:num", async (c) => {
         const id = c.req.param("id");
         const num = parseInt(c.req.param("num"), 10);
         const { content } = await c.req.json();
         try {
-            const chapter = await resolveChapterFile(state, id, num);
-            const safeContent = assertCleanChapterText(content, "章节保存内容");
-            await atomicWriteFile(chapter.fullPath, safeContent);
-            const chapters = await state.loadChapterIndex(id).catch(() => []);
-            const current = chapters.find((entry) => Number(entry.chapterNumber ?? entry.number) === num);
-            if (current) {
-                current.wordCount = countWritingChars(safeContent);
-                current.updatedAt = new Date().toISOString();
-                await state.saveChapterIndex(id, chapters);
-            }
-            await buildBooksIndex(root, state).catch(() => null);
-            const quality = await buildChapterQualityPayload(state, id, num, safeContent).catch(() => null);
+            const { quality } = await saveChapterContent(id, num, content, "章节保存内容");
             return c.json({ ok: true, chapterNumber: num, quality });
         }
         catch (e) {
+            if (e instanceof ApiError)
+                return c.json({ error: e.message }, e.status);
+            return c.json({ error: String(e) }, 500);
+        }
+    });
+    app.patch("/api/v1/books/:id/chapters/:num/manuscript", async (c) => {
+        const id = c.req.param("id");
+        const num = parseInt(c.req.param("num"), 10);
+        const body = await c.req.json().catch(() => ({}));
+        try {
+            const { chapter, safeContent, words, updatedAt, quality } = await saveChapterContent(id, num, body.content, "手动正文保存内容");
+            return c.json({
+                ok: true,
+                bookId: id,
+                chapterNum: num,
+                chapterNumber: num,
+                number: num,
+                filename: chapter.filename,
+                content: safeContent,
+                manuscript: safeContent,
+                body: safeContent,
+                currentWords: words,
+                wordCount: words,
+                updatedAt,
+                updatedAtMs: toEpochMs(updatedAt),
+                quality: quality?.quality ?? null,
+                qualityReport: quality,
+            });
+        }
+        catch (e) {
+            if (e instanceof ApiError)
+                return c.json({ error: e.message }, e.status);
             return c.json({ error: String(e) }, 500);
         }
     });

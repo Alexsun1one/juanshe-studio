@@ -208,6 +208,37 @@ describe("PolisherAgent", () => {
     expect(out.changed).toBe(true);
   });
 
+  it("does not accept model reasoning as a rewrite fallback in patch mode", async () => {
+    const agent = makeAgent();
+    const original = [
+      "雨声压在窗纸上，灯芯轻轻爆了一下。",
+      "沈砚把手里的旧册合上，没有立刻说话。",
+      "院门外有人停住脚步，像是在等一个不会被允许的答案。",
+    ].join("\n");
+
+    vi.spyOn(PolisherAgent.prototype as never, "chat" as never).mockResolvedValue({
+      content: [
+        "我们被要求输出 JSON,revised 字段是完整修复后的章节正文。",
+        "目标是达到 90 分,当前章节 1497 字,目标 3000 字。",
+        "weighted targets: reader (81) and rhythm (87)。",
+        "之前 low metrics: length 60, hook 63, reader (81)。",
+        "必须扩写但不能灌水。",
+      ].join("\n"),
+      usage: ZERO_USAGE,
+    });
+
+    const out = await agent.polishChapter({
+      chapterContent: original,
+      chapterNumber: 7,
+      language: "zh",
+      mode: "patch",
+    });
+
+    expect(out.polishedContent).toBe(original);
+    expect(out.changed).toBe(false);
+    expect(out.mode).toBe("patch");
+  });
+
   it("builds the English system prompt when language is en", async () => {
     const agent = makeAgent();
     const chatSpy = vi.spyOn(PolisherAgent.prototype as never, "chat" as never).mockResolvedValue({

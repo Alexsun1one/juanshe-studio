@@ -435,6 +435,71 @@ describe("ReviserAgent", () => {
     }
   });
 
+  it("does not accept model reasoning as revised chapter content", async () => {
+    const root = await mkdtemp(join(tmpdir(), "autow-reviser-reasoning-leak-test-"));
+    const bookDir = join(root, "book");
+    await mkdir(join(bookDir, "story"), { recursive: true });
+
+    const agent = new ReviserAgent({
+      client: {
+        provider: "openai",
+        apiFormat: "chat",
+        stream: false,
+        defaults: {
+          temperature: 0.7,
+          maxTokens: 4096,
+          thinkingBudget: 0, maxTokensCap: null,
+          extra: {},
+        },
+      },
+      model: "test-model",
+      projectRoot: root,
+    });
+
+    vi.spyOn(ReviserAgent.prototype as never, "chat" as never).mockResolvedValue({
+      content: [
+        "=== FIXED_ISSUES ===",
+        "- attempted rewrite",
+        "",
+        "=== REVISED_CONTENT ===",
+        "我们被要求输出 JSON,revised 字段是完整修复后的章节正文。",
+        "目标是达到 90 分,当前章节 1497 字,目标 3000 字。",
+        "weighted targets: reader (81) and rhythm (87)。",
+        "之前 low metrics: length 60, hook 63, reader (81)。",
+        "必须扩写但不能灌水。",
+        "",
+        "=== UPDATED_STATE ===",
+        "状态卡",
+        "",
+        "=== UPDATED_HOOKS ===",
+        "伏笔池",
+      ].join("\n"),
+      usage: ZERO_USAGE,
+    });
+
+    const original = [
+      "雨声压在窗纸上，灯芯轻轻爆了一下。",
+      "沈砚把手里的旧册合上，没有立刻说话。",
+      "院门外有人停住脚步，像是在等一个不会被允许的答案。",
+    ].join("\n");
+
+    try {
+      const result = await agent.reviseChapter(
+        bookDir,
+        original,
+        7,
+        [CRITICAL_ISSUE],
+        "rewrite",
+        "xuanhuan",
+      );
+
+      expect(result.revisedContent).toBe(original);
+      expect(result.fixedIssues).toEqual([]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("sanitizes reduced governed control input so raw hook ids and source labels do not enter reviser prompts", async () => {
     const root = await mkdtemp(join(tmpdir(), "autow-reviser-governed-sanitize-test-"));
     const bookDir = join(root, "book");

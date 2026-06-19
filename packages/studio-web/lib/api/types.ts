@@ -923,92 +923,98 @@ export interface Streak {
 // ============================================================================
 // 接口路径常量（前端只通过 ENDPOINTS 访问 URL，便于后端调整）
 // ============================================================================
+const pathSegment = (value: string | number) =>
+  encodeURIComponent(String(value))
+const bookEndpoint = (id: string) => `/api/v1/books/${pathSegment(id)}`
+const chapterEndpoint = (id: string, num: number) =>
+  `${bookEndpoint(id)}/chapters/${pathSegment(num)}`
+
 export const ENDPOINTS = {
   streak: () => `/api/v1/streak`,
   /** 导出全部书稿(整本目录打包 zip · 数据可携带,免费不扣 credits) */
   allBooksExport: () => `/api/v1/export/books`,
   agentList: () => `/api/v1/agents`,
-  agentDetail: (id: string) => `/api/v1/agents/${id}`,
+  agentDetail: (id: string) => `/api/v1/agents/${pathSegment(id)}`,
   agentLogs: (bookId: string, chapter: number, agentId?: string) =>
-    `/api/v1/books/${bookId}/chapters/${chapter}/logs${agentId ? `?role=${agentId}` : ""}`,
+    `${chapterEndpoint(bookId, chapter)}/logs${agentId ? `?role=${encodeURIComponent(agentId)}` : ""}`,
 
-  bookDetail: (id: string) => `/api/v1/books/${id}`,
+  bookDetail: (id: string) => bookEndpoint(id),
   bookList: () => `/api/v1/books`,
   bookCreate: () => `/api/v1/books`,
-  bookCreateStatus: (id: string) => `/api/v1/books/${id}/create-status`,
-  bookCreateCancel: (id: string) => `/api/v1/books/${id}/create-cancel`,
-  bookWriteNext: (id: string) => `/api/v1/books/${id}/write-next`,
+  bookCreateStatus: (id: string) => `${bookEndpoint(id)}/create-status`,
+  bookCreateCancel: (id: string) => `${bookEndpoint(id)}/create-cancel`,
+  bookWriteNext: (id: string) => `${bookEndpoint(id)}/write-next`,
   /** 连续写 N 章(每章按质量门槛把关,不达标即停) */
-  bookWriteBatch: (id: string) => `/api/v1/books/${id}/write-batch`,
-  bookRepairState: (id: string) => `/api/v1/books/${id}/repair-state`,
+  bookWriteBatch: (id: string) => `${bookEndpoint(id)}/write-batch`,
+  bookRepairState: (id: string) => `${bookEndpoint(id)}/repair-state`,
   bookRepairQualityBatch: (id: string) =>
-    `/api/v1/books/${id}/repair-quality-batch`,
+    `${bookEndpoint(id)}/repair-quality-batch`,
   bookFoundationValidate: (id: string) =>
-    `/api/v1/books/${id}/foundation/validate`,
+    `${bookEndpoint(id)}/foundation/validate`,
   bookAgentEvents: (id: string, limit = 80) =>
-    `/api/v1/books/${id}/agent-events?limit=${encodeURIComponent(String(limit))}`,
+    `${bookEndpoint(id)}/agent-events?limit=${encodeURIComponent(String(limit))}`,
   bookExport: (id: string, format: BookExportFormat = "txt") =>
-    `/api/v1/books/${id}/export?format=${encodeURIComponent(format)}`,
-  bookDescription: (id: string) => `/api/v1/books/${id}/description`,
+    `${bookEndpoint(id)}/export?format=${encodeURIComponent(format)}`,
+  bookDescription: (id: string) => `${bookEndpoint(id)}/description`,
   bookDetectChapter: (id: string, chapter: number) =>
-    `/api/v1/books/${id}/detect/${chapter}`,
-  bookDetectAll: (id: string) => `/api/v1/books/${id}/detect-all`,
-  bookDetectStats: (id: string) => `/api/v1/books/${id}/detect/stats`,
-  bookStyleImport: (id: string) => `/api/v1/books/${id}/style/import`,
-  workflow: (id: string) => `/api/v1/books/${id}/workflow`,
+    `${bookEndpoint(id)}/detect/${pathSegment(chapter)}`,
+  bookDetectAll: (id: string) => `${bookEndpoint(id)}/detect-all`,
+  bookDetectStats: (id: string) => `${bookEndpoint(id)}/detect/stats`,
+  bookStyleImport: (id: string) => `${bookEndpoint(id)}/style/import`,
+  workflow: (id: string) => `${bookEndpoint(id)}/workflow`,
   /** 真实任务运行列表(write-next / rewrite / 修复 等),用于判断"是否正在写作" */
   bookRuns: (id: string, limit = 8) =>
-    `/api/v1/books/${id}/runs?limit=${encodeURIComponent(String(limit))}`,
+    `${bookEndpoint(id)}/runs?limit=${encodeURIComponent(String(limit))}`,
   /** 停止本书全部进行中的工作流(真实端点,非 auto-run 引擎) */
-  bookWorkflowStop: (id: string) => `/api/v1/books/${id}/workflow/stop`,
-  chapters: (id: string) => `/api/v1/books/${id}/chapters`,
-  chapter: (id: string, num: number) => `/api/v1/books/${id}/chapters/${num}`,
+  bookWorkflowStop: (id: string) => `${bookEndpoint(id)}/workflow/stop`,
+  chapters: (id: string) => `${bookEndpoint(id)}/chapters`,
+  chapter: (id: string, num: number) => chapterEndpoint(id, num),
   roleQueue: (id: string, num: number) =>
-    `/api/v1/books/${id}/chapters/${num}/role-queue`,
+    `${chapterEndpoint(id, num)}/role-queue`,
   chapterStream: (id: string, num: number) =>
-    `/api/v1/books/${id}/chapters/${num}/stream`,
+    `${chapterEndpoint(id, num)}/stream`,
   chapterContinue: (id: string, num: number) =>
-    `/api/v1/books/${id}/chapters/${num}/continue`,
+    `${chapterEndpoint(id, num)}/continue`,
   chapterPause: (id: string, num: number) =>
-    `/api/v1/books/${id}/chapters/${num}/pause`,
+    `${chapterEndpoint(id, num)}/pause`,
   chapterRewrite: (id: string, num: number) =>
-    `/api/v1/books/${id}/chapters/${num}/rewrite`,
+    `${chapterEndpoint(id, num)}/rewrite`,
   chapterRepairLowScore: (id: string, num: number) =>
-    `/api/v1/books/${id}/chapters/${num}/repair-low-score`,
+    `${chapterEndpoint(id, num)}/repair-low-score`,
   chapterReview: (id: string, num: number) =>
-    `/api/v1/books/${id}/chapters/${num}/review`,
+    `${chapterEndpoint(id, num)}/review`,
   /** 本章修订快照(写手原稿→定稿 + 每轮修复的 before/after),供评审视图做 diff */
   chapterRevisions: (id: string, num: number) =>
-    `/api/v1/books/${id}/chapters/${num}/revisions`,
+    `${chapterEndpoint(id, num)}/revisions`,
   chapterPublish: (id: string, num: number) =>
-    `/api/v1/books/${id}/chapters/${num}/publish`,
+    `${chapterEndpoint(id, num)}/publish`,
 
-  relationshipGraph: (id: string) => `/api/v1/books/${id}/relationship-graph`,
+  relationshipGraph: (id: string) => `${bookEndpoint(id)}/relationship-graph`,
   /** 触发从正文提取关系图谱（POST） */
   relationshipGraphExtract: (id: string) =>
-    `/api/v1/books/${id}/relationship-graph/extract`,
+    `${bookEndpoint(id)}/relationship-graph/extract`,
   /** 查询提取任务状态（GET） */
   relationshipGraphExtractStatus: (id: string, taskId: string) =>
-    `/api/v1/books/${id}/relationship-graph/extract/${taskId}`,
-  plotProgress: (id: string) => `/api/v1/books/${id}/plot-progress`,
-  memory: (id: string) => `/api/v1/books/${id}/memory`,
-  styleFingerprint: (id: string) => `/api/v1/books/${id}/style-fingerprint`,
+    `${bookEndpoint(id)}/relationship-graph/extract/${pathSegment(taskId)}`,
+  plotProgress: (id: string) => `${bookEndpoint(id)}/plot-progress`,
+  memory: (id: string) => `${bookEndpoint(id)}/memory`,
+  styleFingerprint: (id: string) => `${bookEndpoint(id)}/style-fingerprint`,
   quality: (id: string, num: number) =>
-    `/api/v1/books/${id}/chapters/${num}/quality`,
-  knowledge: (id: string) => `/api/v1/books/${id}/knowledge`,
-  assets: (id: string) => `/api/v1/books/${id}/assets`,
-  cast: (id: string) => `/api/v1/books/${id}/cast`,
-  world: (id: string) => `/api/v1/books/${id}/world`,
-  outline: (id: string) => `/api/v1/books/${id}/outline`,
-  publishChannels: (id: string) => `/api/v1/books/${id}/publish-channels`,
+    `${chapterEndpoint(id, num)}/quality`,
+  knowledge: (id: string) => `${bookEndpoint(id)}/knowledge`,
+  assets: (id: string) => `${bookEndpoint(id)}/assets`,
+  cast: (id: string) => `${bookEndpoint(id)}/cast`,
+  world: (id: string) => `${bookEndpoint(id)}/world`,
+  outline: (id: string) => `${bookEndpoint(id)}/outline`,
+  publishChannels: (id: string) => `${bookEndpoint(id)}/publish-channels`,
   reviewIssues: (id: string, num: number) =>
-    `/api/v1/books/${id}/chapters/${num}/review-issues`,
+    `${chapterEndpoint(id, num)}/review-issues`,
   manuscript: (id: string, num: number) =>
-    `/api/v1/books/${id}/chapters/${num}/manuscript`,
+    `${chapterEndpoint(id, num)}/manuscript`,
   chapterStats: (id: string, num: number) =>
-    `/api/v1/books/${id}/chapters/${num}/stats`,
+    `${chapterEndpoint(id, num)}/stats`,
   rewriteProposal: (id: string, num: number, style?: string) =>
-    `/api/v1/books/${id}/chapters/${num}/rewrite-proposal${style ? `?style=${encodeURIComponent(style)}` : ""}`,
+    `${chapterEndpoint(id, num)}/rewrite-proposal${style ? `?style=${encodeURIComponent(style)}` : ""}`,
 
   marketOpportunities: () => `/api/v1/insight/opportunities`,
   systemHealth: () => `/api/v1/system/health`,
@@ -1021,8 +1027,8 @@ export const ENDPOINTS = {
   styleAnalyses: () => `/api/v1/style/analyses`,
   styleAnalyze: () => `/api/v1/style/analyze`,
   genres: () => `/api/v1/genres`,
-  genre: (id: string) => `/api/v1/genres/${id}`,
-  genreCopy: (id: string) => `/api/v1/genres/${id}/copy`,
+  genre: (id: string) => `/api/v1/genres/${pathSegment(id)}`,
+  genreCopy: (id: string) => `/api/v1/genres/${pathSegment(id)}/copy`,
   vault: () => `/api/v1/vault`,
   vaultDocument: (path: string) =>
     `/api/v1/vault/document?path=${encodeURIComponent(path)}`,
@@ -1041,42 +1047,42 @@ export const ENDPOINTS = {
         ? ""
         : `?bookId=${bookId === null ? "null" : encodeURIComponent(bookId)}`
     }`,
-  session: (id: string) => `/api/v1/sessions/${id}`,
+  session: (id: string) => `/api/v1/sessions/${pathSegment(id)}`,
   agentChat: () => `/api/v1/agent`,
-  dockMetrics: (id: string) => `/api/v1/books/${id}/metrics`,
+  dockMetrics: (id: string) => `${bookEndpoint(id)}/metrics`,
 
   // Agent Lab
   agentProfiles: () => `/api/v1/agent-profiles`,
-  agentProfile: (id: string) => `/api/v1/agent-profiles/${id}`,
-  agentProfileFeed: (id: string) => `/api/v1/agent-profiles/${id}/feed`,
+  agentProfile: (id: string) => `/api/v1/agent-profiles/${pathSegment(id)}`,
+  agentProfileFeed: (id: string) => `/api/v1/agent-profiles/${pathSegment(id)}/feed`,
   agentConnectivity: () => `/api/v1/agent-profiles/connectivity`,
-  agentConnectivityOne: (id: string) => `/api/v1/agent-profiles/${id}/test`,
+  agentConnectivityOne: (id: string) => `/api/v1/agent-profiles/${pathSegment(id)}/test`,
   workflowContract: () => `/api/v1/workflow-contract`,
 
   // Settings
   llmProviders: () => `/api/v1/llm-providers`,
-  llmProvider: (id: string) => `/api/v1/llm-providers/${id}`,
-  llmProviderTest: (id: string) => `/api/v1/llm-providers/${id}/test`,
+  llmProvider: (id: string) => `/api/v1/llm-providers/${pathSegment(id)}`,
+  llmProviderTest: (id: string) => `/api/v1/llm-providers/${pathSegment(id)}/test`,
   modelRouting: () => `/api/v1/project/model-routing`,
   projectPrefs: () => `/api/v1/project/prefs`,
 
   // Wiki
-  wiki: (id: string) => `/api/v1/books/${id}/wiki`,
+  wiki: (id: string) => `${bookEndpoint(id)}/wiki`,
   wikiNode: (id: string, nodeId: string) =>
-    `/api/v1/books/${id}/wiki/nodes/${nodeId}`,
-  promptInjections: (id: string) => `/api/v1/books/${id}/prompt-injections`,
+    `${bookEndpoint(id)}/wiki/nodes/${pathSegment(nodeId)}`,
+  promptInjections: (id: string) => `${bookEndpoint(id)}/prompt-injections`,
   effectivePromptInjections: (id: string, agent?: string, chapterNumber?: number) => {
     const query = [
       agent ? `agent=${encodeURIComponent(agent)}` : "",
       chapterNumber ? `chapterNumber=${encodeURIComponent(String(chapterNumber))}` : "",
     ].filter(Boolean).join("&")
-    return `/api/v1/books/${id}/prompt-injections/effective${query ? `?${query}` : ""}`
+    return `${bookEndpoint(id)}/prompt-injections/effective${query ? `?${query}` : ""}`
   },
 
   // 自动续写引擎（多本书并行）
   autoRuns: () => `/api/v1/auto-runs`,
-  autoRun: (id: string) => `/api/v1/auto-runs/${id}`,
-  autoRunPause: (id: string) => `/api/v1/auto-runs/${id}/pause`,
-  autoRunResume: (id: string) => `/api/v1/auto-runs/${id}/resume`,
-  autoRunCancel: (id: string) => `/api/v1/auto-runs/${id}/cancel`,
+  autoRun: (id: string) => `/api/v1/auto-runs/${pathSegment(id)}`,
+  autoRunPause: (id: string) => `/api/v1/auto-runs/${pathSegment(id)}/pause`,
+  autoRunResume: (id: string) => `/api/v1/auto-runs/${pathSegment(id)}/resume`,
+  autoRunCancel: (id: string) => `/api/v1/auto-runs/${pathSegment(id)}/cancel`,
 } as const

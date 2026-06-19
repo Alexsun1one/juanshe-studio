@@ -129,6 +129,7 @@ export {
 } from "./utils/proxy-fetch.js";
 export { assertSafeBookId, deriveBookIdFromTitle, isSafeBookId } from "./utils/book-id.js";
 export { safeChildPath } from "./utils/path-safety.js";
+export { looksLikeReasoningNotProse } from "./utils/chapter-prose-guards.js";
 export {
   AutomationModeSchema,
   type AutomationMode,
