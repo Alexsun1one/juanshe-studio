@@ -794,6 +794,16 @@
   .theater-lanes { display: none; }
   .theater-feed { display: none; }
 }
+/* 手机:剧场对每个写作用户自动全屏弹出 —— 顶栏(标题 + 5 个统计块 + 停止 + 图标钮)在窄屏
+   不换行会溢出、停止键可能被挤出屏。这里让顶栏换行堆叠、统计块收紧,保证停止键始终可见可点。
+   (管线条本就 overflow-x:auto 可横向滚,无需另改。) */
+@media (max-width: 640px) {
+  .theater-head { flex-wrap: wrap; gap: 8px 10px; padding: 10px 14px; }
+  .theater-head-left { flex: 1 1 100%; }
+  .theater-head-right { flex: 1 1 100%; flex-wrap: wrap; gap: 8px 12px; justify-content: flex-start; }
+  .theater-stat-v { font-size: 14px; }
+  .theater-pipeline { padding: 10px 14px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .theater-live-dot,
   .theater-mini.running .theater-mini-dot,
