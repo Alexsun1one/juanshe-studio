@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Loader2, Sparkles, FileText, Upload, X, Trash2, ListChecks, Layers, AlertTriangle, ArrowRight, Lightbulb, ChevronDown, Check } from "lucide-react"
+import { Loader2, Sparkles, FileText, Upload, X, Trash2, ListChecks, Layers, AlertTriangle, ArrowRight, Lightbulb, ChevronDown, Check, KeyRound } from "lucide-react"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -313,8 +313,19 @@ export function NewBookDialog({
     router.push("/outline")
   }
 
+  // 模型/Key/上游类故障(403 鉴权、无可用渠道、余额不足、模型挂起超时、网关过载、连不上…)——
+  // 这类是"你的模型/Key/中转站坏了",不是"你的故事设定不行"。必须最高优先识别:否则会把用户引到
+  // "改构思"的死路上(白改,书还是建不出来),正是"操作失败了不知道下一步"的摩擦之源。
+  function isModelConfigFailure(raw: string): boolean {
+    return /鉴权|API\s*Key|密钥|令牌|无效或过期|未授权|请求被拒绝?|无可用渠道|no available channel|余额|额度|欠费|insufficient|限流|请求过多|请求过于频繁|模型权限|网关|上游|过载|service unavailable|bad gateway|无法连接|连不上|模型.{0,8}(挂起|空闲|超时)|LLM_CALL_TIMEOUT|模型不存在|未上架|model not found|\b(401|402|403|429|500|502|503|504)\b/i.test(String(raw || ""))
+  }
+
   function foundationGuidance(raw: string): string {
     const msg = raw.trim()
+    // 模型/Key 故障优先 —— 直接告诉用户"是模型坏了、跟构思无关、去哪修",别让他白改故事。
+    if (isModelConfigFailure(msg)) {
+      return `建书没成,是「你的大模型 / API Key」这一侧出问题了 —— 跟你的故事构思无关,别改构思。\n上游报错:${msg.slice(0, 160)}\n多半是:Key 失效或没填、额度/余额用尽、没开通这个模型、或中转站不稳。先去「大模型配置」把 Key、额度、模型修好(或换个更稳的模型),再回来点「重试」,就能建出来了。`
+    }
     if (!msg) return "复审官没否定这本书,只是觉得地基还差一口气。先补清主角想要什么、第一卷冲突是什么、前三章怎么转折,再让编辑部开写。"
     if (/json|parse|schema|validator|required|missing|invalid|字段|格式/i.test(msg)) {
       return "复审官没拿到足够清楚的故事施工图。先补三样:主角想要什么、第一卷核心冲突是什么、每三章靠什么转折。"
@@ -327,7 +338,11 @@ export function NewBookDialog({
 
   // stalled / needs-foundation / error 三态共用的补救按钮组(文案/主按钮各态微调)。
   // 用自绘 div 而非 DialogFooter:DialogFooter 自带 sm:justify-end,会跟两端对齐布局打架。
-  const remediationActions = (variant: "stalled" | "needs-foundation" | "error") => (
+  const remediationActions = (variant: "stalled" | "needs-foundation" | "error") => {
+    // 模型/Key 坏了时,真·下一步是去修模型设置 —— 不修就重试只会再次失败。
+    // 所以这种情况把「去检查模型设置」提为主操作,「重试」降为次要(修好再点)。
+    const modelFailed = isModelConfigFailure(errMsg)
+    return (
     <div className="nb-actions">
       <div className="nb-actions-secondary">
         <button
@@ -353,7 +368,20 @@ export function NewBookDialog({
         <button type="button" className="nb-btn ghost" onClick={() => setStep("form")}>
           返回修改
         </button>
-        {variant === "needs-foundation" ? (
+        {modelFailed ? (
+          <>
+            <button
+              type="button"
+              className="nb-btn ghost"
+              onClick={() => handleCreate(new Event("submit") as unknown as React.FormEvent)}
+            >
+              重试
+            </button>
+            <button type="button" className="nb-btn primary" onClick={() => goTo("/llm")}>
+              <KeyRound size={14} /> 去检查模型设置
+            </button>
+          </>
+        ) : variant === "needs-foundation" ? (
           createdBookId && (
             <button type="button" className="nb-btn primary" onClick={goFixFoundation}>
               <Layers size={14} /> 去补地基
@@ -370,7 +398,8 @@ export function NewBookDialog({
         )}
       </div>
     </div>
-  )
+    )
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -698,9 +727,23 @@ export function NewBookDialog({
               <div className="nb-outcome-mark err"><AlertTriangle size={20} /></div>
               <div className="nb-outcome-title">
                 <h3>建书没成</h3>
-                <p className="nb-outcome-sub">下面是后端给的原因,改完可以直接重试。</p>
+                <p className="nb-outcome-sub">
+                  {isModelConfigFailure(errMsg)
+                    ? "这是模型/Key 那边的问题,不是你的故事 —— 去设置里修好就能重试。"
+                    : "下面是后端给的原因,改完可以直接重试。"}
+                </p>
               </div>
             </div>
+            {isModelConfigFailure(errMsg) && (
+              <div className="nb-llm-hint">
+                <KeyRound size={16} />
+                <p>
+                  这次失败出在<b>你的大模型 / API Key</b>那一侧,<b>跟你的故事构思无关 —— 别改构思</b>。
+                  多半是 Key 失效或没填、额度/余额用尽、没开通这个模型,或中转站不稳。
+                  先去<b>「大模型配置」</b>把它修好(或换个更稳的模型),再回来重试就能建出来。
+                </p>
+              </div>
+            )}
             <pre className="nb-err-msg">{errMsg || "未知错误"}</pre>
             {createdBookId && (
               <p className="nb-outcome-note">

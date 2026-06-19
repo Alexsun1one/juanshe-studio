@@ -350,6 +350,27 @@ select.nb-input {
 /* error 态保留等宽报错块,但放进 outcome 版式里时收一下上边距 */
 .nb-outcome .nb-err-msg { margin: 14px 0 0; }
 
+/* 模型/Key 故障的人话横幅:这类失败不是用户故事的问题,得醒目地把人引向「大模型配置」。
+   用暖琥珀(warn)而非红,呼应"可修复、别慌、跟你构思无关"的语气。 */
+.nb-llm-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  background: var(--warn-50);
+  border: 1px solid var(--warn-200, rgba(245,158,11,.28));
+  border-radius: var(--r-md);
+}
+.nb-llm-hint svg { flex: 0 0 auto; margin-top: 2px; color: var(--warn-500); }
+.nb-llm-hint p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-700);
+  line-height: 1.66;
+}
+.nb-llm-hint b { color: var(--ink-900); font-weight: 600; }
+
 /* 补救按钮:次要(看进度/删除)左、主操作(返回/重试/补地基)右,窄屏堆叠 */
 .nb-actions {
   display: flex;
