@@ -8703,6 +8703,18 @@ function sanitizeConnectivityError(error) {
         .replace(/[A-Za-z0-9_-]{24,}\.[A-Za-z0-9_-]{24,}\.[A-Za-z0-9_-]{24,}/g, "[redacted-token]");
     return text.slice(0, 900);
 }
+// 500 兜底消毒:原始异常进服务端日志,给客户端的消息先去掉 key/token,再判断有没有绝对路径 /
+// 内部模块名 / 栈帧 / 系统错误码 —— 有就换中文通用兜底,别把 /Users//data//opt/、node 内部、端口泄露给用户。
+// ApiError 不走这里(它在各 catch 里先被识别、message 本就是面向用户的中文),这里只兜"非预期异常"。
+function sanitizeServerError(error) {
+    try { console.error("[api][500]", error); } catch { /* ignore */ }
+    const text = sanitizeConnectivityError(error);
+    if (/(^|[\s'"(=:])\/(Users|data|opt|home|root|var|tmp|private|etc)\//.test(text)
+        || /node:internal|node_modules|\bat\s+[\w.$]+\s*\(|ECONN\w+|EADDR\w+|EACCES|ENOENT|EPERM|EISDIR|ENOTEMPTY/.test(text)) {
+        return "服务端处理出错了,请稍后重试;若反复出现请联系支持。";
+    }
+    return text.slice(0, 200) || "服务端处理出错了,请稍后重试。";
+}
 function connectivitySuggestion(error) {
     const text = String(error || "").toLowerCase();
     if (/api key|unauthorized|401|鉴权|认证|invalid key|forbidden|403|permission|权限/.test(text)) {
@@ -11450,7 +11462,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ok: true, ready: false, score: assessment.score, qualityScore, repaired: gate.repaired, assessment: richAssessment, qualityReview: quality });
         }
         catch (error) {
-            return c.json({ ok: false, error: String(error) }, 500);
+            return c.json({ ok: false, error: sanitizeServerError(error) }, 500);
         }
     });
     app.post("/api/v1/books/:id/description", async (c) => {
@@ -12141,7 +12153,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ok: true, status: "cancelled" });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Chapters ---
@@ -12187,7 +12199,7 @@ export function createStudioServer(initialConfig, root) {
         catch (error) {
             if (error instanceof ApiError)
                 return c.json({ error: error.message }, error.status);
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.get("/api/v1/books/:id/chapters/:num/manuscript", async (c) => {
@@ -12279,7 +12291,7 @@ export function createStudioServer(initialConfig, root) {
         catch (error) {
             if (error instanceof ApiError)
                 return c.json({ error: error.message }, error.status);
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.get("/api/v1/books/:id/chapters/:num/review-issues", async (c) => {
@@ -12349,7 +12361,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     // —— 总编(Editor-in-Chief)整章编辑裁决 ——
@@ -12474,7 +12486,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ bookId: id, chapterNumber: num, review: cached, cached: Boolean(cached) });
         }
         catch (error) {
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.post("/api/v1/books/:id/chapters/:num/editorial-review", async (c) => {
@@ -12489,7 +12501,7 @@ export function createStudioServer(initialConfig, root) {
         catch (error) {
             if (error instanceof ApiError)
                 return c.json({ error: error.message }, error.status);
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     // —— 每章交接(handoff)透明面板 ——
@@ -12508,7 +12520,7 @@ export function createStudioServer(initialConfig, root) {
         catch (error) {
             if (error instanceof ApiError)
                 return c.json({ error: error.message }, error.status);
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     // —— 本章修订快照(diff 用)——
@@ -12663,7 +12675,7 @@ export function createStudioServer(initialConfig, root) {
             const payload = fallback ? storyGraphEntityPayloadFromFallback(id, fallback, name) : null;
             if (payload)
                 return c.json({ ...payload, unavailable: true });
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.get("/api/v1/books/:id/quality", async (c) => {
@@ -12675,7 +12687,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.get("/api/v1/books/:id/manuscript", async (c) => {
@@ -12687,7 +12699,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.get("/api/v1/books/:id/cover", async (c) => {
@@ -12704,7 +12716,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.get("/api/v1/books/:id/wiki", async (c) => {
@@ -12716,7 +12728,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.get("/api/v1/books/:id/knowledge", async (c) => {
@@ -12752,7 +12764,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     const v0BookJson = async (c, builder) => {
@@ -12764,7 +12776,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     };
     app.get("/api/v1/books/:id/assets", (c) => v0BookJson(c, (id) => buildV0Assets(state, root, id)));
@@ -12801,7 +12813,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.get("/api/v1/books/:id/assets/:path{.+}", async (c) => {
@@ -12827,7 +12839,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.put("/api/v1/books/:id/assets/:path{.+}", async (c) => {
@@ -12859,7 +12871,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.delete("/api/v1/books/:id/assets/:path{.+}", async (c) => {
@@ -12888,7 +12900,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.get("/api/v1/books/:id/cast", (c) => v0BookJson(c, (id) => buildV0Cast(state, root, id)));
@@ -12924,7 +12936,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.post("/api/v1/books/:id/wiki/style-preset", async (c) => {
@@ -12948,7 +12960,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.post("/api/v1/books/:id/notes", async (c) => {
@@ -12983,7 +12995,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ok: true, bookId: id, scope, chars: note.length });
         }
         catch (error) {
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     // --- Chapter Save ---
@@ -13026,7 +13038,7 @@ export function createStudioServer(initialConfig, root) {
         catch (e) {
             if (e instanceof ApiError)
                 return c.json({ error: e.message }, e.status);
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     app.patch("/api/v1/books/:id/chapters/:num/manuscript", async (c) => {
@@ -13056,7 +13068,7 @@ export function createStudioServer(initialConfig, root) {
         catch (e) {
             if (e instanceof ApiError)
                 return c.json({ error: e.message }, e.status);
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     app.post("/api/v1/books/:id/chapters/:num/enhance", async (c) => {
@@ -13210,7 +13222,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     app.post("/api/v1/books/:id/chapters/:num/repair-low-score", async (c) => {
@@ -13913,7 +13925,7 @@ export function createStudioServer(initialConfig, root) {
             if (error instanceof ApiError) {
                 return c.json({ error: error.message }, error.status);
             }
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     // --- Truth files ---
@@ -14026,7 +14038,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json(await buildV0MarketOpportunities(root));
         }
         catch (error) {
-            return c.json({ error: String(error) }, 500);
+            return c.json({ error: sanitizeServerError(error) }, 500);
         }
     });
     const agentFlowPayload = () => ({
@@ -14472,7 +14484,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ok: true, ...result });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Actions ---
@@ -15199,7 +15211,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ok: true, chapterNumber: num, status: "approved" });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // 一键放行：把所有 score >= targetScore 的章节批量 approve，解除质量门禁阻塞。
@@ -15229,7 +15241,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ok: true, threshold, approved, total: approved.length });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     app.post("/api/v1/books/:id/chapters/:num/reject", async (c) => {
@@ -15252,7 +15264,7 @@ export function createStudioServer(initialConfig, root) {
             });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- SSE ---
@@ -16043,7 +16055,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ok: true });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Truth files browser ---
@@ -16196,7 +16208,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ok: true, running: true });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     app.post("/api/v1/daemon/stop", (c) => {
@@ -16770,7 +16782,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ok: true, language });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Audit ---
@@ -16802,7 +16814,7 @@ export function createStudioServer(initialConfig, root) {
         }
         catch (e) {
             broadcast("audit:error", { bookId: id, error: String(e) });
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Revise ---
@@ -16832,7 +16844,7 @@ export function createStudioServer(initialConfig, root) {
         }
         catch (e) {
             broadcast("revise:error", { bookId: id, error: String(e) });
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Export ---
@@ -16943,7 +16955,7 @@ export function createStudioServer(initialConfig, root) {
             });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Genre detail + copy ---
@@ -16975,7 +16987,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ok: true, path: `genres/${genreId}.md` });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Model overrides ---
@@ -17024,7 +17036,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ chapterNumber: chapterNum, ...result });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Truth file edit ---
@@ -17070,7 +17082,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ok: true, bookId: id });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Book Update ---
@@ -17099,7 +17111,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ok: true, book: updated });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Write Rewrite (specific chapter) ---
@@ -17173,7 +17185,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json(result);
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Detect All chapters ---
@@ -17194,7 +17206,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ bookId: id, results });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Detect Stats ---
@@ -17208,7 +17220,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json(insights);
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Genre Create ---
@@ -17321,7 +17333,7 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ...profile, saved });
         }
         catch (e) {
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Style Import to Book ---
@@ -17339,7 +17351,7 @@ export function createStudioServer(initialConfig, root) {
         }
         catch (e) {
             broadcast("style:error", { bookId: id, error: String(e) });
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Import Chapters ---
@@ -17359,7 +17371,7 @@ export function createStudioServer(initialConfig, root) {
         }
         catch (e) {
             broadcast("import:error", { bookId: id, error: String(e) });
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Import Canon ---
@@ -17377,7 +17389,7 @@ export function createStudioServer(initialConfig, root) {
         }
         catch (e) {
             broadcast("import:error", { bookId: id, error: String(e) });
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Fanfic Init ---
@@ -17410,7 +17422,7 @@ export function createStudioServer(initialConfig, root) {
         }
         catch (e) {
             broadcast("fanfic:error", { bookId, error: String(e) });
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Fanfic Show (read canon) ---
@@ -17441,7 +17453,7 @@ export function createStudioServer(initialConfig, root) {
         }
         catch (e) {
             broadcast("fanfic:refresh:error", { bookId: id, error: String(e) });
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Creator atelier ---
@@ -18123,7 +18135,7 @@ export function createStudioServer(initialConfig, root) {
         }
         catch (e) {
             broadcast("radar:error", { error: String(e) });
-            return c.json({ error: String(e) }, 500);
+            return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
     // --- Doctor (environment health check) ---
