@@ -8,6 +8,7 @@ import { CjLogo } from "./cj-logo"
 import { useTheme } from "next-themes"
 import { useAuthorName, setAuthorName } from "@/lib/use-author-name"
 import { setTierCache, useTier } from "@/lib/use-tier"
+import { useInbox } from "@/lib/use-inbox"
 import {
   Activity,
   BookOpenText,
@@ -16,6 +17,7 @@ import {
   Bot,
   Check,
   ChevronDown,
+  Inbox,
   ChevronLeft,
   ChevronRight,
   Cpu,
@@ -83,7 +85,12 @@ type NavGroup = {
 }
 
 const NAV: NavGroup[] = [
-  { items: [{ href: "/", label: "工作台", icon: LayoutDashboard, pixelKind: "workbench" }] },
+  {
+    items: [
+      { href: "/", label: "工作台", icon: LayoutDashboard, pixelKind: "workbench" },
+      { href: "/inbox", label: "需要处理", icon: Inbox, pixelKind: "runs" },
+    ],
+  },
   {
     title: "创 作",
     groupId: "creation",
@@ -287,6 +294,8 @@ function CjSidebar() {
   const { collapsed, toggle } = React.useContext(CollapseCtx)
   const { books } = useWorkspace()
   const runningCount = books.filter((b) => b.autoRunning).length
+  // 「需要处理」红点:卡住/失败/需补地基的书 + 没配模型,聚合成一个 count 显示在侧栏。
+  const { count: inboxCount } = useInbox()
 
   // 管理后台入口:只对 SaaS 模式下 role==='admin' 渲染——普通用户/桌面单机完全看不见。
   // /auth/me 在桌面模式返回 user:null,在 SaaS 非 admin 返回非 admin role,两端都不显示。
@@ -402,7 +411,11 @@ function CjSidebar() {
             const Icon = item.icon
             const active = isActive(item.href)
             const badge =
-              item.href === "/runs" && runningCount > 0 ? String(runningCount) : item.badge
+              item.href === "/inbox" && inboxCount > 0
+                ? String(inboxCount)
+                : item.href === "/runs" && runningCount > 0
+                  ? String(runningCount)
+                  : item.badge
             return (
               <Link
                 key={item.href}
