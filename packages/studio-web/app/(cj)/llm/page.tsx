@@ -105,17 +105,22 @@ function providerIcon(p: LLMProvider): React.ComponentType<{ size?: number }> {
   return Boxes
 }
 
-type TestState = { ok: boolean; latencyMs: number; error?: string }
+type TestState = { ok: boolean; latencyMs: number; error?: string; modelPinned?: boolean }
 
 // 单个服务的连通态 → 设计系统 .pill[data-state] 语义(只走状态色,不裸字/杂色)。
 type ConnTone = "success" | "error" | "warn" | "disabled" | "pending"
-function connStatus(p: LLMProvider, tested: { ok: boolean; latencyMs: number } | undefined): {
+function connStatus(p: LLMProvider, tested: TestState | undefined): {
   tone: ConnTone
   label: string
 } {
   if (!p.enabled) return { tone: "disabled", label: "已停用" }
   if (!p.hasKey) return { tone: "warn", label: "缺少密钥" }
-  if (tested) return tested.ok ? { tone: "success", label: "连通正常" } : { tone: "error", label: "连通失败" }
+  if (tested) {
+    if (!tested.ok) return { tone: "error", label: "连通失败" }
+    // modelPinned===false:Key/中转站通,但没测你填的具体模型(模型留空,用兜底验的 Key)→ 别报"连通正常"误导。
+    if (tested.modelPinned === false) return { tone: "warn", label: "Key 有效·待填模型" }
+    return { tone: "success", label: "连通正常" }
+  }
   return { tone: "pending", label: "待测试" }
 }
 
@@ -171,10 +176,19 @@ export default function LLMConfigPage() {
   const executeTest = async (id: string) => {
     setTesting((t) => ({ ...t, [id]: true }))
     try {
-      const r = await testLLMProvider(id)
+      // 带上这个服务当前填的模型,让后端只测"你填的那个模型",而不是用兜底模型顶替验证。
+      const prov = list.find((x) => x.id === id)
+      const r = await testLLMProvider(id, prov?.selectedModel ?? prov?.models?.[0])
       setResults((s) => ({ ...s, [id]: r }))
-      if (r.ok) toast.success(`连通成功 · ${r.latencyMs}ms`)
-      else toast.error("连通失败", { description: describeConnError(r.error) })
+      if (r.ok && r.modelPinned === false) {
+        toast.info("Key 有效,但还没填模型", {
+          description: "这家中转站连得上、Key 也对,但你还没填模型名。填上你要用的模型(如 gpt-4o / agnes)再测一次,才能确认那个模型真的能用。",
+        })
+      } else if (r.ok) {
+        toast.success(`连通成功 · ${r.selectedModel ?? "模型"}可用 · ${r.latencyMs}ms`)
+      } else {
+        toast.error("连通失败", { description: describeConnError(r.error) })
+      }
       mutate()
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)

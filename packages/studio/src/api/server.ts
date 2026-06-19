@@ -8582,6 +8582,7 @@ async function probeServiceCapabilities(args) {
             ok: false,
             models: [],
             error: modelsResponse.error ?? "API Key 无效或无权访问模型列表。",
+            modelPinned: false,
         };
     }
     const discoveredModels = modelsResponse.models;
@@ -8605,18 +8606,32 @@ async function probeServiceCapabilities(args) {
                 : undefined
         : undefined;
     const useCustomFallbacks = isCustomServiceId(args.service);
-    const modelCandidates = buildModelCandidates({
-        preferredModel: args.preferredModel ?? preferredProbeModel,
-        configModel,
-        envModel: useCustomFallbacks ? envModel : undefined,
-        discoveredModels: useEndpointCheckModel ? [] : discoveredModels,
-        includeGenericFallbacks: useCustomFallbacks,
-    });
+    // 修复 A:自定义服务若用户已为该服务填了模型,测试就只认这个模型——不挂通用兜底、不拿 /models 里别的
+    // 模型顶替。否则兜底模型(gpt-4o 等)聊通也会报「连通正常」,对用户填的模型(如 agnes/gpt-5.5)撒谎,
+    // 造成"测试绿、一写就废"。模型留空时才回落到兜底纯验 Key(modelPinned=false,前端据此提示去填模型)。
+    const pinnedCustomModel = useCustomFallbacks
+        ? ((typeof args.preferredModel === "string" && args.preferredModel.trim())
+            || (typeof serviceEntry?.model === "string" && serviceEntry.model.trim())
+            || (typeof configModel === "string" && configModel.trim())
+            || "")
+        : "";
+    // 非自定义(预设)用已知 checkModel,测试本就有意义→视为已锁定;自定义则看是否锁到了用户填的模型。
+    const modelPinned = !useCustomFallbacks || Boolean(pinnedCustomModel);
+    const modelCandidates = pinnedCustomModel
+        ? [pinnedCustomModel]
+        : buildModelCandidates({
+            preferredModel: args.preferredModel ?? preferredProbeModel,
+            configModel,
+            envModel: useCustomFallbacks ? envModel : undefined,
+            discoveredModels: useEndpointCheckModel ? [] : discoveredModels,
+            includeGenericFallbacks: useCustomFallbacks,
+        });
     if (modelCandidates.length === 0) {
         return {
             ok: false,
             models: [],
             error: "无法自动确定模型，请先填写可用模型或提供支持 /models 的服务端点。",
+            modelPinned,
         };
     }
     let lastError = modelsResponse.error ?? "自动探测失败";
@@ -8656,6 +8671,7 @@ async function probeServiceCapabilities(args) {
                     stream: plan.stream,
                     baseUrl: args.baseUrl,
                     modelsSource: discoveredModels.length > 0 ? "api" : "fallback",
+                    modelPinned,
                 };
             }
             catch (error) {
@@ -8676,6 +8692,7 @@ async function probeServiceCapabilities(args) {
         ok: false,
         models: discoveredModels,
         error: lastError,
+        modelPinned,
     };
 }
 function sanitizeConnectivityError(error) {
@@ -15650,6 +15667,10 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ok: false, latencyMs: Date.now() - startedAt, error: "API Key 不能为空" }, 400);
         }
         const rawConfig = await loadRawConfig(root).catch(() => ({}));
+        // 自定义服务测试要锁到"用户为这个服务填的模型":前端会带当前输入的 model;否则回落到已保存的 serviceEntry.model。
+        const pinnedModel = typeof body?.model === "string" && body.model.trim()
+            ? body.model.trim()
+            : (typeof serviceEntry?.model === "string" ? serviceEntry.model : undefined);
         const probe = await probeServiceCapabilities({
             root,
             service,
@@ -15659,6 +15680,7 @@ export function createStudioServer(initialConfig, root) {
             preferredApi: api,
             preferredApiFormat: body?.apiFormat,
             preferredStream: body?.stream,
+            preferredModel: pinnedModel,
             proxyUrl: typeof rawConfig.llm?.proxyUrl === "string" ? rawConfig.llm.proxyUrl : undefined,
         });
         return c.json({
@@ -15668,6 +15690,7 @@ export function createStudioServer(initialConfig, root) {
             modelCount: probe.models?.length ?? 0,
             models: probe.models ?? [],
             selectedModel: probe.selectedModel,
+            modelPinned: probe.modelPinned,
         }, probe.ok ? 200 : 400);
     });
     app.get("/api/v1/llm-providers/:id", async (c) => {

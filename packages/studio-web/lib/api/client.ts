@@ -1087,9 +1087,12 @@ export function createLLMProvider(
 }
 export function testLLMProvider(
   id: string,
-): Promise<{ ok: boolean; latencyMs: number; error?: string }> {
-  return postJSON<{ ok: boolean; latencyMs: number; error?: string }>(
+  model?: string,
+): Promise<{ ok: boolean; latencyMs: number; error?: string; modelPinned?: boolean; selectedModel?: string }> {
+  // 带上这个服务当前填的模型,后端据此"只测你填的那个模型"(自定义服务不再用兜底模型顶替验证)。
+  return postJSON<{ ok: boolean; latencyMs: number; error?: string; modelPinned?: boolean; selectedModel?: string }>(
     ENDPOINTS.llmProviderTest(id),
+    model && model.trim() ? { model: model.trim() } : {},
   )
 }
 export function fetchProjectPrefs(): Promise<ProjectPrefs> {
