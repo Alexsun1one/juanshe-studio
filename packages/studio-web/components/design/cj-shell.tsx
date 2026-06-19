@@ -100,7 +100,7 @@ const NAV: NavGroup[] = [
     ],
   },
   {
-    title: "知识与资产",
+    title: "资料与图谱",
     groupId: "knowledge",
     pixelKind: "grp-knowledge",
     items: [
@@ -126,7 +126,7 @@ const NAV: NavGroup[] = [
     ],
   },
   {
-    title: "系统与智能体",
+    title: "系统与运行",
     groupId: "system",
     pixelKind: "grp-system",
     items: [
@@ -156,9 +156,9 @@ const DEFAULT_COLLAPSED_GROUPS = NAV.reduce<Record<string, boolean>>((acc, group
 const ROUTE_SECTION_LABELS: Record<string, string> = {
   workbench: "工作台",
   creation: "创作",
-  knowledge: "知识与资产",
+  knowledge: "资料与图谱",
   publish: "发布与运营",
-  system: "系统与智能体",
+  system: "系统与运行",
   settings: "设置",
   admin: "管理后台",
 }
@@ -333,6 +333,12 @@ function CjSidebar() {
       setCollapsedGroups(DEFAULT_COLLAPSED_GROUPS)
     } catch { /* ignore */ }
   }, [])
+  // 进入/切换到某页时,自动展开它所属的大分类 —— 否则首屏只剩「工作台」一行,二级入口全藏着、用户找不到功能。
+  // 只改运行态、不写 localStorage:用户随后仍可手动折叠,但每次导航到该区都会再展开(「我在哪个区,那个区就是开的」)。
+  React.useEffect(() => {
+    const section = routeSectionOf(pathname)
+    setCollapsedGroups((prev) => (prev[section] === false ? prev : { ...prev, [section]: false }))
+  }, [pathname])
   const toggleGroup = (groupId: string) => {
     setCollapsedGroups((prev) => {
       const next = { ...prev, [groupId]: !prev[groupId] }
