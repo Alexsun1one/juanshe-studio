@@ -260,3 +260,10 @@
 .ca-toggle .lbl { font-size: 11.5px; color: var(--ink-500); width: 36px; text-align: left; }
 .ca-toggle.on .lbl { color: var(--brand-600); font-weight: 600; }
 @media (max-width: 680px) { .ca-row { grid-template-columns: 38px 1fr auto; } .ca-row .ca-handle { display: none; } }
+
+/* 手机:渠道授权弹窗每行(grid)收成单列堆叠,并恢复账号输入框(680px 规则把它 display:none 藏掉了,
+   导致手机用户根本看不到/填不了账号)。让它单列全宽,可见可填。 */
+@media (max-width: 640px) {
+  .ca-row { grid-template-columns: 1fr; gap: 10px; align-items: stretch; }
+  .ca-row .ca-handle { display: block; width: 100%; }
+}

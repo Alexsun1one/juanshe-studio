@@ -50,6 +50,21 @@ export default function ComposePage() {
   const [sel, setSel] = React.useState<Platform>(PLATFORMS[0])
   const [brief, setBrief] = React.useState("")
   const [voice, setVoice] = React.useState("")
+  // 刷新/重连导致页面 remount 时,把酝酿很久的选题/口吻找回来(存 sessionStorage),别让人白写一遍。
+  React.useEffect(() => {
+    try {
+      const b = sessionStorage.getItem("cj.compose.brief")
+      const v = sessionStorage.getItem("cj.compose.voice")
+      if (b) setBrief(b)
+      if (v) setVoice(v)
+    } catch { /* 隐私模式等忽略 */ }
+  }, [])
+  React.useEffect(() => {
+    try { sessionStorage.setItem("cj.compose.brief", brief) } catch { /* ignore */ }
+  }, [brief])
+  React.useEffect(() => {
+    try { sessionStorage.setItem("cj.compose.voice", voice) } catch { /* ignore */ }
+  }, [voice])
   const [revise, setRevise] = React.useState(true)
   const [busy, setBusy] = React.useState(false)
   const [result, setResult] = React.useState<{ content: string; score?: number; revised?: boolean } | null>(null)
