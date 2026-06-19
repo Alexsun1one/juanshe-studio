@@ -12988,6 +12988,17 @@ export function createStudioServer(initialConfig, root) {
     });
     // --- Chapter Save ---
     const saveChapterContent = async (id, num, content, source = "章节保存内容") => {
+        // 并发保护:若有写作流水线正在生成"这一章"(currentChapter===num 的活跃 run),拒绝手动保存——
+        // 否则手动保存与后台写作会互相静默覆盖、毁掉刚生成的正文。只挡正在写的同一章;写别的章或没在写都放行。
+        // saveChapterContent 仅被 PUT/PATCH 两个手动保存路由调用(非 AI 流水线),故此守卫不会卡到 AI 自己落盘。
+        const activeRuns = await loadTaskRuns(root).catch(() => []);
+        const busyThisChapter = activeRuns.some((run) =>
+            run.bookId === id &&
+            ["queued", "running", "repairing"].includes(String(run.status || "")) &&
+            Number(run.currentChapter || run.chapterNumber || run.results?.[0]?.chapterNumber || 0) === num);
+        if (busyThisChapter) {
+            throw new ApiError(409, "CHAPTER_BUSY_WRITING", `第 ${num} 章正在被写作流水线生成 —— 先等它写完,或在工作台「停止」后再保存,免得和后台写作互相覆盖。`);
+        }
         const chapter = await resolveChapterFile(state, id, num);
         const safeContent = assertCleanChapterText(content, source);
         await atomicWriteFile(chapter.fullPath, safeContent);

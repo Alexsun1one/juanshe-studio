@@ -307,7 +307,13 @@ export default function EditorPage() {
       loadedKey.current = `${bookId}#${cur}` // 标记已加载,防 SWR 刷新把刚存的正文又覆盖回去
       toast.success(`第 ${cur} 章已保存`)
     } catch (e) {
-      toast.error(`保存失败:${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      // 后台正在写这一章时保存会被 409 挡下(防互相覆盖)——这是保护不是错误,用提醒而非红色报错。
+      if (/正在被写作流水线|CHAPTER_BUSY/.test(msg)) {
+        toast.warning("这一章正在写作中,先没保存", { description: msg })
+      } else {
+        toast.error("保存失败", { description: msg })
+      }
     } finally {
       setSaving(false)
     }
