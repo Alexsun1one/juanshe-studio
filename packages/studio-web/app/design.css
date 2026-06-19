@@ -1488,6 +1488,17 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
     grid-template-columns: var(--sidebar-w-mini) minmax(0, 1fr);
   }
 
+  /* 两栏工作区(主区 + Inspector)在手机收成单栏:Inspector 沉到主区下方、内部滚动面板改为自然流。
+     否则 Inspector 硬吃 ~300px 把主区压到不可读 —— insights/characters/consistency/runs/materials/wiki/
+     agents 一片横向溢出。各页 CSS 注释一直假设有这条全局规则,实际此前缺失。 */
+  .app .cj-screen-body { grid-template-columns: minmax(0, 1fr); }
+  .app .cj-inspector {
+    border-left: none;
+    border-top: 1px solid var(--line-1);
+    overflow: visible;
+  }
+  .app .cj-inspector .cj-pane-scroll { overflow: visible; }
+
   .sidebar {
     padding: 12px 8px;
   }

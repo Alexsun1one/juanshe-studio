@@ -42,9 +42,13 @@ export type LiveRun = {
   completedTick: number
   /** SSE 连接已断、浏览器在自动重连 —— 状态 chip 据此显示「重连中」,别让用户以为写丢了 */
   reconnecting: boolean
+  /** 用户点了停止:立刻把 active 压成 false,别等 12s 流式窗口自然过期(否则"停止"了 UI 还转十几秒) */
+  forceIdle: () => void
 }
 
-const EMPTY: LiveRun = { active: false, text: "", charCount: 0, completedTick: 0, reconnecting: false }
+// 内部累计快照不带 forceIdle(那是 hook 出口才合成的方法),其余字段同 LiveRun。
+type LiveRunSnapshot = Omit<LiveRun, "forceIdle">
+const EMPTY: LiveRunSnapshot = { active: false, text: "", charCount: 0, completedTick: 0, reconnecting: false }
 
 /** 后端 GET /books/:id/live-draft 的快照(当前在写章节的已累计正文) */
 type LiveDraftSeed = {
@@ -86,7 +90,7 @@ function stripWriterScaffold(raw: string): string {
 }
 
 export function useLiveRun(bookId: string | undefined): LiveRun {
-  const [snapshot, setSnapshot] = React.useState<LiveRun>(EMPTY)
+  const [snapshot, setSnapshot] = React.useState<LiveRunSnapshot>(EMPTY)
   const ref = React.useRef({
     chapter: undefined as number | undefined,
     byAgent: new Map<string, string>(),
@@ -227,5 +231,13 @@ export function useLiveRun(bookId: string | undefined): LiveRun {
     return () => clearInterval(t)
   }, [recompute])
 
-  return snapshot
+  // 用户点停止后立刻熄灭 active:清掉 lastTs(不等 12s 流式窗口自然过期),避免"已停止"了 UI 还转十几秒。
+  const forceIdle = React.useCallback(() => {
+    const st = ref.current
+    st.lastTs = 0
+    st.wasActive = false
+    recompute()
+  }, [recompute])
+
+  return React.useMemo(() => ({ ...snapshot, forceIdle }), [snapshot, forceIdle])
 }

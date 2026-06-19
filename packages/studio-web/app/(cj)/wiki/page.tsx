@@ -81,7 +81,7 @@ export default function WikiPage() {
   const { books, bookId, booksLoading } = useWorkspace()
   const active = books.find((b) => b.id === bookId)
   // 词条会随写作/改写增长:定时+聚焦自动重拉,避免停在"空"的旧缓存
-  const { data } = useSWR(bookId ? ["wiki", bookId] : null, () => fetchWiki(bookId), { ...soft, refreshInterval: 15000 })
+  const { data, error } = useSWR(bookId ? ["wiki", bookId] : null, () => fetchWiki(bookId), { ...soft, refreshInterval: 15000 })
   const [selId, setSelId] = React.useState<string | null>(null)
   const [q, setQ] = React.useState("")
 
@@ -262,11 +262,13 @@ export default function WikiPage() {
               <div className="wiki-empty-art">
                 <EmptyArt variant="wiki" />
               </div>
-              <h2>{data ? "Wiki 书页还没翻开" : "正在翻找作品词条"}</h2>
+              <h2>{data ? "Wiki 书页还没翻开" : error ? "词条没能加载出来" : "正在翻找作品词条"}</h2>
               <p>
                 {data
                   ? "写作推进时,角色、设定、伏笔和章节摘要会沉淀成词条,这里会变成作品的本地知识书架。"
-                  : "本地知识库还在整理索引,先把书页、台灯和档案册铺好。"}
+                  : error
+                    ? "可能是网络或后端在抖动 —— 稍候会自动重连,或刷新页面重试。"
+                    : "本地知识库还在整理索引,先把书页、台灯和档案册铺好。"}
               </p>
               {data && (
                 <div className="wiki-empty-actions">

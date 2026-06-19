@@ -62,7 +62,7 @@ function graphSourceText(graph: { fallback?: string; source?: string } | undefin
 export default function GraphPage() {
   const { bookId, booksLoading } = useWorkspace()
   const router = useRouter()
-  const { data: graph, isLoading } = useSWR(bookId ? ["story-graph", bookId] : null, () => fetchStoryGraph(bookId), soft)
+  const { data: graph, isLoading, error, mutate: mutateGraph } = useSWR(bookId ? ["story-graph", bookId] : null, () => fetchStoryGraph(bookId), soft)
 
   // 选中实体:由枢纽列表点击驱动,在 Inspector 展开该实体的真相档案(摘要 / 现状 / 出场跨度 / 关系)。
   // 不改 StoryGraphView 内部交互:画布里仍是「点节点聚焦、双击进档案」。
@@ -187,7 +187,13 @@ export default function GraphPage() {
             {sourceText && <span className="g-mainpane-src">{sourceText}</span>}
           </div>
           <div className="g-canvas-wrap">
-            {isLoading && !graph ? (
+            {error && !graph ? (
+              <div className="g-canvas-error" role="status" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, height: "100%", minHeight: 440, textAlign: "center", padding: 24 }}>
+                <p style={{ margin: 0, fontSize: 14, color: "var(--ink-700)" }}>故事图谱没能加载出来</p>
+                <p style={{ margin: 0, fontSize: 12.5, color: "var(--ink-500)", maxWidth: 320, lineHeight: 1.6 }}>可能是网络或后端在抖动。你的图谱数据没丢,点重试或刷新页面。</p>
+                <button type="button" className="btn primary sm" onClick={() => { void mutateGraph() }}>重试</button>
+              </div>
+            ) : isLoading && !graph ? (
               <div className="skel" style={{ height: "100%", minHeight: 440, margin: 0 }} />
             ) : (
               <StoryGraphView

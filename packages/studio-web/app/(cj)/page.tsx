@@ -383,6 +383,40 @@ export default function CjDashboard() {
     return () => window.clearTimeout(t)
   }, [preparing, isRunning, router])
 
+  // 卡死看门狗:run 已经跑起来(isRunning=true),但长时间既无新正文(charCount)也无阶段/角色推进 →
+  // 说明可能后端或模型真卡住了。旧的 30s 兜底只覆盖"还没启动",一旦跑起来真 hang 时 UI 只转圈永不报错,
+  // 计时器还在跳反而强化"在动"的错觉(用户反馈"明明卡了但不报错")。这里在无进展超过阈值时提醒一次。
+  const stallRef = React.useRef({ at: Date.now(), chars: 0, stage: "", warned: false })
+  React.useEffect(() => {
+    const sig = `${liveAgentId ?? ""}|${activeRun?.currentStage ?? ""}`
+    const p = stallRef.current
+    if (live.charCount !== p.chars || sig !== p.stage) {
+      p.chars = live.charCount
+      p.stage = sig
+      p.at = Date.now()
+      p.warned = false
+    }
+  }, [live.charCount, liveAgentId, activeRun?.currentStage])
+  React.useEffect(() => {
+    if (!isRunning) {
+      stallRef.current = { at: Date.now(), chars: live.charCount, stage: "", warned: false }
+      return
+    }
+    const STALL_MS = 4 * 60 * 1000
+    const t = window.setInterval(() => {
+      const p = stallRef.current
+      if (!p.warned && Date.now() - p.at > STALL_MS) {
+        p.warned = true
+        toast.warning("已经几分钟没有新进展了", {
+          description: "模型可能卡住、或上游中转站很慢。可以「停止」后重试,或去「系统」看运行日志 —— 已写的内容不会丢。",
+          duration: 14000,
+        })
+      }
+    }, 30000)
+    return () => window.clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRunning])
+
   const onContinue = async () => {
     if (!bookId) return
     if (isRunning) {
@@ -460,10 +494,12 @@ export default function CjDashboard() {
     setBusy(true)
     try {
       await stopBookWorkflow(bookId as string, "用户在工作台停止写作")
+      live.forceIdle() // 立刻熄灭流式 active,别等 12s 窗口让 UI 还显示"在写"
       toast.success("已停止工作流")
       run.refresh()
     } catch (e) {
-      toast.error(`停止失败:${e instanceof Error ? e.message : String(e)}`)
+      console.error("[stop]", e)
+      if (!showWriteBlockToast(e, recovery)) toast.error("停止失败,稍等重试")
     } finally {
       setBusy(false)
     }
@@ -490,7 +526,8 @@ export default function CjDashboard() {
       mutate(["chapters", bookId])
       run.refresh()
     } catch (e) {
-      toast.error(`批准失败:${e instanceof Error ? e.message : String(e)}`)
+      console.error("[approve]", e)
+      if (!showWriteBlockToast(e, recovery)) toast.error("批准失败,稍等重试")
     } finally {
       setBusy(false)
     }
