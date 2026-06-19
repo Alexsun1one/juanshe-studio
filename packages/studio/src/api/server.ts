@@ -17052,7 +17052,9 @@ export function createStudioServer(initialConfig, root) {
         try {
             await cancelBookRuns(id, "作品删除：已取消该书全部未完成工作流并释放锁");
             const { rm } = await import("node:fs/promises");
-            await rm(bookDir, { recursive: true, force: true });
+            // maxRetries/retryDelay:刚取消的写手可能还在把最后一批资产刷进 story/agent_assets,
+            // rm 递归删到一半撞上"目录非空"会 ENOTEMPTY。重试几次等它写完即可,别让用户删不掉残稿。
+            await rm(bookDir, { recursive: true, force: true, maxRetries: 12, retryDelay: 200 });
             broadcast("book:deleted", { bookId: id });
             return c.json({ ok: true, bookId: id });
         }
