@@ -25,9 +25,11 @@ export interface WriteErrorDiagnosis {
 }
 
 // 模型 / Key / 上游故障(鉴权、无可用渠道、余额、模型挂起超时、网关过载、连不上、4xx/5xx…)。
-// 这套正则经 13 条真实后端报错 + 5 条真·故事质量问题验证:模型故障全中、故事问题全不误判。
+// 只放"明确指向你这把 Key / 这个模型 / 这家中转站配置"的信号:鉴权、额度、无可用渠道、模型不存在、
+// 401/402/403/429。**故意不含 5xx / Bad Gateway / nginx / 网关 / 上游 / 挂起超时**——那些是"服务一时
+// 没接通",归 TRANSIENT。否则一次 nginx 502(我们后端在重启)会被误判成"你的模型坏了,去改设置",把人带错路。
 const MODEL_RE =
-  /鉴权|API\s*Key|密钥|令牌|无效或过期|未授权|请求被拒绝?|无可用渠道|no available channel|余额|额度|欠费|insufficient|限流|请求过多|请求过于频繁|模型权限|网关|上游|过载|service unavailable|bad gateway|无法连接|连不上|模型.{0,8}(挂起|空闲|超时)|LLM_CALL_TIMEOUT|模型不存在|未上架|model not found|\b(401|402|403|429|500|502|503|504)\b/i
+  /鉴权|API\s*Key|密钥|令牌|无效或过期|未授权|请求被拒绝?|无可用渠道|no available channel|余额|额度|欠费|insufficient|限流|请求过多|请求过于频繁|模型权限|模型不存在|未上架|model not found|\b(401|402|403|429)\b/i
 
 // 地基没搭完(故事框架 / 大纲生成失败 / 复审没过)。
 const FOUNDATION_RE =
@@ -36,8 +38,11 @@ const FOUNDATION_RE =
 // 质量门禁挡续写(从纯文本里识别;结构化 payload 会走更精确的分支)。
 const GATE_RE = /quality[-\s]?gate|质量门|过线分|未达标|低于门槛|分数未达|未过线/i
 
-// 纯瞬时错(网络抖动 / 临时超时),没有模型/地基/门禁特征。
-const TRANSIENT_RE = /timeout|timed out|aborted?|网络|连接超时|稍后重试|临时|temporar/i
+// 瞬时 / 网关错(服务一时没接通):nginx/Cloudflare 的 HTML 错误页、5xx、Bad Gateway、网关/上游/过载、
+// 网络抖动、超时、模型挂起空闲。这些是"等几秒重试就行",不是"你的 Key 坏了"。**在 MODEL 之后判**——
+// 这样 relay 的"503 无可用渠道"仍归 MODEL(无可用渠道命中在先),而纯"502 Bad Gateway"才归这里。
+const TRANSIENT_RE =
+  /<!doctype html|<html|<head>|bad gateway|gateway time-?out|\bnginx\b|cloudflare|\b(500|502|503|504)\b|网关|上游|upstream|过载|overload|service unavailable|temporarily unavailable|无法连接|连不上|econn|socket|getaddrinfo|\bdns\b|reset|refused|unreachable|disconnect|timeout|timed out|aborted?|网络|连接超时|超时|稍后重试|临时|temporar|模型.{0,8}(挂起|空闲|超时)|LLM_CALL_TIMEOUT/i
 
 const HUMAN: Record<Exclude<WriteErrorKind, "unknown">, { title: string; human: string }> = {
   model: {
@@ -56,8 +61,9 @@ const HUMAN: Record<Exclude<WriteErrorKind, "unknown">, { title: string; human: 
       "有章节没到你设的过线分,挡住了继续写。可以放行已达标的章节、签发卡住的低分章往下写(事后还能再修),或让编辑部复修到达标。",
   },
   transient: {
-    title: "这次没能跑完",
-    human: "可能是网络或上游临时抖动。可以直接重试;如果反复失败,再去「模型配置」看看 Key 和额度。",
+    title: "服务一时没接通",
+    human:
+      "这次没接通,多半是后端在重启、或网关 / 中转站临时抖动 —— 跟你的故事和 Key 都没关系。等几秒直接重试通常就好;要是反复这样,再去「模型配置」看看 Key 和额度。",
   },
 }
 
