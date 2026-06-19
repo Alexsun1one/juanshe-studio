@@ -37,7 +37,7 @@ export default function InboxPage() {
         </div>
       </header>
 
-      {loading ? (
+      {count === 0 && loading ? (
         <div className="ib-loading">正在汇总待处理事项…</div>
       ) : count === 0 ? (
         <div className="ib-empty">
