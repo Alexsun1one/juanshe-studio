@@ -3,7 +3,17 @@
 import * as React from "react"
 import Link from "next/link"
 import type { AutoRun } from "@/lib/api/types"
+import { isRecoverableAutoRunStatus, normalizeAutoRunStatus } from "@/lib/studio/run-status"
 import "./batch-progress.css"
+
+// 连写批次"停下了"的人话原因(失败/卡住/暂停/待修)——别让挂机用户看着进度条凭空消失。
+function stoppedLabel(run: AutoRun): string {
+  const s = normalizeAutoRunStatus(run.status)
+  if (s === "paused") return "已暂停"
+  if (s.includes("repair")) return "有低分章待修"
+  if (s === "blocked") return "被质量门槛卡住"
+  return "写作中断了" // failed 等
+}
 
 /** 剩余时长展示:与 components/runs/run-card.tsx 的 formatDuration 同口径(那边未导出,改动它会牵连运行台)。 */
 export function formatEta(ms: number) {
@@ -26,6 +36,20 @@ const MAX_TICKS = 40
  * 只在查到本书活跃 AutoRun 时由父组件渲染 —— 批次结束即消失,不残留「0/10」。
  */
 export function BatchProgress({ run }: { run: AutoRun }) {
+  // 批次停下(失败/卡住/暂停/待修):显示"停在第 N 章 · 原因 · 去续",而不是让进度条直接消失。
+  if (isRecoverableAutoRunStatus(run.status)) {
+    return (
+      <div className="batch-progress bp-stopped" role="status" title="连写批次停下了">
+        <span className="bp-chip bp-chip-stopped">
+          <span className="bp-stopped-dot" aria-hidden />
+          连写停在 第 <b className="num">{run.currentChapter}</b>/<b className="num">{run.toChapter}</b> 章
+          <span className="bp-dim">· {stoppedLabel(run)}</span>
+        </span>
+        <Link href="/runs" className="bp-link bp-link-act">去运行台续写 →</Link>
+      </div>
+    )
+  }
+
   const total = Math.max(1, run.toChapter - run.fromChapter + 1)
   const done = Math.max(0, Math.min(total, run.currentChapter - run.fromChapter))
   const pct =

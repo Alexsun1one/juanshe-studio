@@ -35,3 +35,19 @@
 .batch-progress .bp-bar > em { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--bg-card); }
 .batch-progress .bp-link { white-space: nowrap; color: var(--brand-600); text-decoration: none; font-weight: 600; }
 .batch-progress .bp-link:hover { text-decoration: underline; }
+
+/* 连写批次"停下了"态(失败/卡住/暂停/待修)—— 暖琥珀,提示去续,别让进度条凭空消失 */
+.batch-progress.bp-stopped { align-items: center; }
+.bp-chip-stopped { color: var(--ink-700); }
+.bp-stopped-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 999px;
+  background: var(--warn-500, #E8965A);
+  margin-right: 5px;
+  vertical-align: middle;
+}
+.bp-link-act {
+  color: var(--warn-600, var(--warn-500, #E8965A)) !important;
+  font-weight: 600;
+}

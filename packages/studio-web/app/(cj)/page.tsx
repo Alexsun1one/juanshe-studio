@@ -41,7 +41,7 @@ import { useLiveRun } from "@/lib/use-live-run"
 import { useRunState } from "@/lib/use-run-state"
 import { useAutoRuns } from "@/hooks/use-studio"
 import { useEasedNumber } from "@/hooks/use-eased-number"
-import { isLiveAutoRunStatus } from "@/lib/studio/run-status"
+import { isLiveAutoRunStatus, isRecoverableAutoRunStatus } from "@/lib/studio/run-status"
 import { BatchProgress } from "@/components/workbench/batch-progress"
 import { useAgentActivity } from "@/lib/use-agent-activity"
 import { useTypewriter } from "@/lib/use-typewriter"
@@ -220,10 +220,12 @@ export default function CjDashboard() {
   // 连续写批次进度(auto-runs):与 /runs 共享 SWR key,不新增轮询通道。
   // 「第几章/还剩几章/重写几轮/ETA」这些挂机最核心的安心感信息,就地摆在写作器头部,不必跑去运行台。
   const { data: autoRuns } = useAutoRuns()
-  const batchRun = React.useMemo(
-    () => (autoRuns ?? []).find((r) => r.bookId === bookId && isLiveAutoRunStatus(r.status)),
-    [autoRuns, bookId],
-  )
+  // 优先显示在跑的批次;没有在跑、但有停下的(失败/卡住/暂停/待修)→ 也显示出来(BatchProgress 会画"停在第N章·去续"),
+  // 别让挂机连写中途失败后进度条凭空消失、用户不知道写到哪/为什么停。
+  const batchRun = React.useMemo(() => {
+    const mine = (autoRuns ?? []).filter((r) => r.bookId === bookId)
+    return mine.find((r) => isLiveAutoRunStatus(r.status)) ?? mine.find((r) => isRecoverableAutoRunStatus(r.status))
+  }, [autoRuns, bookId])
 
   const [busy, setBusy] = React.useState(false)
   // 续写/连写点击后 → run 真跑起来之间的"模型准备中"态,避免用户以为没反应而狂点
