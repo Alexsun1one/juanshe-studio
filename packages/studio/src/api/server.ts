@@ -6896,6 +6896,7 @@ async function createTaskRun(root, input) {
             createdAt: now,
             updatedAt: now,
             heartbeatAt: now,
+            stageEnteredAt: now,
             events: [{ time: now, kind: "run:created", stage: input.currentStage || "进入队列" }],
             results: [],
         };
@@ -6952,6 +6953,11 @@ async function updateTaskRun(root, runId, patch = {}, event) {
             nextRun.impact = undefined;
             nextRun.suggestion = undefined;
         }
+        // 真进度信号:只有 currentStage 真正切换时才刷新 stageEnteredAt —— 盲心跳每 15s 用同一个
+        // stage 字符串回写 heartbeatAt,但 currentStage 不变,所以 stageEnteredAt 不会被它刷掉。
+        // 这给"运行期阶段停滞看门狗"一条 heartbeatAge 永远抓不到的独立信号(挂死/无限重试都卡同阶段)。
+        const stageAdvanced = patch.currentStage !== undefined && String(patch.currentStage) !== String(prev.currentStage || "");
+        nextRun.stageEnteredAt = stageAdvanced ? now : (prev.stageEnteredAt || prev.startedAt || prev.createdAt || now);
         runs[index] = nextRun;
         await saveTaskRuns(root, runs);
         return nextRun;
@@ -8860,6 +8866,12 @@ export function createStudioServer(initialConfig, root) {
     const REPAIR_STREAM_ENABLED = process.env.HARDWRITE_REPAIR_STREAM === "1";
     const ACTIVE_REPAIR_STALE_MS = Math.max(2.5 * 60 * 1000, REPAIR_LLM_TIMEOUT_MS + 60 * 1000);
     const REPAIR_WATCHDOG_MS = REPAIR_LLM_TIMEOUT_MS + 30 * 1000;
+    // 运行期"阶段停滞"硬墙:本进程仍活着、盲心跳仍每 15s 刷新 heartbeatAt,但 run 卡在同一个
+    // currentStage 太久没推进(模型无响应 / 中转站无可用渠道导致请求一直挂起或反复重试)。
+    // heartbeatAge 这条信号被盲心跳永久刷新、抓不到这类僵尸;必须用独立的"阶段进入时间"
+    // (stageEnteredAt,只在 currentStage 真正变化时才更新)。默认 20min,安全高于健康单阶段
+    // 上限(建书审核轮 / REPAIR_WATCHDOG_MS≈10.5min),既不误杀慢但在跑的任务、又能兜住挂死。
+    const RUN_STAGE_STALL_MS = Math.max(REPAIR_WATCHDOG_MS + 5 * 60 * 1000, Number(process.env.HARDWRITE_RUN_STAGE_STALL_MS || 20 * 60 * 1000));
     const RUN_HEARTBEAT_INTERVAL_MS = 15 * 1000;
     const PROGRESS_PERSIST_INTERVAL_MS = 2500;
     let cachedConfig = initialConfig;
@@ -9262,6 +9274,54 @@ export function createStudioServer(initialConfig, root) {
                 releaseJobMapForRun(activeStateRepairJobs, run.bookId);
                 changed = true;
                 continue;
+            }
+            // 运行期"阶段停滞"看门狗:本进程仍活着、盲心跳仍新鲜(heartbeatAge≈0),但 run 卡在
+            // 同一个 currentStage 超过 RUN_STAGE_STALL_MS —— 模型无响应 / 中转站无可用渠道导致请求
+            // 一直挂起或反复重试,或客户端中途断开后复修 run 未被终结成"running 僵尸"。这类被
+            // heartbeatAge / missingInMemoryOwner 两条信号永久错过(进程没死、心跳被盲刷),
+            // 只有 stageEnteredAt 这条真进度信号能抓到。抓到就 abort 在途调用 + 判失败 + 释放写作槽。
+            if (["running", "repairing", "model_done"].includes(String(run.status || ""))) {
+                const stageStallMs = Date.now() - (Date.parse(run.stageEnteredAt || run.startedAt || run.createdAt || "") || Date.now());
+                if (stageStallMs > RUN_STAGE_STALL_MS) {
+                    const mins = Math.round(stageStallMs / 60000);
+                    const stuckStage = String(run.currentStage || "进行中");
+                    const reason = `写作流水线在「${stuckStage}」停滞约 ${mins} 分钟无进展（通常是所选模型无响应，或在中转站无可用渠道 / 已下架，导致请求一直挂起或反复重试）。系统已自动中断并释放写作槽，请到「模型」页确认所选模型可用、或换一个再重试。`;
+                    try {
+                        const job = run.bookId ? getWriteJob(run.bookId) : undefined;
+                        (job && typeof job === "object" ? job.abortController : undefined)?.abort?.();
+                    }
+                    catch { /* abort 尽力而为,失败不阻塞回收 */ }
+                    const repairChapter = run.type === "chapter-quality-repair" ? taskRunChapterNumber(run) : 0;
+                    const ts = new Date().toISOString();
+                    run.status = repairChapter ? "needs-repair" : "error";
+                    run.error = reason;
+                    run.failureReason = "运行期阶段停滞超时（模型无响应 / 无可用渠道），已自动释放写作槽";
+                    run.impact = "本次任务已停止，不再空烧 token，写作锁已释放。";
+                    run.suggestion = "到「模型」页确认所选模型可用或更换后重试；直播模式会自动退避重试。";
+                    run.currentAgent = "guardian";
+                    run.currentStage = repairChapter ? `第 ${repairChapter} 章复修停滞超时，已释放锁，可继续复修` : reason;
+                    if (repairChapter)
+                        run.results = [{ chapterNumber: repairChapter, pass: false, error: reason }];
+                    run.updatedAt = ts;
+                    run.completedAt = run.completedAt || ts;
+                    run.heartbeatAt = ts;
+                    run.events = [{ time: ts, kind: "watchdog:stalled", stage: reason, agent: "guardian", error: reason, failureReason: run.failureReason }, ...(run.events || [])].slice(0, 40);
+                    if (run.bookId) {
+                        releaseJobMapForRun(activeWriteJobs, run.bookId, run.id);
+                        releaseJobMapForRun(activeStateRepairJobs, run.bookId, run.id);
+                        try {
+                            await rm(join(state.bookDir(run.bookId), ".write.lock"), { force: true });
+                        }
+                        catch { /* 释放锁尽力而为 */ }
+                        const payload = { bookId: run.bookId, runId: run.id, agent: "guardian", agentLabel: "守护进程", stage: reason, failureReason: run.failureReason, impact: run.impact, suggestion: run.suggestion };
+                        void appendBookAgentEvent(root, run.bookId, "watchdog:stalled", payload);
+                        broadcast("watchdog:stale", payload);
+                        broadcast("workflow:stopped", payload);
+                    }
+                    console.warn(`[reaper:stage-stall] ${run.id} book=${run.bookId} 卡 ${Math.round(stageStallMs / 1000)}s @ "${stuckStage.slice(0, 24)}"`);
+                    changed = true;
+                    continue;
+                }
             }
             const heartbeatAge = runHeartbeatAgeMs(run);
             const missingInMemoryOwner = runLostProcessOwner(run);
