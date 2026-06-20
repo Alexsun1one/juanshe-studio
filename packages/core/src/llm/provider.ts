@@ -565,7 +565,7 @@ function wrapLLMError(
   }
   if (/\b401\b/.test(msg)) {
     return new Error(
-      `API 返回 401 (未授权)。请检查 .env 中的 JUANSHE_LLM_API_KEY 是否正确（旧 HARDWRITE_LLM_API_KEY / AUTOW_LLM_API_KEY 仍兼容）。${ctxLine}`,
+      `API 返回 401 (未授权)：你配置的 API Key 被该服务商拒绝。请确认这把 Key 正确、未过期、有余额,且确实属于该服务商（不同服务商的 Key 不通用）。${ctxLine}`,
     );
   }
   if (/\b429\b/.test(msg)) {

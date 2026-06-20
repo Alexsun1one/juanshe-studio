@@ -8499,6 +8499,25 @@ function formatServiceProbeError(args) {
         `协议：${args.api === "anthropic-messages" ? "Anthropic Messages" : args.apiFormat === "responses" ? "Responses" : "Chat / Completions"}${typeof args.stream === "boolean" ? `，${args.stream ? "流式" : "非流式"}` : ""}`,
         `Base URL：${args.baseUrl}`,
     ].join("\n");
+    // 401/403 鉴权类:几乎都是"填的 Key 本身被对方拒"(填错家 / 过期 / 没额度 / IP 白名单),
+    // 不是平台连不通——请求已经走到对方服务器、被对方拒了。给可执行清单,正面破"是不是你们平台的锅"的误解,
+    // 并盖掉引擎那句面向自部署 .env 的提示,免得 SaaS 用户误判。
+    const isAuthFailure = /\b40[13]\b|未授权|无权访问|unauthorized|forbidden|invalid[\s_-]*api[\s_-]*key|api[\s_-]*key[^\n]*(invalid|incorrect|expired)|no[^\n]*credential|鉴权失败|认证失败|令牌无效/i.test(args.error);
+    if (isAuthFailure) {
+        const looksOpenRouter = /openrouter\.ai/i.test(args.baseUrl || "");
+        return [
+            `「${args.label ?? args.service}」拒绝了你填的 API Key(${/\b403\b/.test(args.error) ? "403 无权" : "401 未授权"})。`,
+            "请求已经送到了对方服务器、被对方拒掉——所以不是平台连不通,是这把 Key 的问题。请逐条核对:",
+            looksOpenRouter
+                ? "① Key 是不是 OpenRouter 自己的?它的 Key 以 sk-or- 开头;别把 OpenAI 的 sk-… 或别家的 Key 误填进来。"
+                : "① Key 是不是这家服务商自己签发的?(各家 Key 不通用,别把别家的 Key 填进来)",
+            "② Key 是否已过期 / 账户余额是否用完;",
+            "③ 这把 Key 在对方后台有没有设 IP / 来源白名单(设了就要放行我们服务器的出口 IP);",
+            "④ 刚改过 Key 的话先点「保存」再测试 —— 测试用的是已保存的 Key,不是输入框里还没存的那个。",
+            "",
+            context,
+        ].join("\n");
+    }
     if (args.service === "google") {
         return [
             "Google Gemini 测试连接失败。",
