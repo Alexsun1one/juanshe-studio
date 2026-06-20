@@ -506,6 +506,29 @@ function translateUpstreamError(
   return null;
 }
 
+// 把上游(中转/服务商)返回的真实错因抽出来 + 脱敏(去掉可能回显的 key/token),供 401/403 透出。
+// 不再把"为什么被拒"吞成笼统一句——用户/运维一看就知道是没额度 / key 停用 / IP 没放行 / 区域限制。
+function redactedUpstreamDetail(error: unknown, msg: string): string {
+  let detail = "";
+  if (error && typeof error === "object") {
+    const bodyLike = (error as { error?: unknown; body?: unknown }).error
+      ?? (error as { body?: unknown }).body;
+    if (bodyLike && typeof bodyLike === "object") {
+      const b = bodyLike as { reason?: string; message?: string; type?: string };
+      if (b.message) detail = b.type ? `${b.type}: ${b.message}` : b.message;
+      else if (b.reason) detail = b.reason;
+    }
+  }
+  if (!detail) {
+    const raw = msg.replace(/^Error:\s*/i, "").trim();
+    if (raw && raw !== "[object Object]") detail = raw;
+  }
+  return detail
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
+    .replace(/sk-(?:or-v1-)?[A-Za-z0-9_-]{8,}/gi, "sk-[redacted]")
+    .slice(0, 300);
+}
+
 function wrapLLMError(
   error: unknown,
   context?: { readonly baseUrl?: string; readonly model?: string; readonly maxTokens?: number; readonly temperature?: number },
@@ -555,17 +578,19 @@ function wrapLLMError(
     );
   }
   if (/\b403\b/.test(msg)) {
+    const upstream = redactedUpstreamDetail(error, msg);
     return new Error(
       `API 返回 403 (请求被拒绝)。可能原因：\n` +
       `  1. API Key 无效或过期\n` +
       `  2. API 提供方的内容审查拦截了请求（公益/免费 API 常见）\n` +
-      `  3. 账户余额不足\n` +
-      `  建议：用模型连通性检测测试 API，或换一个不限制内容的 API 提供方${ctxLine}`,
+      `  3. 账户余额不足 / 该 Key 限制了来源 IP（服务器出口 IP 未被放行）\n` +
+      `  建议：用模型连通性检测测试 API，或换一个不限制内容的 API 提供方${upstream ? `\n  服务商原话：${upstream}` : ""}${ctxLine}`,
     );
   }
   if (/\b401\b/.test(msg)) {
+    const upstream = redactedUpstreamDetail(error, msg);
     return new Error(
-      `API 返回 401 (未授权)：你配置的 API Key 被该服务商拒绝。请确认这把 Key 正确、未过期、有余额,且确实属于该服务商（不同服务商的 Key 不通用）。${ctxLine}`,
+      `API 返回 401 (未授权)：你配置的 API Key 被该服务商拒绝。请确认这把 Key 正确、未过期、有余额,且确实属于该服务商（不同服务商的 Key 不通用）。${upstream ? `\n服务商原话：${upstream}` : ""}${ctxLine}`,
     );
   }
   if (/\b429\b/.test(msg)) {
