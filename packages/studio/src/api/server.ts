@@ -8643,22 +8643,24 @@ async function probeServiceCapabilities(args) {
     let lastError = modelsResponse.error ?? "自动探测失败";
     for (const model of modelCandidates) {
         for (const plan of buildProbePlans(args.preferredApiFormat, args.preferredStream, api)) {
-            const client = createLLMClient({
-                provider: providerFamily,
-                service: baseService,
-                configSource: "studio",
-                baseUrl: args.baseUrl,
-                apiKey: args.apiKey.trim(),
-                model,
-                api: plan.api ?? api,
-                temperature: 0.7,
-                maxTokens: 2048,
-                thinkingBudget: 0,
-                proxyUrl: args.proxyUrl,
-                apiFormat: plan.apiFormat,
-                stream: plan.stream,
-            });
             try {
+                // createLLMClient 必须留在 try 内:某些自定义服务商配置(非法 baseUrl / 不支持的协议族)
+                // 会让构造期就抛错。放在 try 外会冒泡成裸 500;放进来则归一成 formatServiceProbeError 精确文案。
+                const client = createLLMClient({
+                    provider: providerFamily,
+                    service: baseService,
+                    configSource: "studio",
+                    baseUrl: args.baseUrl,
+                    apiKey: args.apiKey.trim(),
+                    model,
+                    api: plan.api ?? api,
+                    temperature: 0.7,
+                    maxTokens: 2048,
+                    thinkingBudget: 0,
+                    proxyUrl: args.proxyUrl,
+                    apiFormat: plan.apiFormat,
+                    stream: plan.stream,
+                });
                 await chatCompletion(client, model, [{ role: "user", content: "ping" }], { maxTokens: 2048 });
                 const models = discoveredModels.length > 0
                     ? discoveredModels
@@ -8708,6 +8710,19 @@ function sanitizeConnectivityError(error) {
         .replace(/(?:sk|ak|api[_-]?key)[-_A-Za-z0-9]{12,}/gi, "[redacted-key]")
         .replace(/[A-Za-z0-9_-]{24,}\.[A-Za-z0-9_-]{24,}\.[A-Za-z0-9_-]{24,}/g, "[redacted-token]");
     return text.slice(0, 900);
+}
+// 服务商连通测试"非预期抛错"兜底文案:把构造失败 / 解析异常 / 非法 baseUrl 等翻成可执行人话 + 脱敏原始返回。
+// 预期内失败(中转报错 / 鉴权 / 模型不存在)已在 probe 内层 try 给出 formatServiceProbeError 精确文案,不会走到这里。
+function describeProviderTestFailure(error) {
+    const raw = sanitizeConnectivityError(error);
+    return [
+        "测试这个服务商时出错了。常见原因(从高到低):",
+        "① 模型名填错 / 未上架 / 该中转没有这个模型;",
+        "② Base URL 不对 —— 缺 /v1 之类路径,或不是标准 OpenAI / Anthropic 兼容端点;",
+        "③ 协议类型选错(Chat / Responses / Anthropic Messages 与该服务商不匹配);",
+        "④ API Key 无效或额度不足。",
+        raw ? `\n原始返回:${raw}` : "",
+    ].filter(Boolean).join("\n");
 }
 // 500 兜底消毒:原始异常进服务端日志,给客户端的消息先去掉 key/token,再判断有没有绝对路径 /
 // 内部模块名 / 栈帧 / 系统错误码 —— 有就换中文通用兜底,别把 /Users//data//opt/、node 内部、端口泄露给用户。
@@ -10831,6 +10846,12 @@ export function createStudioServer(initialConfig, root) {
         // 未配 LLM Key(BYOK)是可预期状态,不该报通用 500,要给清晰可执行提示
         if (/api key not set|API key.*not set|未设置.*key|llm.*not configured/i.test(msg)) {
             return c.json({ error: { code: "LLM_NOT_CONFIGURED", message: "还没配置写作模型:请到「服务设置」填入你的 LLM API Key(BYOK),保存后即可开始写作。" } }, 409);
+        }
+        // 服务商连通测试端点:任何意外抛错都翻成可执行的 {ok:false} 而非裸 500。测试失败是
+        // "请求成功、结果为否",不该是 500;适配层据此走 200 清爽路径渲染。仍打栈供 ops 排查。
+        if (/\/api\/v1\/(?:llm-providers|services)\/[^/]+\/test$/.test(c.req.path)) {
+            console.error(`[onError] 测试端点意外抛错 ${c.req.path} —`, error);
+            return c.json({ ok: false, error: describeProviderTestFailure(error) }, 200);
         }
         // 其余未预期错误必须打栈,否则线上 500 无从排查(高频 ops 坑)
         console.error(`[onError] ${c.req.method} ${c.req.path} —`, error);

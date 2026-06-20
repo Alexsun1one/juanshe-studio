@@ -159,36 +159,64 @@ export async function deleteLLMProvider(
   return { ok: record.ok === undefined ? true : Boolean(record.ok), id: text(record.id, id) }
 }
 
+// 测试探测会真的去打中转(拉 /models + 一次 chat ping),慢中转用默认网关超时(偏短)容易被掐。
+// 给测试一条更宽松的墙钟(60s):平时就慢到 60s 都 ping 不通的中转,对写作也是不可用的。
+const TEST_BACKEND_TIMEOUT_MS = 60_000
+
 export async function testLLMProvider(
   req: Request,
   id: string,
 ): Promise<ProviderTestResult> {
-  const body = await readJsonBody(req)
-  const direct = await backendJSON(
-    `/api/v1/llm-providers/${encodeURIComponent(id)}/test`,
-    req,
-    {
-      method: "POST",
-      headers: jsonHeaders(),
-      body: JSON.stringify(body),
-    },
-  )
-  if (direct.response.ok) return asProviderTestResult(direct.data)
-
-  const fallback = await backendJSON(
-    `/api/v1/services/${encodeURIComponent(id)}/test`,
-    req,
-    {
-      method: "POST",
-      headers: jsonHeaders(),
-      body: JSON.stringify(body),
-    },
-  )
-  const result = asProviderTestResult(fallback.data)
-  if (!fallback.response.ok && !result.error) {
-    result.error = errorMessage(fallback.data, fallback.response.status)
+  let body: unknown = {}
+  try {
+    body = await readJsonBody(req)
+  } catch {
+    body = {}
   }
-  return result
+  try {
+    const direct = await backendJSON(
+      `/api/v1/llm-providers/${encodeURIComponent(id)}/test`,
+      req,
+      {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify(body),
+      },
+      TEST_BACKEND_TIMEOUT_MS,
+    )
+    if (direct.response.ok) return asProviderTestResult(direct.data)
+
+    const fallback = await backendJSON(
+      `/api/v1/services/${encodeURIComponent(id)}/test`,
+      req,
+      {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify(body),
+      },
+      TEST_BACKEND_TIMEOUT_MS,
+    )
+    const result = asProviderTestResult(fallback.data)
+    if (!fallback.response.ok && !result.error) {
+      result.error = errorMessage(fallback.data, fallback.response.status)
+    }
+    return result
+  } catch (e) {
+    // 探测超时 / 连不通 / 响应不是 JSON 都会让 backendJSON 抛错。绝不能冒泡成 500 ——
+    // 翻成可执行人话,jsonOK 包成 200,前端走 {ok:false} 清爽路径渲染。
+    return { ok: false, error: describeTestException(e) }
+  }
+}
+
+function describeTestException(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e ?? "")
+  if (/timed out|timeout|abort/i.test(msg)) {
+    return "测试超时 —— 这个服务商 / 中转地址响应太慢或连不通(已等 60 秒)。请确认 Base URL 可达、模型已上架;若它平时就慢,建议换一个更快的服务商。"
+  }
+  if (/fetch failed|ECONN|ENOTFOUND|EAI_AGAIN|getaddrinfo|network|socket|certificate|TLS|SSL/i.test(msg)) {
+    return "连不上这个服务地址 —— 请检查 Base URL 是否写对(要带 http(s):// 和正确路径,如 /v1),以及该地址是否可公网访问、证书是否正常。"
+  }
+  return `测试时出错:${msg.slice(0, 200) || "未知错误"}。请检查 Base URL、模型名与协议类型后重试。`
 }
 
 async function updateViaServices(
