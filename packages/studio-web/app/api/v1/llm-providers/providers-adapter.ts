@@ -388,12 +388,22 @@ function asProvider(value: unknown): LLMProvider {
   }
 }
 
+// 后端失败有两种形:{ok:false,error:"串"} 与 {error:{code,message}}(ApiError / 鉴权)。
+// 旧实现 text(record.error) 碰到对象形会渲染成 "[object Object]" —— 统一解包成可读串。
+function errText(err: unknown): string {
+  if (typeof err === "string") return err
+  if (isRecord(err) && typeof (err as { message?: unknown }).message === "string") {
+    return (err as { message: string }).message
+  }
+  return ""
+}
+
 function asProviderTestResult(value: unknown): ProviderTestResult {
   const record = asRecord(value)
   return {
     ok: Boolean(record.ok),
     latencyMs: numberOrUndefined(record.latencyMs),
-    error: text(record.error) || undefined,
+    error: errText(record.error) || undefined,
     modelCount: numberOrUndefined(record.modelCount),
     models: Array.isArray(record.models)
       ? record.models.map((model) =>
