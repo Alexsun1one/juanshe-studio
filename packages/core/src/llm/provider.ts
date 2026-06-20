@@ -533,6 +533,12 @@ function wrapLLMError(
   error: unknown,
   context?: { readonly baseUrl?: string; readonly model?: string; readonly maxTokens?: number; readonly temperature?: number },
 ): Error {
+  // 幂等:error 若已被本函数包过(消息以"API 返回"/"模型调用超时"开头,或已含"服务商原话"),
+  // 直接返回——重试层 / 多层调用会重复包,否则出现"API 返回 401…服务商原话:API 返回 401…"套娃。
+  if (error instanceof Error
+    && (/^(API 返回|模型调用超时)/.test(error.message) || error.message.includes("服务商原话"))) {
+    return error;
+  }
   const msg = String(error);
   const ctxLine = context
     ? `\n  (baseUrl: ${context.baseUrl}, model: ${context.model}`
