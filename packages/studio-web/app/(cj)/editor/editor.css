@@ -575,6 +575,17 @@
   border-color: color-mix(in oklab, var(--warn-500) 38%, var(--line-1));
 }
 .cj-editor .ed-audit-fix:hover { background: var(--warn-50, var(--st-warn-bg)); }
+/* 顶栏就地停止键:写作/复修跑着时出现 —— 暖橙警示(不用刺眼红),hover 实心强调 */
+.cj-editor .ed-stop {
+  flex: 0 0 auto;
+  color: var(--warn-600, var(--warn-500));
+  border-color: color-mix(in oklab, var(--warn-500) 42%, var(--line-1));
+}
+.cj-editor .ed-stop:hover:not(:disabled) {
+  background: var(--warn-500);
+  border-color: var(--warn-500);
+  color: #fff;
+}
 /* 剧场态(正在写作)装饰退场,同 ed-cheer */
 .cj-editor.writing-theater .ed-audit-bar { display: none; }
 @media (prefers-reduced-motion: reduce) { .cj-editor .ed-audit-bar { animation: none; } }

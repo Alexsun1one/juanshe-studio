@@ -28,6 +28,7 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  Square,
   SquarePen,
   Stars,
   TriangleAlert,
@@ -48,6 +49,7 @@ import {
   generateEditorialReview,
   saveManuscript,
   startRepairQualityBatch,
+  stopBookWorkflow,
   triggerContinue,
   triggerReview,
   triggerRewrite,
@@ -134,6 +136,7 @@ export default function EditorPage() {
   const [text, setText] = React.useState("")
   const [dirty, setDirty] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+  const [stopping, setStopping] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [review, setReview] = React.useState<EditorialReview | null>(null)
   const [reviewBusy, setReviewBusy] = React.useState(false)
@@ -210,7 +213,8 @@ export default function EditorPage() {
 
   // 流式文本增长时贴底跟随:用户上翻回读即解除,浮出「回到最新」;贴回底部恢复。
   // 只在「正文流式分支真的渲染着」时生效 —— 评审视图复用同一个 .paper 容器,不能被钉底劫持。
-  const streamPinActive = live.active && view !== "review"
+  // 钉底只在「正看着正在写的那一章」时生效 —— 翻看其它章节时别被流式钉底劫持
+  const streamPinActive = live.active && view !== "review" && live.chapter === cur
   const stick = useStickToBottom(streamRef, typed, streamPinActive)
 
   // 一轮生成结束(active true→false):拉回已保存的正文与质量/工作流
@@ -297,6 +301,21 @@ export default function EditorPage() {
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [drawer])
+
+  // 就地停止:编辑器盯着流式时,手边直接能停本书所有进行中的写作/复修,不必再被打发去工作台。
+  const onStop = async () => {
+    if (!bookId || stopping) return
+    setStopping(true)
+    try {
+      const r = await stopBookWorkflow(bookId, "用户在编辑器就地停止")
+      live.forceIdle()
+      toast.success(typeof r?.cancelled === "number" && r.cancelled > 0 ? `已停止 · 收回 ${r.cancelled} 个进行中的任务` : "已停止本书写作")
+    } catch (e) {
+      toast.error("停止失败", { description: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setStopping(false)
+    }
+  }
 
   const onSave = async () => {
     if (!bookId || !cur) return
@@ -541,7 +560,9 @@ export default function EditorPage() {
 
   // —— 「愉悦」支柱:用真实状态轻轻庆祝进展,绝不打扰写作、绝不编数字 ——
   // 正文区加载态:切到一个真实章节、正文还没回来时给衬线骨架,代替闪烁/串章
-  const paperLoading = !!cur && !manuscript && !live.active && view === "text"
+  // 正在写的就是当前章 → 交给流式分支(不显骨架);否则只要正文还没到就显骨架,
+  // 哪怕别的章正在写(过去这里用 !live.active,导致写作期间翻看别章直接落到空编辑框)
+  const paperLoading = !!cur && !manuscript && view === "text" && !(live.active && live.chapter === cur)
   // 这一章是否「写过」:有正文 manuscript(空章给温柔的起笔邀请,而非空白)
   const chapterHasBody = (manuscript?.paragraphs?.length ?? 0) > 0 || text.trim().length > 0
   // 真实达标:本章质量分≥85(与右侧/评审同一门槛),不是凭空夸
@@ -641,6 +662,11 @@ export default function EditorPage() {
             {/* 窄屏:打开 AI 协作 / 质量 / 审议面板抽屉(宽屏由 CSS 隐藏) */}
             <button type="button" className="ed-drawer-btn" onClick={() => setDrawer("panel")} title="AI 协作面板" aria-label="AI 协作面板"><PanelRight size={16} /></button>
             <Link href={immersiveHref} className="btn ghost sm" title="全屏沉浸"><Maximize2 size={13} /></Link>
+            {(run.isRunning || live.active) && (
+              <button type="button" className="btn ghost sm ed-stop" onClick={onStop} disabled={stopping} title="停止本书所有进行中的写作 / 复修">
+                {stopping ? <Loader2 size={12} className="spin" /> : <Square size={12} fill="currentColor" />} 停止
+              </button>
+            )}
           </div>
           {/* 待修硬伤提示条:audit-failed 章带未修复硬违规落盘,读者侧必须看得见;就地给「修复本章」出口 */}
           {selChapter?.status === "audit-failed" && !live.active && (
@@ -770,7 +796,7 @@ export default function EditorPage() {
                   }) : <p className="muted" style={{ fontSize: 13 }}>本章还没有修订记录(没被改写/修复过,或刚写完)。一旦写手原稿被修改,这里就会出现逐处「红删 / 绿增」对比。</p>}
                 </div>
               </div>
-            ) : live.active && live.text ? (
+            ) : live.active && live.text && live.chapter === cur ? (
               <div className="paper-stream prose-serif">
                 {/* 流式分段渲染 + 语义分色(editor 在 .app 内,.tk-* 直接生效),与另两处画布同构 */}
                 <StreamingProse text={typed} dict={proseDict} caret={<span className="type-caret" aria-hidden />} />

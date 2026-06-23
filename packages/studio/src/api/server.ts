@@ -13503,7 +13503,7 @@ export function createStudioServer(initialConfig, root) {
                         repairLlm.stream = repairStream;
                         const repairModel = String(repairLlm.model || currentConfig.llm.model || currentConfig.llm.defaultModel || "");
                         const client = createLLMClient(repairLlm);
-                        await emitQualityRepairStage("reviser", "修稿师", `模型链路：${repairLlm.serviceName || repairLlm.service || repairLlm.provider || "unknown"} / ${repairModel || "unknown"}${repairStream ? " · 流式打印" : " · 非流式返回"}`, { baseUrl: repairLlm.baseUrl ? String(repairLlm.baseUrl).replace(/\/+$/, "") : "", selectedModel: repairModel, stream: repairStream });
+                        await emitQualityRepairStage("reviser", "修稿师", `模型链路：${repairLlm.serviceName || repairLlm.service || repairLlm.provider || "unknown"} / ${repairModel || "unknown"}${repairStream ? " · 流式(仅进度,不逐字外推照抄正文)" : " · 非流式返回"}`, { baseUrl: repairLlm.baseUrl ? String(repairLlm.baseUrl).replace(/\/+$/, "") : "", selectedModel: repairModel, stream: repairStream });
                         emitRepairPrinter(`\n\n【自适应复修第 ${autoRound}/${maxAutoRounds} 轮】${adaptiveRepairInstruction(adaptivePlan, autoRound, maxAutoRounds)}\n策略：${repairStrategyInstruction(repairProfile)}\n\n`);
                         const stopRepairHeartbeat = startTaskHeartbeat(run?.id, "reviser", `模型正在重写第 ${num} 章低分正文`, { chapterNumber: num });
                         let timeout;
@@ -13596,7 +13596,10 @@ export function createStudioServer(initialConfig, root) {
                                 timeoutMs: REPAIR_LLM_TIMEOUT_MS,
                                 signal: abortController.signal,
                                 onStreamProgress: emitRepairProgress,
-                                onTextDelta: (text) => emitRepairPrinter(text, "reviser"),
+                                // 复修是「整章重写、未改处原文逐段照抄」——把照抄全文逐字推到正文流,会被读成
+                                // 「一直重复前面的文字,反反复复」。这里只保留进度脉搏(onStreamProgress 已发字数),
+                                // 不再外推照抄正文;即便开了 HARDWRITE_REPAIR_STREAM 也不复读,完成后用 diff 看改了哪。
+                                onTextDelta: () => {},
                             }),
                             new Promise((_, reject) => {
                                 timeout = setTimeout(() => reject(new Error(`low-score repair LLM timed out after ${Math.round(REPAIR_LLM_TIMEOUT_MS / 1000)}s`)), REPAIR_LLM_TIMEOUT_MS);
@@ -13608,8 +13611,7 @@ export function createStudioServer(initialConfig, root) {
                         const responseText = String(response.content || "");
                         let parsed = extractJsonObject(responseText);
                         const structuredText = extractStructuredChapterText(responseText);
-                        if (!repairStream)
-                            emitRepairPrinter(`\n\n【第 ${autoRound}/${maxAutoRounds} 轮模型返回】已收到完整修复稿，开始解析和质量复审。\n`);
+                        emitRepairPrinter(`\n\n【第 ${autoRound}/${maxAutoRounds} 轮模型返回】已收到完整修复稿，开始解析和质量复审。\n`);
                         const parsedRevision = parsed && typeof parsed === "object"
                             ? (parsed.revised ?? parsed.body ?? parsed.content ?? parsed.chapter ?? parsed.text ?? parsed.fullText)
                             : "";
