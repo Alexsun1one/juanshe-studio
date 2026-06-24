@@ -226,7 +226,7 @@ export class ArchitectAgent extends BaseAgent {
           this.ctx.logger?.warn(`架构师逐段[${plan.key}]未解析到该段,重试 ${retry + 1}/2`);
         } catch (e) {
           lastErr = e;
-          this.ctx.logger?.warn(`架构师逐段[${plan.key}]生成失败(${String((e as Error)?.message ?? e).slice(0, 60)}),重试 ${retry + 1}/2`);
+          this.ctx.logger?.warn(`架构师逐段[${plan.key}]生成失败(${String((e as Error)?.message ?? e).replace(/\s+/g, " ").slice(0, 240)}),重试 ${retry + 1}/2`);
         }
       }
     }
