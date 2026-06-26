@@ -118,9 +118,9 @@ export default function ImmersivePage() {
   const { data: ms, isLoading: msLoading } = useSWR(bookId && cur ? ["ms", bookId, cur] : null, () => fetchManuscript(bookId, cur), soft)
   const paras = ms?.paragraphs ?? []
   const hasBody = paras.length > 0
-  // 流式渲染只在「正在写的就是当前章」时接管正文;刚收尾、定稿还没拉回来(全新章节缓存为空)
-  // 时也先留住流式全文,避免闪一下「暂无正文」空态再跳成定稿
-  const streaming = live.chapter === cur && live.text.length > 0 && (live.active || !hasBody)
+  // 流式渲染只在「writer 正在写当前章」时接管正文——reviser/polisher 等修订型 agent 输出的是
+  // 「分析+修订」混合流(deep-rewrite 推理等),绝不能当正文显示。刚收尾定稿没拉回时也先留流式全文。
+  const streaming = live.chapter === cur && live.text.length > 0 && live.agentId === "writer" && (live.active || !hasBody)
   const running = Boolean(active?.autoRunning) || live.active
   const chapterTitle = chapters?.find((chapter) => chapter.num === cur)?.title.zh
   const editorHref = cur ? `/editor?chapter=${cur}` : "/editor"
