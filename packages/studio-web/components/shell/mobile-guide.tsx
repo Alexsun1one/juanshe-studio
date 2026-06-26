@@ -57,7 +57,7 @@ export function MobileGuide() {
         </p>
 
         <div className="mg-url">
-          <span className="mg-url-text">{host || "your-domain.example"}</span>
+          <span className="mg-url-text">{host || "请在电脑浏览器打开本站"}</span>
           <button type="button" className="mg-copy" onClick={copyUrl}>
             {copied ? "已复制 ✓" : "复制网址"}
           </button>
