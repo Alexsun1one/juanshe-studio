@@ -27,7 +27,7 @@ const DEV = process.env.ELECTRON_DEV === "1"
 const FRONT_PORT = Number(process.env.JUANSHE_WEB_PORT || 3100)
 const API_PORT = Number(process.env.JUANSHE_API_PORT || 4569)
 const FRONT_URL = `http://localhost:${FRONT_PORT}`
-const DEFAULT_ACTIVATION_VERIFY_URL = "https://api.nextapi.top/juanshe-activation/verify"
+const DEFAULT_ACTIVATION_VERIFY_URL = "https://your-domain.example/activation-service/verify"
 
 let win: BrowserWindow | null = null
 const children: UtilityProcess[] = []

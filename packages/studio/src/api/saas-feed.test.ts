@@ -124,7 +124,7 @@ describe("SaaS station-owner broadcast feed", () => {
     const post = await postFeed(app, admin.cookie, {
       title: "公众号新文章:卷舍的下一步",
       body: "聊聊路线图。",
-      link: "https://write.nextapi.top/article/1",
+      link: "https://your-domain.example/article/1",
       type: "article",
     });
     expect(post.status).toBe(200);
@@ -144,7 +144,7 @@ describe("SaaS station-owner broadcast feed", () => {
     expect(feedBody.saas).toBe(true);
     expect(feedBody.items.length).toBe(1);
     expect(feedBody.items[0].title).toBe("公众号新文章:卷舍的下一步");
-    expect(feedBody.items[0].link).toBe("https://write.nextapi.top/article/1");
+    expect(feedBody.items[0].link).toBe("https://your-domain.example/article/1");
     expect(feedBody.unreadCount).toBe(1);
     // 隐私:公开 /feed 绝不暴露 createdBy(站长 admin 邮箱)给普通用户。
     expect((feedBody.items[0] as Record<string, unknown>).createdBy).toBeUndefined();

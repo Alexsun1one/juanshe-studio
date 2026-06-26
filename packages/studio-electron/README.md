@@ -36,7 +36,7 @@ pnpm --filter @juanshe/studio-electron pack:win     # → release/卷舍-*.exe
 ## 上线注意
 - **打包内容不带任何私人书**:安装包只带空工作区 / 通用示例书,绝不捆 `hardwrite-workspace` 的个人作品。
 - **激活门禁默认开启**:客户端内嵌后端默认使用 `HARDWRITE_ACTIVATION_REQUIRED=1` 和远端 `HARDWRITE_ACTIVATION_VERIFY_URL`;需要本地调试时可在 `~/Library/Application Support/卷舍/.env` 覆盖。
-- **微信分发**:当前可在公众号后台用关键词自动回复 `领码` / `下载`，回复下载页 `https://api.nextapi.top/juanshe-download/` 与内测激活码；若要一人一码，需要再接公众号开发者服务器 webhook。
+- **微信分发**:当前可在公众号后台用关键词自动回复 `领码` / `下载`，回复下载页 `https://your-domain.example/juanshe-download/` 与内测激活码；若要一人一码，需要再接公众号开发者服务器 webhook。
 - **macOS 签名**:无 Apple Developer ID 时，打包流程会做内测用 ad-hoc bundle 签名，避免 Gatekeeper 把半签名 Electron bundle 判成"已损坏"。浏览器下载后仍可能带 quarantine，本机内测可执行 `xattr -dr com.apple.quarantine /Applications/卷舍.app` 后再打开。
 - **正式分发**:macOS 线上分发仍需 Apple Developer ID 签名 + notarytool 公证；Windows 正式分发也需要代码签名证书以减少 SmartScreen 拦截。
 - BYOK:用户在 App 内「服务设置」填自己的模型 Key,仅存本地后端,不上传。

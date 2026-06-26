@@ -1,4 +1,4 @@
-# 卷舍 SaaS · 单实例托管编排(MVP)。复用 nextapi-vps,与发卡服务(/opt/juanshe-activation)共机。
+# 卷舍 SaaS · 单实例托管编排(MVP)。复用 your-vps,与发卡服务(/opt/your-activation-service)共机。
 # 拓扑:nginx(TLS) → web(Next standalone :3100) → api(studio :4569);api 数据落持久卷。
 # 启动前务必先看 deploy/README.md 的 checklist(平台 key 必须留空、配 secret、放证书)。
 #

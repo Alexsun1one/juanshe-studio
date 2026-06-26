@@ -17,7 +17,7 @@ import "./share-card.css"
 // 两种模板：
 //   ① streak：晒连更 = 热力图 + 连更天数 + 书名 + 累计字数
 //   ② prose ：晒正文 = 一段精选正文 + 书名 + 作者
-// 角落品牌「卷舍 · write.nextapi.top」。下载用 SVG 序列化 → new Image → canvas → toBlob('image/png')。
+// 角落品牌「卷舍 · your-domain.example」。下载用 SVG 序列化 → new Image → canvas → toBlob('image/png')。
 
 export type ShareCardMode = "streak" | "prose"
 
@@ -137,7 +137,7 @@ export function buildShareCardSvg(mode: ShareCardMode, data: ShareCardData, pal:
     "'PingFang SC','HarmonyOS Sans SC','Microsoft YaHei',system-ui,sans-serif"
   const proseFont = titleFont
 
-  const brandLine = `卷舍 · write.nextapi.top`
+  const brandLine = `卷舍 · your-domain.example`
   const pad = 56
 
   const header = `

@@ -709,7 +709,7 @@ function resolveLegacyStageEvent(stage) {
 }
 const SAAS_SESSION_COOKIE = "hardwrite_saas_session";
 const SAAS_STORE_VERSION = 1;
-// ── SaaS 资源硬上限(复用 nextapi-vps 必须有,否则一个用户挂机连写拖垮发卡服务)──
+// ── SaaS 资源硬上限(复用 your-vps 必须有,否则一个用户挂机连写拖垮发卡服务)──
 // 每批章数上限(SaaS):桌面维持 1000/100,SaaS cap 到 ≤20。可用 env 覆盖,但仍夹在 [1,50]。
 const SAAS_MAX_BATCH_CHAPTERS = Math.max(1, Math.min(50, Number(process.env.HARDWRITE_SAAS_MAX_BATCH_CHAPTERS || 20)));
 // 后台长跑墙:同一批写作累计运行超过此时长(默认 2 小时)主动停并标记,防挂机连写无限占用。
@@ -9773,7 +9773,7 @@ export function createStudioServer(initialConfig, root) {
         return job;
     }
     // CORS:配了 HARDWRITE_CORS_ORIGINS(逗号分隔)就只放行白名单 origin + 携带凭据;没配则维持默认(桌面/本地开发)。
-    // 生产应设为 https://write.nextapi.top —— 浏览器对认证响应只放给可信站点读,挡跨站偷读。
+    // 生产应设为 https://your-domain.example —— 浏览器对认证响应只放给可信站点读,挡跨站偷读。
     const corsAllowList = String(process.env.HARDWRITE_CORS_ORIGINS ?? "")
         .split(",").map((s) => s.trim()).filter(Boolean);
     app.use("/*", corsAllowList.length ? cors({ origin: corsAllowList, credentials: true }) : cors());
