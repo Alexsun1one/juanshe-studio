@@ -109,6 +109,14 @@ export function diagnoseWriteError(e: unknown): WriteErrorDiagnosis {
       }
     }
     if (payload.status === "needs-foundation") {
+      // needs-foundation 有两种根因混在同一个状态里:① 建书时模型/Key/网关失败(catch 路径会带 warning/error),
+      // ② 真正的"地基质量没过"。先看失败文本有没有模型/瞬时特征,有就归 model/transient,别一律甩"去补地基"——
+      // 否则真因是 Key 没配好,却让用户一遍遍改大纲/重建,改了也没用,最挫败(这是用户反馈的核心痛点)。
+      const failText = [payload.failureReason, payload.warning, payload.error, raw]
+        .map((v) => String(v ?? ""))
+        .join(" ")
+      if (MODEL_RE.test(failText)) return { kind: "model", ...HUMAN.model, raw }
+      if (TRANSIENT_RE.test(failText)) return { kind: "transient", ...HUMAN.transient, raw }
       return {
         kind: "foundation",
         ...HUMAN.foundation,

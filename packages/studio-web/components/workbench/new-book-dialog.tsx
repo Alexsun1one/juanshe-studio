@@ -713,23 +713,37 @@ export function NewBookDialog({
           </div>
         )}
 
-        {/* 地基没过 —— 不是失败,是停在大纲等你补。主按钮给"去补地基"。 */}
-        {step === "needs-foundation" && (
+        {/* 地基没过 —— 可能是"地基质量没搭好"(去补地基),也可能是"模型/Key 失败"被落成 needs-foundation。
+            两种根因主按钮/文案分流:真因是模型时,别再让用户去改大纲(改了也没用),直接引导去配模型。 */}
+        {step === "needs-foundation" && (() => {
+          const modelFailed = isModelConfigFailure(errMsg)
+          return (
           <div className="nb-outcome">
             <div className="nb-outcome-head">
-              <div className="nb-outcome-mark warn"><Layers size={20} /></div>
+              <div className={`nb-outcome-mark ${modelFailed ? "err" : "warn"}`}>
+                {modelFailed ? <KeyRound size={20} /> : <Layers size={20} />}
+              </div>
               <div className="nb-outcome-title">
-                <h3>建书停在了补地基</h3>
-                <p className="nb-outcome-sub">框架已起好,但复审官没让它直接开写正文。</p>
+                <h3>{modelFailed ? "建书没成 · 模型 / Key 问题" : "建书停在了补地基"}</h3>
+                <p className="nb-outcome-sub">
+                  {modelFailed
+                    ? "失败出在你的大模型 / API Key 那一侧,跟故事构思无关 —— 去设置里修好就能重试。"
+                    : "框架已起好,但复审官没让它直接开写正文。"}
+                </p>
               </div>
             </div>
             <p className="nb-outcome-body">{foundationGuidance(errMsg)}</p>
             <p className="nb-outcome-note">
-              草稿已保存在<b>作品列表</b>里(没切成当前作品)。去补地基会把它设为当前作品,带你进路线图补大纲、伏笔和人物动机,补够了再开写。
+              {modelFailed ? (
+                <>草稿已保存在<b>作品列表</b>里。先去<b>「大模型配置」</b>把 Key / 额度 / 模型修好,再回来重试 —— <b>别去改大纲,改了也没用</b>。</>
+              ) : (
+                <>草稿已保存在<b>作品列表</b>里(没切成当前作品)。去补地基会把它设为当前作品,带你进路线图补大纲、伏笔和人物动机,补够了再开写。</>
+              )}
             </p>
             {remediationActions("needs-foundation")}
           </div>
-        )}
+          )
+        })()}
 
         {/* 轮询超时 / 已取消 —— 都不是「失败」,用平静的 info 色,给清楚的下一步。 */}
         {step === "stalled" && (

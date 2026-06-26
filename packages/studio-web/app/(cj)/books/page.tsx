@@ -222,8 +222,15 @@ export default function BooksPage() {
     })
   }
 
-  // 重试建书:复用既有建书入口(resumeExisting 让后端在半成品上原地续建)
+  // 重试建书。
+  // "重试"默认= 只补没过的维度(定向补强),而不是整本重抽:地基文件已搭好、只是质量门没过的书
+  // (needs-foundation)走 repairFoundation(foundation/validate 会自动修最拖分维度,保留已写好的部分)。
+  // 只有地基根本没生成出来(error/stalled/missing 等)的书,才回落到全量重建。
   async function retryCreate(book: BookSummary) {
+    const status = String(book.creationStatus ?? "").trim().toLowerCase()
+    if (status === "needs-foundation") {
+      return repairFoundation(book)
+    }
     await run(book.id, "retry", async () => {
       const title = bookTitle(book)
       const result = await createBook({ title, resumeExisting: true })

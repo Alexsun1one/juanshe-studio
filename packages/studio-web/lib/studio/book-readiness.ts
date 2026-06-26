@@ -1,14 +1,11 @@
 import type { BookSummary } from "@/lib/api/types"
+import { STUCK_CREATION_STATUSES, NOT_YET_WRITING_STATUSES } from "@/lib/studio/book-status"
 
-const BLOCKED_STATUSES = new Set([
-  "creating",
-  "needs-foundation",
-  "stalled",
-  "error",
-  "failed",
-  "missing",
-  "outlining",
-  "draft",
+// 写作工作区"不可写"的状态 = 卡住/失败类(共享真相) ∪ 还没进入写章类。两类都从 book-status.ts 取,
+// 不再本地各列一套与 build-status-indicator 漂移(早先这里缺 "cancelled",现在随共享集合补齐)。
+const BLOCKED_STATUSES = new Set<string>([
+  ...STUCK_CREATION_STATUSES,
+  ...NOT_YET_WRITING_STATUSES,
 ])
 
 export type BookReadiness = {

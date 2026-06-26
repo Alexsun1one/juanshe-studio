@@ -1332,7 +1332,9 @@ describe("createStudioServer daemon lifecycle", () => {
     });
   });
 
-  it("short-circuits service probe on 401/403 from /models", async () => {
+  it("does not short-circuit on 401/403 from /models — verdict comes from the real chat ping", async () => {
+    // /models 返回 401 不再否决连通性。对"真无效 key",chat ping 也会 401,最终仍判失败(400 + 401 文案);
+    // 但关键是必须真的发起了 chat ping——否则 Anthropic 协议(其 /models 不认 Bearer)的服务商会被误判"未联通"。
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
@@ -1340,6 +1342,7 @@ describe("createStudioServer daemon lifecycle", () => {
     });
     vi.stubGlobal("fetch", fetchMock as typeof fetch);
     createLLMClientMock.mockImplementation(((cfg: unknown) => cfg) as any);
+    chatCompletionMock.mockRejectedValue(new Error("HTTP 401 Unauthorized"));
 
     const { createStudioServer } = await import("./server.js");
     const app = createStudioServer(cloneProjectConfig() as never, root);
@@ -1359,7 +1362,57 @@ describe("createStudioServer daemon lifecycle", () => {
       ok: false,
       error: expect.stringContaining("401"),
     });
-    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(chatCompletionMock).toHaveBeenCalled();
+  });
+
+  it("passes connectivity for an Anthropic-protocol provider whose /models rejects Bearer with 401", async () => {
+    // 回归"模型填完显示未联通"主因:Anthropic 协议服务商的 /models 不认 Bearer(返回 401),
+    // 但 chat 用正确鉴权头能通。修复前这会被 authFailed 短路成 400;修复后必须 ok:true。
+    await writeFile(join(root, "hardwrite.json"), JSON.stringify({
+      ...projectConfig,
+      llm: {
+        services: [
+          { service: "minimax", apiFormat: "chat", stream: false },
+        ],
+        defaultModel: "MiniMax-M2.7",
+      },
+    }, null, 2), "utf-8");
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: async () => "Unauthorized",
+    });
+    vi.stubGlobal("fetch", fetchMock as typeof fetch);
+    createLLMClientMock.mockImplementation(((cfg: unknown) => cfg) as any);
+    chatCompletionMock.mockImplementation(async (client: any, model: string) => {
+      if (client.provider === "anthropic" && client.baseUrl === "https://api.minimaxi.com/anthropic" && model === "MiniMax-M2.7") {
+        return {
+          content: "pong",
+          usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        };
+      }
+      throw new Error(`unexpected probe route: ${client.provider} ${client.baseUrl} ${model}`);
+    });
+
+    const { createStudioServer } = await import("./server.js");
+    const app = createStudioServer(cloneProjectConfig() as never, root);
+
+    const response = await app.request("http://localhost/api/v1/services/minimax/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        apiKey: "sk-minimax",
+        apiFormat: "chat",
+        stream: false,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      selectedModel: "MiniMax-M2.7",
+    });
   });
 
   it("uses the MiniMax preset provider family during service probe", async () => {

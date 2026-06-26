@@ -702,8 +702,14 @@ class LLMTimeoutError extends Error {
 async function withCallTimeout<T>(
   start: (wrappedDelta?: (text: string) => void) => Promise<T>,
   originalDelta: ((text: string) => void) | undefined,
+  overrideTotalMs?: number,
 ): Promise<T> {
   const streaming = Boolean(originalDelta);
+  // 连通性探测等场景可传 overrideTotalMs 设一个硬性短上限:非流式总超时、流式空闲与硬上限都不超过它,
+  // 让"测试连接"几秒内必出结论,而不是继承 240s / 20min 的正文生成预算把慢网关拖成"未联通"。
+  const nonStreamTotal = overrideTotalMs ?? LLM_TOTAL_TIMEOUT_MS;
+  const idleCap = overrideTotalMs != null ? Math.min(LLM_IDLE_TIMEOUT_MS, overrideTotalMs) : LLM_IDLE_TIMEOUT_MS;
+  const streamTotalCap = overrideTotalMs != null ? Math.min(LLM_STREAM_TOTAL_TIMEOUT_MS, overrideTotalMs) : LLM_STREAM_TOTAL_TIMEOUT_MS;
   return await new Promise<T>((resolve, reject) => {
     let settled = false;
     let idleTimer: ReturnType<typeof setTimeout>;
@@ -718,12 +724,12 @@ async function withCallTimeout<T>(
     // idle:每次「流活动」复位(见 wrappedDelta);非流式则等同总超时。
     const armIdle = () => {
       clearTimeout(idleTimer);
-      const ms = streaming ? LLM_IDLE_TIMEOUT_MS : LLM_TOTAL_TIMEOUT_MS;
+      const ms = streaming ? idleCap : nonStreamTotal;
       idleTimer = setTimeout(() => fail(ms, streaming ? "idle" : "total"), ms);
     };
     // 流式:总时长硬上限,永不复位——兜住「一直有活动但永不收尾」。
     if (streaming) {
-      totalTimer = setTimeout(() => fail(LLM_STREAM_TOTAL_TIMEOUT_MS, "total"), LLM_STREAM_TOTAL_TIMEOUT_MS);
+      totalTimer = setTimeout(() => fail(streamTotalCap, "total"), streamTotalCap);
     }
     // 任何流活动(正文/思考/工具/keepalive)都经此复位 idle。
     // 空串 = 纯心跳:只复位计时器,不转发给 UI delta 流(否则思考/keepalive 会把 '' 漏进正文流)。
@@ -1427,6 +1433,11 @@ export async function chatCompletion(
      * 最终仍不完整则抛错,交给调用方的重试循环重生成。半截结构化内容是垃圾,绝不静默返回。
      */
     readonly requireComplete?: boolean;
+    /**
+     * 硬性总超时(ms)。仅用于"连通性探测/快速 ping"这类必须秒级出结论的场景:
+     * 不传则继承默认 240s(非流式)/ 20min(流式)的正文生成预算。传了就把空闲/总超时都压到它以下。
+     */
+    readonly timeoutMs?: number;
   },
 ): Promise<LLMResponse> {
   // C1 (v2.0.0)：删除 maxTokensCap 机制。per-call 显式传的 maxTokens 永远不被裁剪。
@@ -1459,6 +1470,7 @@ export async function chatCompletion(
           return chatCompletionViaPiAi(client, model, messages, resolved, onStreamProgress, delta);
         },
         onTextDelta,
+        options?.timeoutMs,
       ),
       // Retrying after UI text deltas have been emitted can duplicate visible text.
       // 流式仍关掉常规重试(防 UI 重复),但放行「超时」重试——抗 MiMo Pro 等端点的瞬时挂起。

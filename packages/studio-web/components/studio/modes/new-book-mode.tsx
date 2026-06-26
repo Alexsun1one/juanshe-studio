@@ -373,35 +373,17 @@ export function NewBookMode() {
               </Alert>
             )}
 
-            {/* AI 生成预览 */}
+            {/* 建书复审官说明：真实评分在「创建完成后」产出，不在建书前预判"通过"。
+                历史这里放的是写死的假"✓通过"徽章 + 假数据(蓝海指数 78 / +35% 趋势),与用户输入无关——
+                建前暗示"稳了"、建完却"地基失败",落差极大且像在骗用户,故移除。 */}
             <div className="border-primary/20 from-primary/5 via-card to-accent/5 rounded-xl border bg-gradient-to-br p-5">
               <div className="mb-3 flex items-center gap-2">
                 <Sparkles className="text-primary size-4" />
-                <span className="text-sm font-medium">
-                  建书复审官 · 实时建议
-                </span>
-                <Badge
-                  variant="outline"
-                  className="bg-status-success/10 text-status-success border-status-success/30 ml-auto gap-1 text-[10px]"
-                >
-                  <Check className="size-3" />
-                  通过
-                </Badge>
+                <span className="text-sm font-medium">建书复审官</span>
               </div>
-              <ul className="space-y-2 text-xs">
-                <SuggestionRow
-                  ok
-                  text="题材组合「玄幻 + 制图能力」拥挤度低，蓝海机会指数 78"
-                />
-                <SuggestionRow
-                  ok
-                  text="基调匹配读者偏好（紧凑悬疑 +35% 趋势）"
-                />
-                <SuggestionRow
-                  warn
-                  text="主角能力建议在第 1 章前 800 字内完整展示"
-                />
-              </ul>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                创建后，建书复审官会对生成的地基（故事框架 / 卷纲 / 角色矩阵 / 伏笔 / 金手指 / 黄金开篇）逐维度真实打分，给出分数、最拖分维度与定向补强建议——能写就放行并附改进项，不会因为"还不够亮"反复让你重建。这里不做创建前的预判。
+              </p>
             </div>
           </form>
         </div>

@@ -174,31 +174,73 @@ Be strict. 80 means "ready to write without changes."`;
     content: string,
     dimensions: ReadonlyArray<string>,
   ): FoundationReviewResult {
-    const parsedDimensions: Array<{ readonly name: string; readonly score: number; readonly feedback: string }> = [];
-
+    // 容错解析:逐维度切块,再宽松地从块里抠分数/意见。解析失败的维度记为 parsed:false,
+    // 绝不再默认 50(那是一个必然触发 fail 的分,等于"打分器读不懂自己模型的输出就把好地基判死")。
+    const parsed: Array<{ readonly name: string; readonly score: number | null; readonly feedback: string }> = [];
     for (let i = 0; i < dimensions.length; i++) {
-      const regex = new RegExp(
-        `=== DIMENSION: ${i + 1} ===\\s*[\\s\\S]*?(?:分数|Score)[：:]\\s*(\\d+)[\\s\\S]*?(?:意见|Feedback)[：:]\\s*([\\s\\S]*?)(?==== |$)`,
-      );
-      const match = content.match(regex);
-      parsedDimensions.push({
+      const block = this.sliceDimensionBlock(content, i + 1);
+      parsed.push({
         name: dimensions[i]!,
-        score: match ? parseInt(match[1]!, 10) : 50,
-        feedback: match ? match[2]!.trim() : "(parse failed)",
+        score: this.extractDimensionScore(block),
+        feedback: this.extractDimensionFeedback(block),
       });
     }
+    const overallFeedback = this.extractOverallFeedback(content);
+    const scored = parsed.filter((d): d is { name: string; score: number; feedback: string } => d.score !== null);
 
-    const totalScore = parsedDimensions.length > 0
-      ? Math.round(parsedDimensions.reduce((sum, d) => sum + d.score, 0) / parsedDimensions.length)
-      : 0;
-    const anyBelowFloor = parsedDimensions.some((d) => d.score < DIMENSION_FLOOR);
+    // 一个维度都没解析出来 = 输出格式漂移(代码块/换标点/换措辞),不是地基差。
+    // 这种"评审不可判"绝不能当作 fail:放行(passed=true),把把关交回上层的结构/存在性校验。
+    if (scored.length === 0) {
+      return {
+        passed: true,
+        totalScore: PASS_THRESHOLD,
+        dimensions: parsed.map((d) => ({ name: d.name, score: PASS_THRESHOLD, feedback: d.feedback || "（本维度评分未能从评审输出中解析，已跳过）" })),
+        overallFeedback: overallFeedback || "（评审输出格式异常、未能解析评分；已跳过质量门，由结构完整性校验把关。）",
+      };
+    }
+
+    // 只用"成功解析到的维度"算均分与地板;解析失败的维度直接剔除,不按 0/50 计入。
+    const totalScore = Math.round(scored.reduce((sum, d) => sum + d.score, 0) / scored.length);
+    const anyBelowFloor = scored.some((d) => d.score < DIMENSION_FLOOR);
     const passed = totalScore >= PASS_THRESHOLD && !anyBelowFloor;
+    return {
+      passed,
+      totalScore,
+      dimensions: parsed.map((d) => ({
+        name: d.name,
+        score: d.score ?? totalScore, // 未解析维度按整体均分占位,不污染判定
+        feedback: d.feedback || (d.score === null ? "（本维度评分未能解析，已按整体均分计）" : ""),
+      })),
+      overallFeedback,
+    };
+  }
 
-    const overallMatch = content.match(
-      /=== OVERALL ===[\s\S]*?(?:总评|Summary)[：:]\s*([\s\S]*?)$/,
-    );
-    const overallFeedback = overallMatch ? overallMatch[1]!.trim() : "(parse failed)";
+  /** 切出某维度的文本块:从 `=== DIMENSION: n ===` 到下一个 `=== ` 标记或结尾。标记缺失时退回整段文本。 */
+  private sliceDimensionBlock(content: string, n: number): string {
+    const start = content.search(new RegExp(`=== *DIMENSION: *${n} *===`, "i"));
+    if (start < 0) return content;
+    const rest = content.slice(start);
+    const nextIdx = rest.search(/\n=== /);
+    return nextIdx > 0 ? rest.slice(0, nextIdx) : rest;
+  }
 
-    return { passed, totalScore, dimensions: parsedDimensions, overallFeedback };
+  /** 宽松抠分数:先认"分数/得分/评分/Score: NN",再退回块内第一个 0-100 的数字。抠不到返回 null(而非默认分)。 */
+  private extractDimensionScore(block: string): number | null {
+    const labelled = block.match(/(?:分数|得分|评分|Score)\s*[：:]\s*(\d{1,3})/i);
+    const raw = labelled ? labelled[1]! : (block.match(/\b(\d{1,3})\b/)?.[1] ?? null);
+    if (raw === null) return null;
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n)) return null;
+    return Math.max(0, Math.min(100, n));
+  }
+
+  private extractDimensionFeedback(block: string): string {
+    const m = block.match(/(?:意见|反馈|Feedback)\s*[：:]\s*([\s\S]*)/i);
+    return m ? m[1]!.replace(/\n=== [\s\S]*$/, "").trim() : "";
+  }
+
+  private extractOverallFeedback(content: string): string {
+    const m = content.match(/=== *OVERALL *===[\s\S]*?(?:总评|Summary)\s*[：:]\s*([\s\S]*?)$/i);
+    return m ? m[1]!.trim() : "";
   }
 }

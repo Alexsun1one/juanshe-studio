@@ -7,6 +7,7 @@ import { ChevronRight } from "lucide-react"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { useWorkspace } from "@/lib/workspace-context"
+import { STUCK_CREATION_STATUSES } from "@/lib/studio/book-status"
 import "./build-status-indicator.css"
 
 /* ───────────────────────────────────────────────────────────
@@ -33,11 +34,10 @@ type CreateState = {
 // 三态分桶:写作中(live 且在 creating)/ 卡住(终态异常或心跳断)/ 在建(creating 但还没活跃心跳)
 type Bucket = "writing" | "stuck" | "building"
 
-const STUCK_STATUSES = new Set(["needs-foundation", "stalled", "error", "failed", "cancelled"])
-
+// 卡住状态字符串走共享真相(lib/studio/book-status.ts),不再本地各列一套与 book-readiness 漂移。
 function bucketOf(s: CreateState): Bucket {
   const status = String(s.status ?? "").toLowerCase()
-  if (STUCK_STATUSES.has(status)) return "stuck"
+  if (STUCK_CREATION_STATUSES.has(status)) return "stuck"
   // creating 但心跳已断(live=false 且非成功终态)→ 视为卡住,提醒用户去看
   if (status === "creating" && !s.live) return "stuck"
   if (s.live) return "writing"

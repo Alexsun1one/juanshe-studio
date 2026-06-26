@@ -7649,16 +7649,19 @@ async function inspectBookFoundationForWriting(state, bookId) {
     const unsafeFallback = book?.creationFallback?.safeForWriting !== true && (book?.creationFallback || looksLikeUnsafeFoundationText(storyFrame) || looksLikeUnsafeFoundationText(storyBible) || looksLikeUnsafeFoundationText(characterMatrix));
     const missingFoundation = !storyFrame.trim() || !volumeMap.trim() || !characterMatrix.trim();
     if (!unsafeFallback && !missingFoundation) {
-        // 质量闸：若建书复审官判过且未达标（且未人工放行 safeForWriting），阻止写章，避免在弱地基上批量产出
-        if (book?.foundationQuality && book.foundationQuality.pass === false && book?.creationFallback?.safeForWriting !== true) {
+        // 质量闸：只在地基"不可写"(writable===false:有致命阻断项/关键维度崩/复审官判 block)时拦写章。
+        // 不再因为"质量分没到 80"这种"能写但不够亮"把用户挡在门外——那是建议补强,不是阻断。人工放行 safeForWriting 仍可越过。
+        // 注:老书的 foundationQuality 可能只有 pass 没有 writable(undefined),此时不拦(走宽松方向),下次验收会补上 writable。
+        if (book?.foundationQuality && book.foundationQuality.writable === false && book?.creationFallback?.safeForWriting !== true) {
             const weak = (book.foundationQuality.weakDims || []).join("、");
+            const blk = (book.foundationQuality.blockers || []).slice(0, 3).join("；");
             return {
                 ok: false,
                 book: { id: bookId, title: book?.title || bookId, status: book?.status || "" },
                 status: "foundation-quality-blocked",
-                error: "作品地基质量未达标（建书复审官判分低于闸值），已阻止写章。",
-                failureReason: `地基质量分 ${book.foundationQuality.score ?? "—"}${weak ? `，最拖分维度：${weak}` : ""}`,
-                suggestion: "点『重新验收地基』让建书复审官定向补强最拖分的维度，或手动改设定后重试；确属人工确认可在 book.json 将 creationFallback.safeForWriting 设为 true。",
+                error: "作品地基存在致命问题（建书复审官判定当前无法支撑连载），已阻止写章。",
+                failureReason: blk || `地基质量分 ${book.foundationQuality.score ?? "—"}${weak ? `，最拖分维度：${weak}` : ""}`,
+                suggestion: "点『重新验收地基』让建书复审官定向补强，或手动改设定后重试；确属人工确认可在 book.json 将 creationFallback.safeForWriting 设为 true。",
             };
         }
         return { ok: true, book };
@@ -7700,22 +7703,22 @@ function scoreFoundationModule(id, label, text, options = {}) {
     }
     if (looksLikeUnsafeFoundationText(content))
         blockers.push("仍是本地兜底或占位文本");
-    if (/TODO|待补|占位|示例|fallback|兜底|未确认|后续补全/i.test(content))
+    // 注:从占位标记里去掉了裸"示例"——它是正常用词(如"示例对话/示例设定"),会把好地基误判成占位。
+    // 真正的占位由 looksLikeUnsafeFoundationText + 下列明确标记把关。
+    if (/TODO|待补|占位|fallback|兜底|未确认|后续补全|\[待填\]|\{\{.*?\}\}/i.test(content))
         blockers.push("存在待补/占位标记");
     if (required && content.length < Math.max(240, minChars * 0.35))
         blockers.push("内容过短");
-    let score = 18;
-    score += Math.min(34, Math.round((content.length / minChars) * 34));
-    if (/^#{1,4}\s+\S+/m.test(content))
-        score += 10;
-    if (/目标|欲望|冲突|代价|规则|伏笔|读者|节奏|风格|角色|主角|卷|章|开局|爽点|阻断项|风险|承诺/.test(content))
-        score += 20;
-    if (/(第\s*[一二三四五六七八九十\d]+|[0-9]{1,3}\.|- )/.test(content))
-        score += 8;
-    if (/必须|禁止|不得|需要|检查|验收|失败|恢复|Gate|评分/i.test(content))
-        score += 6;
+    // 结构门只做"存在性 / 非占位 / 够篇幅"的硬性校验,不再用关键词命中/编号/堆字数打分——
+    // 那会奖励套路、惩罚干净写法,且与架构师"写散文密度、别堆 bullet"的写作指南直接打架。
+    // 真正的质量高低交给 LLM 质量门(runFoundationQualityReview),这里只保证地基"在、够长、不是兜底占位"。
+    let score = 100;
     if (blockers.length)
-        score -= 28;
+        score -= 45; // 占位/兜底/待补/过短:重扣,触发 fail
+    if (content.length < minChars)
+        score -= Math.min(30, Math.round((1 - content.length / minChars) * 30)); // 偏短:按比例轻扣
+    if (!/^#{1,4}\s+\S+/m.test(content) && content.length < minChars * 1.5)
+        score -= 6; // 既无任何小标题、又不算长:轻扣(纯粹是"看起来不像一份成形文档"的弱信号)
     score = clampScore(score);
     const status = blockers.length || (required && score < 70) ? "fail" : score >= 85 ? "pass" : "warn";
     return {
@@ -7962,7 +7965,9 @@ async function buildFoundationAssessment(state, bookId) {
     const required = modules.filter((item) => ["storyFrame", "volumeMap", "characterMatrix", "bookDescription"].includes(item.id));
     const score = clampScore(required.reduce((sum, item) => sum + item.score, 0) / Math.max(1, required.length));
     const blockers = modules.flatMap((item) => item.status === "fail" ? item.blockers.map((blocker) => `${item.label}：${blocker}`) : []);
-    const ready = score >= 85 && required.every((item) => item.status !== "fail") && blockers.length === 0;
+    // 结构闸只把"存在性/非占位"硬门:必填模块齐全、无 fail、无阻断项,且整体结构分达到"可写地板"(70)。
+    // 历史用 85 这条偏严的硬线,把大量"其实能写"的地基判成失败、和内核结论打架,造成用户反复重建。
+    const ready = score >= FOUNDATION_STRUCTURAL_FLOOR && required.every((item) => item.status !== "fail") && blockers.length === 0;
     const platformSubmission = buildPlatformSubmissionMarkdown(book, bookId, bookDescription, characterMatrix);
     const report = [
         "# 开书地基验收",
@@ -7988,7 +7993,13 @@ async function buildFoundationAssessment(state, bookId) {
     return { ready, score, modules, blockers, report, platformSubmission };
 }
 // ── 地基质量闸：让"建书复审官"真正跑一次 LLM 质量评审（不是数字数），并支持只补最拖分维度的定向补强 ──
+// 三条阈值统一对齐内核 runner 的 60/80 哲学,终结"server 用 85 硬线、core 用 60 可写线"互相打架导致的反复重建:
+// - 结构门(FOUNDATION_STRUCTURAL_FLOOR=70):只保证地基"存在、齐全、非占位",不当质量裁判。
+// - 可写线(FOUNDATION_WRITABLE_FLOOR=60):≥它且无致命阻断即可开写(带补强建议),对齐 core 的 writable 地板。
+// - 达标线(FOUNDATION_QUALITY_FLOOR=80):仅作"优秀/达标"徽章与定向补强目标,不再用它把能写的书堵死。
 const FOUNDATION_QUALITY_FLOOR = 80;
+const FOUNDATION_STRUCTURAL_FLOOR = 70;
+const FOUNDATION_WRITABLE_FLOOR = 60;
 const FOUNDATION_QUALITY_DIMENSIONS = [
     { key: "differentiation", label: "差异化卖点", weight: 0.16, files: ["outline/story_frame.md", "story_bible.md"], critical: true },
     { key: "motivation", label: "人物动机闭环", weight: 0.16, files: ["character_matrix.md"], critical: true },
@@ -8091,7 +8102,10 @@ async function runFoundationQualityReview(state, bookId, options = {}) {
     const criticalFail = FOUNDATION_QUALITY_DIMENSIONS.some((d) => d.critical && dims[d.key].score < 60);
     const verdictBlock = String(parsed.verdict || "").toLowerCase() === "block";
     const pass = score >= targetScore && blockers.length === 0 && !criticalFail && !verdictBlock;
-    return { score, targetScore, dimensions: dims, blockers, strengths, weakDims, pass, summary: String(parsed.summary || "").slice(0, 600) };
+    // writable:能不能"开写"(比 pass 宽)。只要无致命阻断项、无关键维度崩、复审官没明确判 block,
+    // 且分数过可写地板(60),就允许开写——80 分线退化为"达标/优秀"建议(pass),不再把 60-79 的书堵成"地基失败"。
+    const writable = blockers.length === 0 && !criticalFail && !verdictBlock && score >= FOUNDATION_WRITABLE_FLOOR;
+    return { score, targetScore, dimensions: dims, blockers, strengths, weakDims, pass, writable, summary: String(parsed.summary || "").slice(0, 600) };
 }
 async function autoRepairFoundationQuality(state, root, bookId, qualityReview, options = {}) {
     if (!qualityReview || !Array.isArray(qualityReview.weakDims) || !qualityReview.weakDims.length)
@@ -8170,6 +8184,7 @@ async function persistFoundationQuality(state, bookId, payload) {
             score: payload.quality?.score ?? null,
             structuralScore: payload.structural?.score ?? null,
             pass: payload.quality ? payload.quality.pass : null,
+            writable: payload.quality ? payload.quality.writable : null, // 写章拦截门据此判定:仅"不可写"才拦
             ready: !!payload.ready,
             weakDims: (payload.quality?.weakDims || []).map((d) => d.label),
             blockers: payload.quality?.blockers || [],
@@ -8208,8 +8223,11 @@ async function enforceFoundationQualityGate(state, root, bookId, options = {}) {
         quality = re;
         round++;
     }
-    const qualityPass = quality ? quality.pass : true; // 模型不可用 → 不因质量硬卡，交回结构闸
-    const ready = structural.ready && qualityPass;
+    // 能不能开写用 writable(宽门:无致命阻断 + 分过可写地板),而不是 pass(≥80 优秀线)。
+    // 这样"结构齐全、无硬伤、质量 60-79"的地基可开写并带补强建议,不再被判"地基失败"反复重建;
+    // pass(达标/优秀)仍单独保留给 UI 徽章与"是否还需定向补强"用。模型不可用(quality=null) → 不因质量硬卡。
+    const qualityWritable = quality ? quality.writable : true;
+    const ready = structural.ready && qualityWritable;
     await persistFoundationQuality(state, bookId, { structural, quality, ready });
     return { ready, structural, quality, repaired, repairRounds: round, targetScore, structuralScore: structural.score, qualityScore: quality?.score ?? null, blockers: [...(structural.blockers || []), ...((quality && quality.blockers) || [])] };
 }
@@ -8502,7 +8520,16 @@ function formatServiceProbeError(args) {
     // 401/403 鉴权类:几乎都是"填的 Key 本身被对方拒"(填错家 / 过期 / 没额度 / IP 白名单),
     // 不是平台连不通——请求已经走到对方服务器、被对方拒了。给可执行清单,正面破"是不是你们平台的锅"的误解,
     // 并盖掉引擎那句面向自部署 .env 的提示,免得 SaaS 用户误判。
-    const isAuthFailure = /\b40[13]\b|未授权|无权访问|unauthorized|forbidden|invalid[\s_-]*api[\s_-]*key|api[\s_-]*key[^\n]*(invalid|incorrect|expired)|no[^\n]*credential|鉴权失败|认证失败|令牌无效/i.test(args.error);
+    // 鉴权判定要"准"而不是"贪":强鉴权信号(unauthorized/invalid api key/鉴权失败…)一定是 Key 问题;
+    // 但很多中转把"模型不存在 / 额度不足 / 参数非法"也回成 401/403 或在 4xx 里夹带这些状态码。
+    // 这时若仍套"你的 Key 被拒"的清单,会把用户支到去换一把其实没问题的 Key。所以裸 40[13] 状态码
+    // 必须排除掉明显的模型/参数/额度信号后,才判为鉴权失败。
+    const strongAuthSignal = /未授权|无权访问|unauthorized|forbidden|invalid[\s_-]*api[\s_-]*key|api[\s_-]*key[^\n]*(invalid|incorrect|expired)|no[^\n]*credential|鉴权失败|认证失败|令牌无效|permission[\s_-]*denied/i.test(args.error);
+    const looksLikeModelIssue = /model[\s_-]*not[\s_-]*found|no such model|unknown model|does not exist|model_not_found|未上架|模型(不存在|未找到|不可用)|not[\s_-]*supported|unsupported model/i.test(args.error);
+    const looksLikeParamIssue = /temperature|max_tokens|max_completion_tokens|max_output_tokens|参数(错误|非法|不)/i.test(args.error);
+    const looksLikeQuotaIssue = /quota|insufficient|余额|额度|欠费|计费|balance|payment[\s_-]*required|账户.{0,4}(不足|欠)/i.test(args.error);
+    const isAuthFailure = strongAuthSignal
+        || (/\b40[13]\b/.test(args.error) && !looksLikeModelIssue && !looksLikeParamIssue && !looksLikeQuotaIssue);
     if (isAuthFailure) {
         const looksOpenRouter = /openrouter\.ai/i.test(args.baseUrl || "");
         return [
@@ -8558,7 +8585,14 @@ async function fetchModelsFromServiceBaseUrl(serviceId, baseUrl, apiKey, proxyUr
     const modelsUrl = modelsBaseUrl.replace(/\/$/, "") + "/models";
     try {
         const res = await fetchWithProxy(modelsUrl, {
-            headers: { Authorization: `Bearer ${apiKey}` },
+            // 同时带 Bearer 与 Anthropic 头:OpenAI 兼容端点忽略多余头,Anthropic 协议端点
+            // (/models 只认 x-api-key + anthropic-version)也能正常拉到模型列表,下拉框不再空。
+            // 与 chat 路径(provider.ts 同时发 Authorization + x-api-key)保持一致。
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "x-api-key": apiKey,
+                "anthropic-version": "2023-06-01",
+            },
             signal: AbortSignal.timeout(10_000),
         }, proxyUrl);
         if (!res.ok) {
@@ -8602,14 +8636,12 @@ async function probeServiceCapabilities(args) {
         ?? normalizeServiceProviderFamily(args.providerFamily)
         ?? resolveServiceEntryProviderFamily(args.service, serviceEntry);
     const modelsResponse = await fetchModelsFromServiceBaseUrl(baseService, args.baseUrl, args.apiKey, args.proxyUrl);
-    if (modelsResponse.authFailed) {
-        return {
-            ok: false,
-            models: [],
-            error: modelsResponse.error ?? "API Key 无效或无权访问模型列表。",
-            modelPinned: false,
-        };
-    }
+    // /models 探测只用于"发现模型列表",绝不能否决连通性。很多服务商——尤其 Anthropic 协议
+    // (官方 Anthropic / 各家 CodingPlan / kimiCode / minimax / bailian / glm…)——的 /models
+    // 不认 Bearer、或干脆不暴露该端点,会返回 401/403/404;但 chat 接口用正确鉴权头(x-api-key +
+    // anthropic-version)照样能通。历史实现一遇 401/403 就短路返回"未联通",把一整类 key 完全正确的
+    // 用户判死(这正是"模型填完显示未联通"的主因)。现在无论 /models 成败都继续走真实 chat ping——
+    // 它才是连通性的唯一权威判据,且对真无效 key 会给出更准确的鉴权失败文案;/models 的报错仅作兜底 lastError。
     const discoveredModels = modelsResponse.models;
     // For bank services, probe with the service's own check model first — not the global default.
     const endpoint = getAllEndpoints().find((ep) => ep.id === baseService);
@@ -8618,8 +8650,12 @@ async function probeServiceCapabilities(args) {
         ?? preset?.knownModels?.[0]
         ?? endpoint?.models.find((model) => model.enabled !== false)?.id;
     const useDynamicLocalModels = baseService === "ollama";
+    // 只在"文本对话模型"里选 ping 目标:/models 常把 embedding / rerank / tts / 图像模型混在一起,
+    // 直接拿 discoveredModels[0] 去 ping,撞上 embedding 就必失败,会把"其实连得通"误判成未联通。
+    const chatDiscovered = discoveredModels.filter((m) => isTextChatModelId(m.id));
+    const firstChatDiscovered = chatDiscovered[0]?.id;
     const preferredProbeModel = (useDynamicLocalModels || discoveredModels.length > 0)
-        ? discoveredModels[0]?.id ?? serviceFirstModel
+        ? (firstChatDiscovered ?? serviceFirstModel ?? discoveredModels[0]?.id)
         : serviceFirstModel;
     const useEndpointCheckModel = !useDynamicLocalModels && discoveredModels.length === 0 && !isCustomServiceId(args.service) && Boolean(endpoint?.checkModel);
     const configService = typeof llm.service === "string" ? llm.service : undefined;
@@ -8648,7 +8684,7 @@ async function probeServiceCapabilities(args) {
             preferredModel: args.preferredModel ?? preferredProbeModel,
             configModel,
             envModel: useCustomFallbacks ? envModel : undefined,
-            discoveredModels: useEndpointCheckModel ? [] : discoveredModels,
+            discoveredModels: useEndpointCheckModel ? [] : chatDiscovered,
             includeGenericFallbacks: useCustomFallbacks,
         });
     if (modelCandidates.length === 0) {
@@ -8659,66 +8695,97 @@ async function probeServiceCapabilities(args) {
             modelPinned,
         };
     }
+    // 连通性 ping 是"秒级出结论"的探测,绝不能继承正文生成的 240s/20min 预算:
+    // 单次 ping 给 12s 硬超时,整张 model×plan 网格给 35s 总预算(详见下方余量计算),
+    // 这样慢网关也能在被代理掐断前拿到一个"已分类的判定",而不是被超时误判成"未联通"。
+    const PROBE_PING_TIMEOUT_MS = 12_000;
+    // 总预算要给"最后一次 ping 溢出(12s)+ /models 探测(10s)"留余量,确保最坏 10+35+12=57s < 前端代理 60s 上限,
+    // 让用户永远拿到一个"已分类的判定"而不是被代理超时误判成未联通。
+    const PROBE_TOTAL_BUDGET_MS = 35_000;
+    const PROBE_MAX_TOKENS = 64; // ping 只需冒一个字,小预算更快、也更不容易撞模型的 max_tokens 上限
+    const probeDeadline = Date.now() + PROBE_TOTAL_BUDGET_MS;
+    const buildSuccess = (selectedModel, plan) => {
+        const models = discoveredModels.length > 0
+            ? discoveredModels
+            : endpoint?.models
+                .filter((m) => m.enabled !== false)
+                .filter((m) => isTextChatModelId(m.id))
+                .map((m) => ({ id: m.id, name: m.id }))
+                ?? preset?.knownModels?.map((id) => ({ id, name: id }))
+                ?? [{ id: selectedModel, name: selectedModel }];
+        return {
+            ok: true,
+            models,
+            selectedModel,
+            api: plan.api ?? api,
+            apiFormat: plan.apiFormat,
+            stream: plan.stream,
+            baseUrl: args.baseUrl,
+            modelsSource: discoveredModels.length > 0 ? "api" : "fallback",
+            modelPinned,
+        };
+    };
     let lastError = modelsResponse.error ?? "自动探测失败";
+    let budgetExhausted = false;
     for (const model of modelCandidates) {
+        if (budgetExhausted) break;
         for (const plan of buildProbePlans(args.preferredApiFormat, args.preferredStream, api)) {
-            try {
-                // createLLMClient 必须留在 try 内:某些自定义服务商配置(非法 baseUrl / 不支持的协议族)
-                // 会让构造期就抛错。放在 try 外会冒泡成裸 500;放进来则归一成 formatServiceProbeError 精确文案。
-                const client = createLLMClient({
-                    provider: providerFamily,
-                    service: baseService,
-                    configSource: "studio",
-                    baseUrl: args.baseUrl,
-                    apiKey: args.apiKey.trim(),
-                    model,
-                    api: plan.api ?? api,
-                    temperature: 0.7,
-                    maxTokens: 2048,
-                    thinkingBudget: 0,
-                    proxyUrl: args.proxyUrl,
-                    apiFormat: plan.apiFormat,
-                    stream: plan.stream,
-                });
-                await chatCompletion(client, model, [{ role: "user", content: "ping" }], { maxTokens: 2048 });
-                const models = discoveredModels.length > 0
-                    ? discoveredModels
-                    : endpoint?.models
-                        .filter((m) => m.enabled !== false)
-                        .filter((m) => isTextChatModelId(m.id))
-                        .map((m) => ({ id: m.id, name: m.id }))
-                        ?? preset?.knownModels?.map((id) => ({ id, name: id }))
-                        ?? [{ id: model, name: model }];
-                return {
-                    ok: true,
-                    models,
-                    selectedModel: model,
-                    api: plan.api ?? api,
-                    apiFormat: plan.apiFormat,
-                    stream: plan.stream,
-                    baseUrl: args.baseUrl,
-                    modelsSource: discoveredModels.length > 0 ? "api" : "fallback",
-                    modelPinned,
-                };
-            }
-            catch (error) {
-                lastError = formatServiceProbeError({
-                    service: baseService,
-                    label: endpoint?.label ?? preset?.label,
-                    baseUrl: args.baseUrl,
-                    model,
-                    apiFormat: plan.apiFormat,
-                    api: plan.api ?? api,
-                    stream: plan.stream,
-                    error: error instanceof Error ? error.message : String(error),
-                });
+            if (Date.now() > probeDeadline) { budgetExhausted = true; break; }
+            // 同一个 plan 内最多试两个 temperature:先 0.7,若上游因"该模型强制 temperature=1"
+            // (kimi-k2.x 等;经自定义/中转时目录里没有卡片,clampTemperatureForModel 无从自动 clamp)报 400,
+            // 就用 1 再 ping 一次。两轮都为对"用户填什么都能准确联通"兜底,而不是把合法模型判死。
+            for (const probeTemperature of [0.7, 1]) {
+                try {
+                    // createLLMClient 必须留在 try 内:某些自定义服务商配置(非法 baseUrl / 不支持的协议族)
+                    // 会让构造期就抛错。放在 try 外会冒泡成裸 500;放进来则归一成 formatServiceProbeError 精确文案。
+                    const client = createLLMClient({
+                        provider: providerFamily,
+                        service: baseService,
+                        configSource: "studio",
+                        baseUrl: args.baseUrl,
+                        apiKey: args.apiKey.trim(),
+                        model,
+                        api: plan.api ?? api,
+                        temperature: probeTemperature,
+                        maxTokens: PROBE_MAX_TOKENS,
+                        thinkingBudget: 0,
+                        proxyUrl: args.proxyUrl,
+                        apiFormat: plan.apiFormat,
+                        stream: plan.stream,
+                    });
+                    await chatCompletion(client, model, [{ role: "user", content: "ping" }], { maxTokens: PROBE_MAX_TOKENS, timeoutMs: PROBE_PING_TIMEOUT_MS });
+                    return buildSuccess(model, plan);
+                }
+                catch (error) {
+                    const rawMsg = error instanceof Error ? error.message : String(error);
+                    // 上游 200 但只是没吐可见正文(推理模型把 ping 的小预算全花在思考上)——鉴权与连接都已通过,
+                    // 对"连通性"而言这就是连上了,绝不能因为"空内容"把有效配置判成未联通。
+                    if (/返回空内容|空响应|未返回任何内容|empty (response|content)|no[\s_-]*content/i.test(rawMsg)) {
+                        return buildSuccess(model, plan);
+                    }
+                    // 该模型强制 temperature=1 的 400 → 进入 temperature=1 的下一轮重试。
+                    if (probeTemperature !== 1 && /\b400\b/.test(rawMsg) && /temperature/i.test(rawMsg)) {
+                        continue;
+                    }
+                    lastError = formatServiceProbeError({
+                        service: baseService,
+                        label: endpoint?.label ?? preset?.label,
+                        baseUrl: args.baseUrl,
+                        model,
+                        apiFormat: plan.apiFormat,
+                        api: plan.api ?? api,
+                        stream: plan.stream,
+                        error: rawMsg,
+                    });
+                    break; // 非温度类失败,这个 plan 已定论,换下一个 plan
+                }
             }
         }
     }
     return {
         ok: false,
         models: discoveredModels,
-        error: lastError,
+        error: budgetExhausted ? "测试连接超时：上游在限定时间内没有响应，请检查 Base URL、网络或代理是否可达。" : lastError,
         modelPinned,
     };
 }
@@ -10995,31 +11062,49 @@ export function createStudioServer(initialConfig, root) {
         if (!target.apiKey && !apiKeyOptional) {
             return { ...base, ok: false, latencyMs: 0, error: "API Key 不能为空", suggestion: "在服务与默认模型里粘贴当前服务商 Key，或确认该 Agent 没有选错服务商。" };
         }
-        try {
-            const client = createLLMClient(target.llm);
-            await chatCompletion(client, target.model, [{ role: "user", content: "模型连通性检测：请只回复 OK。" }], {
-                maxTokens: 8,
-                temperature: 0,
-                timeoutMs: 20_000,
-                signal,
-            });
-            return {
-                ...base,
-                ok: true,
-                latencyMs: Date.now() - startedAt,
-                suggestion: "可用于真实写作链路。",
-            };
+        // 与主探测同口径的容错:同一目标最多试 temperature 0 → 1(兜 kimi-k2.x 等强制 temperature=1 的模型),
+        // 且上游 200 但空内容视为连通(推理模型把小预算花在思考上)——保证"用户填什么模型都能准确联通"。
+        for (const probeTemperature of [0, 1]) {
+            try {
+                const client = createLLMClient(target.llm);
+                await chatCompletion(client, target.model, [{ role: "user", content: "模型连通性检测：请只回复 OK。" }], {
+                    maxTokens: 16,
+                    temperature: probeTemperature,
+                    timeoutMs: 20_000,
+                    signal,
+                });
+                return {
+                    ...base,
+                    ok: true,
+                    latencyMs: Date.now() - startedAt,
+                    suggestion: "可用于真实写作链路。",
+                };
+            }
+            catch (error) {
+                const rawMsg = error instanceof Error ? error.message : String(error);
+                if (/返回空内容|空响应|未返回任何内容|empty (response|content)|no[\s_-]*content/i.test(rawMsg)) {
+                    return {
+                        ...base,
+                        ok: true,
+                        latencyMs: Date.now() - startedAt,
+                        suggestion: "可用于真实写作链路。",
+                    };
+                }
+                if (probeTemperature !== 1 && /\b400\b/.test(rawMsg) && /temperature/i.test(rawMsg)) {
+                    continue;
+                }
+                const message = sanitizeConnectivityError(error);
+                return {
+                    ...base,
+                    ok: false,
+                    latencyMs: Date.now() - startedAt,
+                    error: message,
+                    suggestion: connectivitySuggestion(message),
+                };
+            }
         }
-        catch (error) {
-            const message = sanitizeConnectivityError(error);
-            return {
-                ...base,
-                ok: false,
-                latencyMs: Date.now() - startedAt,
-                error: message,
-                suggestion: connectivitySuggestion(message),
-            };
-        }
+        // 兜底(理论不可达:上面每条分支都 return):温度重试都被 continue 跳过后收口。
+        return { ...base, ok: false, latencyMs: Date.now() - startedAt, error: "模型连通性检测失败", suggestion: connectivitySuggestion("") };
     }
     async function buildPipelineConfig(overrides) {
         // SaaS:projectRoot 必须钉死成"构建本配置时"的租户根 —— 它会被 PipelineRunner 在
@@ -12014,11 +12099,17 @@ export function createStudioServer(initialConfig, root) {
             }
             // 地基质量闸：架构师建完后，让建书复审官真打分（不是数字数）。质量不达标→拦成 needs-foundation，不进入写章。
             try {
-                const gate = await enforceFoundationQualityGate(state, root, createdBookId, { autoRepair: true, maxRounds: 1, loadConfig: loadCurrentProjectConfig });
+                // maxRounds 2：落 needs-foundation 之前,让"定向补强"多救一轮最拖分维度,而不是一轮不过就甩"建设失败"。
+                // 注:配合阈值统一(结构 70 / 可写 60),只有"真·不可写"(致命阻断/关键维度崩/复审官判 block)才会走进下面这个拦截分支;
+                // 质量 60-79 这种"能写但不够亮"的地基现在 gate.ready=true,直接落 created 并带补强建议,不再反复重建。
+                const gate = await enforceFoundationQualityGate(state, root, createdBookId, { autoRepair: true, maxRounds: 2, loadConfig: loadCurrentProjectConfig });
                 if (!gate.ready && gate.quality && !gate.quality.pass) {
                     const weak = (gate.quality.weakDims || []).map((d) => `${d.label}(${d.score})`).join("、");
-                    const blockedStage = `地基质量未达标：结构 ${gate.structuralScore} · 质量 ${gate.qualityScore} 分`;
-                    const blockedReason = `建书复审官判定地基质量不足${weak ? `（最拖分：${weak}）` : (gate.quality.blockers.length ? `（${gate.quality.blockers.join("；")}）` : "")}，已拦截，未进入写章。`;
+                    const hardBlock = (gate.quality.blockers || []).slice(0, 3).join("；");
+                    const blockedStage = `地基存在致命问题：结构 ${gate.structuralScore} · 质量 ${gate.qualityScore} 分`;
+                    const blockedReason = hardBlock
+                        ? `建书复审官判定地基存在致命问题（${hardBlock}），已拦截，未进入写章。`
+                        : `建书复审官判定地基暂不可支撑连载${weak ? `（最拖分：${weak}）` : ""}，已拦截，未进入写章。`;
                     updateBookCreateStatus(createdBookId, {
                         allowCreate: true,
                         status: "needs-foundation",

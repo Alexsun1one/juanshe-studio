@@ -19,8 +19,12 @@ export async function probeModelsFromUpstream(
   if (!baseUrl) return [];
   try {
     const modelsUrl = baseUrl.replace(/\/$/, "") + "/models";
+    // 带 Bearer + Anthropic 头:OpenAI 兼容端点忽略多余头,Anthropic 协议端点
+    // (/models 只认 x-api-key + anthropic-version)也能拉到模型列表,而不是被 401 静默吞成空。
     const res = await fetchWithProxy(modelsUrl, {
-      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      headers: apiKey
+        ? { Authorization: `Bearer ${apiKey}`, "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
+        : {},
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) return [];
