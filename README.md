@@ -4,13 +4,13 @@
 
 <p align="center">
   <a href="https://github.com/Alexsun1one/juanshe/actions/workflows/ci.yml"><img src="https://github.com/Alexsun1one/juanshe/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Proprietary-6E5BFA.svg" alt="License: Proprietary"></a>
-  <img src="https://img.shields.io/badge/Source%20Available-Not%20Open%20Source-8B7DFF.svg" alt="Source available, not open source">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL%20v3-6E5BFA.svg" alt="License: AGPL v3"></a>
+  <img src="https://img.shields.io/badge/Open%20Source-AGPL--3.0-8B7DFF.svg" alt="Open source, AGPL-3.0">
 </p>
 
 <p align="center">
-  <strong>Source available, not open source.</strong><br>
-  <sub>代码可公开浏览；未经书面授权，不得复制、分发、再许可或商用。</sub>
+  <strong>开源 · AGPL-3.0 licensed.</strong><br>
+  <sub>自由使用、修改、自部署；但分发修改版或以它对外提供网络服务（SaaS），须同样以 AGPL-3.0 公开完整对应源码。</sub>
 </p>
 
 <p align="center">
@@ -235,6 +235,8 @@ npm --prefix packages/studio-electron run pack:win
 
 ## 许可证
 
-本软件为商业授权软件，© 卷舍 编辑部，保留所有权利。
+本项目以 **AGPL-3.0** 开源，© 卷舍 编辑部。
 
-本仓库当前是 **公开可浏览 / 非开源授权**：未经书面授权，不得复制、再分发、反编译、再许可或用于商业用途。详见 [LICENSE](LICENSE)。
+你可以自由使用、修改、自部署本软件；但若分发修改版、或以它对外提供网络服务（SaaS），则须同样以 AGPL-3.0 公开你的完整对应源码（含你的修改）。详见 [LICENSE](LICENSE)。
+
+> 写作引擎内核也单独以 AGPL-3.0 开源在 [Alexsun1one/autow](https://github.com/Alexsun1one/autow)。

@@ -28,7 +28,7 @@
     "!dist/__tests__",
     "genres"
   ],
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "prepack": "node ../../scripts/prepare-package-for-publish.mjs",
     "postpack": "node ../../scripts/restore-package-json.mjs",

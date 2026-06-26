@@ -15,7 +15,7 @@
     "editorial-workbench",
     "source-available"
   ],
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "build": "pnpm -r build",
     "dev": "pnpm -r --parallel dev",
