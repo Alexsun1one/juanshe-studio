@@ -214,7 +214,7 @@ export default function EditorPage() {
   // 流式文本增长时贴底跟随:用户上翻回读即解除,浮出「回到最新」;贴回底部恢复。
   // 只在「正文流式分支真的渲染着」时生效 —— 评审视图复用同一个 .paper 容器,不能被钉底劫持。
   // 钉底只在「正看着正在写的那一章」时生效 —— 翻看其它章节时别被流式钉底劫持
-  const streamPinActive = live.active && view !== "review" && live.chapter === cur
+  const streamPinActive = live.active && view !== "review" && live.chapter === cur && live.agentId === "writer"
   const stick = useStickToBottom(streamRef, typed, streamPinActive)
 
   // 一轮生成结束(active true→false):拉回已保存的正文与质量/工作流
@@ -562,7 +562,9 @@ export default function EditorPage() {
   // 正文区加载态:切到一个真实章节、正文还没回来时给衬线骨架,代替闪烁/串章
   // 正在写的就是当前章 → 交给流式分支(不显骨架);否则只要正文还没到就显骨架,
   // 哪怕别的章正在写(过去这里用 !live.active,导致写作期间翻看别章直接落到空编辑框)
-  const paperLoading = !!cur && !manuscript && view === "text" && !(live.active && live.chapter === cur)
+  // 只有 writer 在写「当前章」才让流式接管(不显骨架);reviser/polisher 等修订型 agent 输出的是
+  // 「分析+修订」混合流,绝不能当正文铺在这里——它们跑时仍按"正文没到→骨架、到了→静态正文"走。
+  const paperLoading = !!cur && !manuscript && view === "text" && !(live.active && live.chapter === cur && live.agentId === "writer")
   // 这一章是否「写过」:有正文 manuscript(空章给温柔的起笔邀请,而非空白)
   const chapterHasBody = (manuscript?.paragraphs?.length ?? 0) > 0 || text.trim().length > 0
   // 真实达标:本章质量分≥85(与右侧/评审同一门槛),不是凭空夸
@@ -796,7 +798,7 @@ export default function EditorPage() {
                   }) : <p className="muted" style={{ fontSize: 13 }}>本章还没有修订记录(没被改写/修复过,或刚写完)。一旦写手原稿被修改,这里就会出现逐处「红删 / 绿增」对比。</p>}
                 </div>
               </div>
-            ) : live.active && live.text && live.chapter === cur ? (
+            ) : live.active && live.text && live.chapter === cur && live.agentId === "writer" ? (
               <div className="paper-stream prose-serif">
                 {/* 流式分段渲染 + 语义分色(editor 在 .app 内,.tk-* 直接生效),与另两处画布同构 */}
                 <StreamingProse text={typed} dict={proseDict} caret={<span className="type-caret" aria-hidden />} />
