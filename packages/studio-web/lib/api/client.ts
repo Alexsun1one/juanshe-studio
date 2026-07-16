@@ -194,10 +194,22 @@ async function putJSON<T>(
   return res.json() as Promise<T>
 }
 
+// 会话过期统一收口:401 时全站只提示一次并带回登录页,
+// 否则用户会在每个页面各撞一条原始英文报错,还以为是产品坏了。
+let sessionExpiredNotified = false
+
 async function apiError(method: string, url: string, response: Response) {
   const text = await response.text().catch(() => "")
   const payload = parseApiErrorPayload(text)
   const detail = apiErrorDetail(payload, text)
+  if (response.status === 401 && !url.includes("/auth/") && typeof window !== "undefined" && !sessionExpiredNotified) {
+    sessionExpiredNotified = true
+    const { toast } = await import("sonner")
+    toast.warning("登录已过期,请重新登录", { id: "session-expired" })
+    setTimeout(() => {
+      window.location.href = "/login"
+    }, 1200)
+  }
   return new ApiClientError(method, url, response.status, detail, payload)
 }
 
@@ -504,6 +516,15 @@ function delay(ms: number) {
 
 export function fetchChapters(bookId: string): Promise<Chapter[]> {
   return getJSON<Chapter[]>(ENDPOINTS.chapters(bookId))
+}
+
+/** 删除第 N 章及之后全部章节(尾部截断;原稿由后端备份到 backups/,误删可找回)。
+ *  写作进行中会 409(writing_active),前端据此提示先停止写作。 */
+export function deleteChapter(
+  bookId: string,
+  num: number,
+): Promise<{ ok?: boolean; discarded?: number[]; rolledBackTo?: number }> {
+  return postJSON(`${ENDPOINTS.chapters(bookId)}/${num}`, undefined, { method: "DELETE" })
 }
 
 /** 逐章读者信号(读者评审官产出:愿意追更 / hook / 沉浸 / 清晰度 …) */

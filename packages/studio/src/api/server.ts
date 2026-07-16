@@ -13232,6 +13232,41 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ error: sanitizeServerError(e) }, 500);
         }
     });
+    // --- Chapter Delete(尾部截断):删除第 N 章及之后全部章节。
+    // 复用 rollbackToChapter:先恢复引擎状态快照到第 N-1 章末(实体账本/记忆溯源不引用已删章),
+    // 再把 >=N 的正文移入 backups/pre-rollback-*/ 后才真正删除 —— 误删可找回。
+    // 只允许从某章截到尾,不支持抽掉中间章(后续章号/引用不重排,防连环断裂)。
+    app.delete("/api/v1/books/:id/chapters/:num", async (c) => {
+        const id = c.req.param("id");
+        const chapterNum = parseInt(c.req.param("num"), 10);
+        if (!Number.isFinite(chapterNum) || chapterNum < 1)
+            return c.json({ error: "invalid_chapter", message: "章节号无效" }, 400);
+        if (chapterNum === 1)
+            return c.json({ error: "cannot_delete_first_chapter", message: "第 1 章是全书起点,不能从这里截断;可重写本章,或在书籍页删除整本书" }, 409);
+        try {
+            const index = await state.loadChapterIndex(id).catch(() => []);
+            const maxChapter = index.reduce((m, e) => Math.max(m, Number(e.number) || 0), 0);
+            if (chapterNum > maxChapter)
+                return c.json({ error: "chapter_not_found", message: `还没有第 ${chapterNum} 章,无可删除` }, 404);
+            // 写作进行中拒绝回滚:流水线正写着第 M(>=N)章,回滚会把它的半成品一起丢掉
+            const blocked = await prepareWriteSlot(id, {});
+            if (blocked)
+                return c.json({ error: "writing_active", message: "这本书有写作任务正在进行,请先在任务面板停止,再删除章节", status: "already-writing", runId: blocked.runId }, 409);
+            const discarded = await state.rollbackToChapter(id, chapterNum - 1);
+            if (discarded.length === 0)
+                return c.json({ error: "chapter_not_found", message: `第 ${chapterNum} 章及之后没有可删内容` }, 404);
+            await appendBookAgentEvent(root, id, "chapter:deleted", { fromChapter: chapterNum, discarded, agent: "editor", agentLabel: "主编", stage: `已删除第 ${chapterNum} 章及之后共 ${discarded.length} 章(原稿已备份)` });
+            broadcast("chapter:deleted", { bookId: id, fromChapter: chapterNum, discarded });
+            return c.json({ ok: true, bookId: id, discarded, rolledBackTo: chapterNum - 1 });
+        }
+        catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            // 快照缺失是"可解释的用户侧失败",不是 500:老书/导入书可能没快照,给明确指引
+            if (/Cannot restore snapshot/.test(msg))
+                return c.json({ error: "snapshot_missing", message: "这本书缺少写作状态快照,无法安全回退删除;可在书籍页删除整本书,或联系支持处理" }, 409);
+            return c.json({ error: sanitizeServerError(e) }, 500);
+        }
+    });
     app.patch("/api/v1/books/:id/chapters/:num/manuscript", async (c) => {
         const id = c.req.param("id");
         const num = parseInt(c.req.param("num"), 10);
@@ -17492,6 +17527,11 @@ export function createStudioServer(initialConfig, root) {
             return c.json({ ok: true, id: genreId });
         }
         catch (e) {
+            // 项目目录没有该文件:若是内置题材,给明确指引而不是误导性 404
+            const { listAvailableGenres } = await import("@juanshe/core");
+            const available = await listAvailableGenres(tenantRootOr(root)).catch(() => []);
+            if (available.some((g) => g.id === genreId))
+                return c.json({ error: "内置题材不能删除;可复制一份改成自己的定制版,定制版可以删除", code: "BUILTIN_GENRE" }, 403);
             return c.json({ error: `Genre "${genreId}" not found in project` }, 404);
         }
     });

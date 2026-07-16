@@ -21,7 +21,7 @@ export default function InboxPage() {
   }
 
   return (
-    <div className="cj-screen cj-inbox">
+    <div className="page cj-inbox">
       <header className="cj-workhead ib-head">
         <div className="ib-headline">
           <PixelBadge kind="runs" size={44} className="ib-hero-pixel" ariaLabel="需要处理" />

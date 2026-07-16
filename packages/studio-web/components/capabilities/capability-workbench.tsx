@@ -79,6 +79,11 @@ export function CapabilityWorkbench({
   const [genres, setGenres] = React.useState<unknown[]>([])
   const [genresState, setGenresState] = React.useState<LoadState>("loading")
   const [selectedGenreId, setSelectedGenreId] = React.useState("")
+  // 当前选中题材的来源:内置题材不能删除(后端只删项目目录文件,内置在引擎包内),按钮直接禁用
+  const selectedGenreBuiltin = React.useMemo(() => {
+    const g = genres.find((x) => genreId(x) === selectedGenreId)
+    return stringField(toRecord(g)?.source) === "builtin"
+  }, [genres, selectedGenreId])
   const [genreDraft, setGenreDraft] = React.useState<GenreDraft>({
     id: "",
     name: "",
@@ -905,7 +910,8 @@ export function CapabilityWorkbench({
                     size="sm"
                     variant="outline"
                     onClick={requestDeleteGenre}
-                    disabled={!selectedGenreId || genreBusy}
+                    disabled={!selectedGenreId || genreBusy || selectedGenreBuiltin}
+                    title={selectedGenreBuiltin ? "内置题材不能删除,可复制一份改成自己的定制版" : undefined}
                   >
                     <Trash2 className="size-4" />
                     删除

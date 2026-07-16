@@ -242,12 +242,12 @@ export default function PreferencesPage() {
                 <div className="opt">
                   <span className="opt-ico danger" aria-hidden="true"><RotateCcw size={15} /></span>
                   <div className="ot"><div className="on">重置 AI 学习数据</div><div className="od">清空账号风格自我进化沉淀的规则。</div></div>
-                  <div className="oc"><button type="button" className="btn danger sm" onClick={() => toast("已记录,请在后端确认后执行", { description: "出于安全,破坏性操作不在前端直接执行。" })}><RotateCcw size={13} aria-hidden="true" />重置</button></div>
+                  <div className="oc"><button type="button" className="btn danger sm" disabled title="暂未开放:出于安全,破坏性操作由后端人工执行,请联系支持"><RotateCcw size={13} aria-hidden="true" />重置</button></div>
                 </div>
                 <div className="opt">
                   <span className="opt-ico danger" aria-hidden="true"><Archive size={15} /></span>
                   <div className="ot"><div className="on">归档当前工作区</div><div className="od">归档后将从活跃列表移除。</div></div>
-                  <div className="oc"><button type="button" className="btn danger sm" onClick={() => toast("已记录,请在后端确认后执行")}><Archive size={13} aria-hidden="true" />归档</button></div>
+                  <div className="oc"><button type="button" className="btn danger sm" disabled title="暂未开放:出于安全,破坏性操作由后端人工执行,请联系支持"><Archive size={13} aria-hidden="true" />归档</button></div>
                 </div>
               </div>
             </section>

@@ -212,7 +212,7 @@ export default function InsightsPage() {
     const gaps: { key: string; gap: number; label: string; tip: string; href: string; cta: string }[] = []
     if (q > 0 && q < SCORE_HI) gaps.push({ key: "quality", gap: SCORE_HI - q, label: `综合质量 ${q} 分,还差 ${SCORE_HI - q} 分到达标`, tip: "把卡分章推到达标,成品才扛得住平台读者", href: "/consistency", cta: "去打磨质量" })
     if (c > 0 && c < SCORE_HI) gaps.push({ key: "consistency", gap: SCORE_HI - c, label: `一致性 ${c} 仍有连贯漏洞`, tip: "设定/角色/时序的硬伤会劝退追读", href: "/consistency", cta: "去查一致性" })
-    if (willFollowPct != null && willFollowPct < 60) gaps.push({ key: "reader", gap: 60 - willFollowPct, label: `愿意追更仅 ${willFollowPct}%`, tip: "追读意愿是连载变现的命脉,先补章末钩子", href: "/insights", cta: "看读者反馈" })
+    if (willFollowPct != null && willFollowPct < 60) gaps.push({ key: "reader", gap: 60 - willFollowPct, label: `愿意追更仅 ${willFollowPct}%`, tip: "追读意愿是连载变现的命脉,先补章末钩子", href: "#ins-reader", cta: "看读者反馈" })
     gaps.sort((a, b) => b.gap - a.gap)
     if (!q && !c) return { state: "none" as const, line: "写出并评分章节后,这里会告诉你离能上架/适配平台还差哪一步。" }
     if (!gaps.length) return { state: "ready" as const, line: "质量、一致性、追读意愿都达标 — 这本已经具备把成品推向平台变现的底子。", top: topOpp }
@@ -221,7 +221,7 @@ export default function InsightsPage() {
 
   // 「按这个机会去适配/创作」:路由到真实的多平台导出页(把成品适配成可发布资产)。
   const actOnOpportunity = (o: { title: { zh: string } }) => {
-    toast.success("已带着机会去多平台适配", { description: `${cleanTitle(o.title.zh)} · 在平台导出里把成品改写成该平台的可发布版本` })
+    toast.success("已打开多平台适配", { description: `参考机会:「${cleanTitle(o.title.zh)}」—— 在平台导出里把成品改写成该平台的可发布版本` })
     router.push("/platform-export")
   }
 
@@ -394,7 +394,7 @@ export default function InsightsPage() {
             </section>
 
             {/* 读者反馈 · 读者评审官 */}
-            <section className="ins-block ins-reader">
+            <section className="ins-block ins-reader" id="ins-reader">
               <h3 className="sh"><Users size={14} /> 读者反馈 · 读者评审官 <span className="c">{reader?.summary.count ?? 0}</span>
                 {reader && reader.summary.count > 0 && (
                   <span className="rf-sum">
@@ -498,7 +498,7 @@ export default function InsightsPage() {
                           <span className="mon-gap-tip">{g.tip}</span>
                         </span>
                         {i === 0 ? (
-                          <button type="button" className="mon-gap-cta" onClick={() => router.push(g.href)}>{g.cta} <ArrowUpRight size={11} /></button>
+                          <button type="button" className="mon-gap-cta" onClick={() => g.href.startsWith("#") ? document.querySelector(g.href)?.scrollIntoView({ behavior: "smooth", block: "start" }) : router.push(g.href)}>{g.cta} <ArrowUpRight size={11} /></button>
                         ) : null}
                       </li>
                     ))}

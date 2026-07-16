@@ -46,6 +46,18 @@ const EDITORIAL_STORY_PARTS = [
 ] as const
 const EDITORIAL_STORY = EDITORIAL_STORY_PARTS.map((part) => part.text).join("")
 
+// 后端错误 message 是英文技术语时按状态码翻人话;已是中文的原文放行。fallback 各场景自带。
+function authErrorMessage(res: Response, data: unknown, fallback: string): string {
+  const err = (data as { error?: { message?: string } } | null)?.error
+  const msg = typeof err?.message === "string" ? err.message : ""
+  if (/[\u4e00-\u9fff]/.test(msg)) return msg
+  if (res.status === 401 || res.status === 403) return fallback
+  if (res.status === 409) return "这个激活码已绑定其他设备或账号,如需换绑请联系支持。"
+  if (res.status === 429) return "尝试太频繁了,稍等一会再试。"
+  if (res.status >= 500) return "服务暂时不可用,请稍后重试。"
+  return msg || fallback
+}
+
 type SaasUser = {
   id?: string
   email?: string
@@ -176,7 +188,7 @@ export default function LoginPage() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || data?.error) {
-        setErr(data?.error?.message || "激活码无效,请检查后重试。")
+        setErr(authErrorMessage(res, data, "激活码无效,请检查后重试。"))
         setBusy(false)
         return
       }
@@ -226,7 +238,7 @@ export default function LoginPage() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || data?.error) {
-        setErr(data?.error?.message || (saasMode === "register" ? "注册失败,请稍后重试。" : "邮箱或密码错误。"))
+        setErr(authErrorMessage(res, data, saasMode === "register" ? "注册失败,请稍后重试。" : "邮箱或密码错误。"))
         setBusy(false)
         return
       }
@@ -265,7 +277,7 @@ export default function LoginPage() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || data?.error) {
-        setUpgradeErr(data?.error?.message || "激活码无效,请检查后重试。")
+        setUpgradeErr(authErrorMessage(res, data, "激活码无效,请检查后重试。"))
         setUpgradeBusy(false)
         return
       }

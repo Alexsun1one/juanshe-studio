@@ -201,7 +201,10 @@ export default function BooksPage() {
     fn: () => Promise<void>,
     onError?: (error: unknown) => void,
   ) {
-    if (busy) return
+    if (busy) {
+      toast.info("上一个操作还在进行,等它结束再点")
+      return
+    }
     setBusy({ id, kind })
     try {
       await fn()
