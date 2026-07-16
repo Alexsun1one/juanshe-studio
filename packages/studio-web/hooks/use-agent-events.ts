@@ -135,10 +135,12 @@ function applyEvents(prev: State, incoming: AgentEvent[]): State {
     }
   })
 
-  merged.sort((a, b) => Date.parse(b.ts) - Date.parse(a.ts))
+  // 预解析时间戳再排(降序):比较器里 Date.parse 会把 O(e) 次解析放大成 O(e·log e) 次
+  const timed = merged.map((event) => ({ event, at: Date.parse(event.ts) }))
+  timed.sort((a, b) => b.at - a.at)
   return {
     ...prev,
-    events: merged.slice(0, MAX_EVENTS),
+    events: timed.slice(0, MAX_EVENTS).map((x) => x.event),
     liveText,
     lastTokenAt,
     stageProgress,
