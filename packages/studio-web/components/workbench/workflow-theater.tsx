@@ -17,7 +17,7 @@ import { agentColor } from "@/lib/agent-identity"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { PixelCat } from "@/components/design/pixel-cat"
 import { CelebrationBurst } from "./celebration-burst"
-import { StreamingProse, splitStreamParagraphs } from "./streaming-prose"
+import { StreamingProse, createIncrementalSplitState, splitStreamParagraphsIncremental, type IncrementalSplitState } from "./streaming-prose"
 import { StreamFollowChip } from "./stream-follow-chip"
 import { useStickToBottom } from "@/hooks/use-stick-to-bottom"
 import { renderAgentOutputInline, sanitizeAgentOutput } from "@/lib/sanitize-agent-output"
@@ -324,7 +324,10 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
 
   // 拆段;只把"已稳定"的段交给 typewriter 不太现实(typewriter 拿到的是累计 full text)
   // 直接用累计 text 拆 → 渲染多个 <p>。最后一段会有 caret。
-  const paragraphs = splitStreamParagraphs(typed)
+  // 增量分段:剧场每秒计时重渲 + 每 token 重渲,全量分段在长文本下掉帧;增量版每渲 O(增量)。
+  const splitRef = React.useRef<IncrementalSplitState | null>(null)
+  if (!splitRef.current) splitRef.current = createIncrementalSplitState()
+  const paragraphs = splitStreamParagraphsIncremental(typed, splitRef.current)
 
   // 接力链:每个角色取它最近一条事件文案,挂到对应节点上(让真实事件流在结构化接力里就地呈现)
   const lastTextByFid: Record<string, string> = {}

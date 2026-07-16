@@ -845,18 +845,18 @@ function buildScopedLiveText(
   events: AgentEvent[],
   scope: { runId?: string; chapter: number },
 ) {
-  const tokens = events
-    .filter((event): event is Extract<AgentEvent, { type: "token" }> => {
-      if (event.type !== "token") return false
-      if (scope.runId && event.runId && event.runId !== scope.runId) return false
-      const eventChapter = event.chapterNumber ?? event.chapter
-      if (eventChapter > 0 && eventChapter !== scope.chapter) return false
-      return true
-    })
-    .slice()
-    .sort((left, right) => Date.parse(left.ts) - Date.parse(right.ts))
+  const tokens = events.filter((event): event is Extract<AgentEvent, { type: "token" }> => {
+    if (event.type !== "token") return false
+    if (scope.runId && event.runId && event.runId !== scope.runId) return false
+    const eventChapter = event.chapterNumber ?? event.chapter
+    if (eventChapter > 0 && eventChapter !== scope.chapter) return false
+    return true
+  })
+  // 预解析时间戳再排:比较器里 Date.parse 会把 O(e) 次解析放大成 O(e·log e) 次
+  const timed = tokens.map((event) => ({ event, at: Date.parse(event.ts) }))
+  timed.sort((left, right) => left.at - right.at)
 
-  return tokens.map((event) => event.text).join("")
+  return timed.map((x) => x.event.text).join("")
 }
 
 function emptyChapterStats(bookId: string, currentChapter: number) {

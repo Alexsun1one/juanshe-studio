@@ -19,6 +19,15 @@ const FRESH_MS = 25_000
 // live-draft 种子的可信窗口:超过这个时长没新 token 的快照视为死流,不种入
 // (防"上一轮悄悄挂掉的旧草稿"垫在新一轮 token 前面,拼出错文)。
 const SEED_MAX_AGE_MS = 10 * 60 * 1000
+// 单 agent 实时累计上限(保尾部):对齐服务端 live-draft 的截断策略(server.ts 400k)
+// 与 use-agent-events 的 24k 上限 —— 这一路之前漏了上限,模型失控输出(如联网模型
+// 倾倒长文本/长链接)时字符串无限膨胀,每 token 的全文重算 + setSnapshot 随之放大,
+// 最终把标签页内存/CPU 拖崩。打字机只展示尾部最新内容,截断不影响正常章节(远低于此值)。
+const MAX_LIVE_ACCUM = 200_000
+const tailCap = (s: string) => (s.length > MAX_LIVE_ACCUM ? s.slice(-MAX_LIVE_ACCUM) : s)
+// token 高频到达时(50-150/s)不每 token setSnapshot —— 那是每 token 一次全树渲染。
+// 数据先进 ref,渲染快照按此间隔节流;下游打字机 24ms 渐进展示,120ms 供流无视觉差异。
+const FLUSH_MS = 120
 
 function freshTs(ts: string | undefined): number | null {
   const t = ts ? Date.parse(ts) : NaN
@@ -109,18 +118,41 @@ export function useLiveRun(bookId: string | undefined): LiveRun {
     st.wasActive = active
     const raw = (st.lastContentAgent ? st.byAgent.get(st.lastContentAgent) : "") ?? ""
     const text = stripWriterScaffold(raw)
-    setSnapshot({
-      active,
-      chapter: st.chapter,
-      agentId: st.lastContentAgent,
-      agentName: st.lastContentAgent ? agentDisplayName(st.lastContentAgent) : undefined,
-      stageText: st.stageText,
-      text,
-      charCount: text.replace(/\s/g, "").length,
-      completedTick: st.completedTick,
-      reconnecting: st.reconnecting,
-    })
+    const charCount = text.replace(/\s/g, "").length
+    // 无变化不触发渲染:1.5s 定时回算与节流刷新常算出相同快照,字符串相等就复用旧对象
+    setSnapshot((prev) =>
+      prev.active === active &&
+      prev.chapter === st.chapter &&
+      prev.agentId === st.lastContentAgent &&
+      prev.stageText === st.stageText &&
+      prev.text === text &&
+      prev.charCount === charCount &&
+      prev.completedTick === st.completedTick &&
+      prev.reconnecting === st.reconnecting
+        ? prev
+        : {
+            active,
+            chapter: st.chapter,
+            agentId: st.lastContentAgent,
+            agentName: st.lastContentAgent ? agentDisplayName(st.lastContentAgent) : undefined,
+            stageText: st.stageText,
+            text,
+            charCount,
+            completedTick: st.completedTick,
+            reconnecting: st.reconnecting,
+          },
+    )
   }, [])
+
+  // token 洪水的渲染节流:定时器在飞就不重复排,到点统一重算一次
+  const flushTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scheduleFlush = React.useCallback(() => {
+    if (flushTimer.current != null) return
+    flushTimer.current = setTimeout(() => {
+      flushTimer.current = null
+      recompute()
+    }, FLUSH_MS)
+  }, [recompute])
 
   // 把后端 live-draft 快照种进累计:订阅建立时(刷新后半章不再"消失")与重连恢复时
   // (补上断线期间漏掉的 token)各拉一次。种子与其后到达的 token 用结尾重叠去重拼接。
@@ -149,7 +181,7 @@ export function useLiveRun(bookId: string | undefined): LiveRun {
       st.chapter = ch
       st.byAgent = new Map()
     }
-    st.byAgent.set(fid, merged)
+    st.byAgent.set(fid, tailCap(merged))
     st.lastContentAgent = fid
     st.lastTs = Math.max(st.lastTs, ts)
     recompute()
@@ -194,10 +226,10 @@ export function useLiveRun(bookId: string | undefined): LiveRun {
             st.byAgent = new Map()
             st.lastContentAgent = undefined
           }
-          st.byAgent.set(id, (st.byAgent.get(id) ?? "") + e.text)
+          st.byAgent.set(id, tailCap((st.byAgent.get(id) ?? "") + e.text))
           st.lastContentAgent = id
           st.lastTs = ts
-          recompute()
+          scheduleFlush()
         } else if (e.type === "stage-update") {
           // 阶段事件只更新标签,不点亮 active(后端会在连接时回放当前阶段快照)
           const ts = freshTs(e.ts)
@@ -221,9 +253,13 @@ export function useLiveRun(bookId: string | undefined): LiveRun {
     void applySeed(isAlive)
     return () => {
       alive = false
+      if (flushTimer.current != null) {
+        clearTimeout(flushTimer.current)
+        flushTimer.current = null
+      }
       unsub()
     }
-  }, [bookId, recompute, applySeed])
+  }, [bookId, recompute, applySeed, scheduleFlush])
 
   // 定时回算,让 active 在窗口过期后自然熄灭
   React.useEffect(() => {
