@@ -31,6 +31,7 @@ import {
   Square,
   SquarePen,
   Stars,
+  Trash2,
   TriangleAlert,
   Wand2,
   Workflow,
@@ -40,6 +41,7 @@ import Link from "next/link"
 import {
   approveChapter,
   applyChapterSuggestion,
+  deleteChapter,
   fetchChapters,
   fetchManuscript,
   fetchQuality,
@@ -202,6 +204,37 @@ export default function EditorPage() {
       }
       return next
     })
+  }
+
+  // 删除第 N 章及之后(尾部截断):后端先把原稿备份到 backups/ 再回滚,误删可找回。
+  // 不支持抽掉中间章 —— 只能从某一章截到尾,后续章号/引用不重排,防连环断裂。
+  const [deleteTarget, setDeleteTarget] = React.useState<number | null>(null)
+  const [deleting, setDeleting] = React.useState(false)
+  const deleteCount = deleteTarget == null ? 0 : (chapters ?? []).filter((c) => c.num >= deleteTarget).length
+  const confirmDeleteChapter = async () => {
+    if (!bookId || deleteTarget == null) return
+    const from = deleteTarget
+    setDeleting(true)
+    try {
+      const r = await deleteChapter(bookId, from)
+      const n = r?.discarded?.length ?? deleteCount
+      toast.success(`已删除第 ${from} 章及之后共 ${n} 章`, { description: "原稿已自动备份到 backups/,误删可找回" })
+      setDeleteTarget(null)
+      // 正在看的章被删了 → 跳到回退点(第 N-1 章),别停留在已不存在的章号上
+      if (cur != null && cur >= from) {
+        userPickedRef.current = true
+        setSelNum(r?.rolledBackTo && r.rolledBackTo > 0 ? r.rolledBackTo : null)
+      }
+      await mutate(["chapters", bookId])
+    } catch (e) {
+      const status = (e as { status?: number } | null)?.status
+      const msg = e instanceof Error ? e.message : String(e)
+      // 409(写作中/第一章/快照缺失)是可解释的用户侧失败,温和提示;其余按真错误报
+      if (status === 409) toast.warning("现在删不了", { description: msg })
+      else toast.error("删除失败", { description: msg })
+    } finally {
+      setDeleting(false)
+    }
   }
 
   // 自动跟随:正在生成的章节(如续写会写下一章)若不是当前章,自动切过去看它打字
@@ -627,6 +660,15 @@ export default function EditorPage() {
                   aria-label={isPub ? "已发布 · 点击撤销" : "标记为已发布"}
                 >
                   {isPub ? <Check size={13} aria-hidden /> : null}
+                </button>
+                <button
+                  type="button"
+                  className="ch-del"
+                  onClick={(e) => { e.stopPropagation(); setDeleteTarget(c.num) }}
+                  title={`删除第 ${c.num} 章及之后全部章节`}
+                  aria-label={`删除第 ${c.num} 章及之后全部章节`}
+                >
+                  <Trash2 size={13} aria-hidden />
                 </button>
               </div>
             )
@@ -1092,6 +1134,39 @@ export default function EditorPage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => { if (!open && !deleting) setDeleteTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除第 {deleteTarget} 章及之后全部章节?</AlertDialogTitle>
+            <AlertDialogDescription className="grid gap-3 text-left text-xs leading-relaxed">
+              <span>
+                将从第 {deleteTarget} 章截到末尾,共删除 {deleteCount} 章。原稿会先自动备份到本书 backups/ 目录,
+                误删可找回;引擎状态同步回退,角色/记忆不会引用已删章节。
+              </span>
+              <span>不能抽掉中间某一章而保留后续 —— 只能从这里截到尾。第 1 章不可删。</span>
+              {dirty && cur != null && deleteTarget != null && cur >= deleteTarget && (
+                <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-700 dark:text-amber-400">
+                  当前编辑的第 {cur} 章在删除范围内,未保存的修改将一并丢弃。
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button" disabled={deleting}>保留章节</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              disabled={deleting}
+              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20"
+              onClick={(event) => {
+                event.preventDefault()
+                void confirmDeleteChapter()
+              }}
+            >
+              {deleting ? "删除中…" : `确认删除 ${deleteCount} 章`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -125,7 +125,7 @@ export default function PublishPage() {
 
   // 一句「下一步」:把当前最该做的一步说清楚,而不是堆状态
   const nextStep = !copyReady
-    ? { text: "先写出 / 导入一章成稿,即可复制到各平台发布", cta: "去写作台", go: () => router.push("/workbench") }
+    ? { text: "先写出 / 导入一章成稿,即可复制到各平台发布", cta: "去写作台", go: () => router.push("/") }
     : connectedNames.length === 0
       ? { text: `已有 ${draftableCount} 章成稿可复制 — 标记你的平台账号,发布路径更清晰`, cta: "标记渠道", go: () => setAuthOpen(true) }
       : { text: `${connectedNames.length} 个平台已标记 · ${draftableCount} 章成稿就绪 — 选平台取成稿,或为小红书/知乎生成体裁`, cta: "多平台创作", go: () => router.push("/compose") }
@@ -142,7 +142,7 @@ export default function PublishPage() {
     } else {
       toast("还没有可复制的成稿", {
         description: "写出或导入一章正文后,这里就能按各平台格式取成稿复制粘贴。",
-        action: { label: "去写作台", onClick: () => router.push("/workbench") },
+        action: { label: "去写作台", onClick: () => router.push("/") },
       })
     }
   }
@@ -323,7 +323,7 @@ export default function PublishPage() {
                 <div className="q-empty">
                   <PixelBadge kind="publish" size={34} ariaLabel="发布" />
                   <p>还没有章节 —— 写出第一章,这里就会排起可一键导出、复制到各平台的发布队列。</p>
-                  <button type="button" className="btn primary sm" onClick={() => router.push("/workbench")}><Plus size={12} /> 去写作台</button>
+                  <button type="button" className="btn primary sm" onClick={() => router.push("/")}><Plus size={12} /> 去写作台</button>
                 </div>
               ) : (
                 <div className="q-skel">

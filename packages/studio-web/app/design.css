@@ -1499,6 +1499,14 @@ select.sel-sm { padding: 5px 26px 5px 9px; font-size: 12px; }
   }
   .app .cj-inspector .cj-pane-scroll { overflow: visible; }
 
+  /* 整页接管滚动:.cj-screen 钉高+overflow:hidden 会把上面改成"自然流"的内容直接裁掉
+     (Inspector 放开了,主区/屏幕还是 hidden → 17+ 页手机端集体滚不动、Inspector 整段消失)。
+     范式同 knowledge.css 单页已验证的「窄屏整页滚」,此处上收到基类一次修全站。 */
+  .app .cj-screen { overflow-y: auto; }
+  .app .cj-screen-body { display: block; overflow: visible; }
+  .app .cj-mainpane { overflow: visible; }
+  .app .cj-mainpane > .cj-pane-scroll { overflow: visible; }
+
   .sidebar {
     padding: 12px 8px;
   }

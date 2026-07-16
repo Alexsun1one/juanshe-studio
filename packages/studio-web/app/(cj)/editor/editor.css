@@ -55,6 +55,34 @@
   color: var(--ok-500);
   background: var(--ok-50);
 }
+
+/* 删除按钮:平时收起,hover 行/聚焦才现身(目录不吵闹);定位在发布勾左边 */
+.cj-editor .ch-del {
+  position: absolute;
+  top: 50%; right: 38px;
+  transform: translateY(-50%);
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-2);
+  background: var(--bg-card);
+  color: var(--ink-300);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: all var(--motion-fast) var(--ease-soft);
+  z-index: 1;
+  padding: 0;
+  line-height: 1;
+  opacity: 0;
+}
+.cj-editor .ch-item-wrap:hover .ch-del,
+.cj-editor .ch-del:focus-visible {
+  opacity: 1;
+}
+.cj-editor .ch-del:hover {
+  border-color: var(--err-500);
+  color: var(--err-500);
+  background: var(--err-50);
+}
 .cj-editor .ch-pub-toggle.on {
   background: var(--ok-500);
   border-color: var(--ok-500);

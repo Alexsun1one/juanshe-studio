@@ -7,9 +7,22 @@ import {
   backendJSON,
   backendUnavailable,
   frontendFallbackEnabled,
+  proxyJSON,
 } from "@/lib/api/facade"
 import { jsonErr, jsonOK } from "@/lib/api/route-helpers"
 import { NextResponse } from "next/server"
+
+/** DELETE /api/v1/books/:id/chapters/:num — 删除第 N 章及之后全部章节(尾部截断,原稿进 backups/) */
+export async function DELETE(
+  req: Request,
+  ctx: { params: Promise<{ id: string; num: string }> },
+) {
+  const { id, num } = await ctx.params
+
+  return proxyJSON(req, `/api/v1/books/${encodeURIComponent(id)}/chapters/${Number(num)}`, {
+    method: "DELETE",
+  })
+}
 
 /** GET /api/v1/books/:id/chapters/:num */
 export async function GET(
