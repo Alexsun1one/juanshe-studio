@@ -25,6 +25,7 @@ import { CjPlaceholder } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
+import { describeFailure } from "@/lib/describe-error"
 import "./outline.css"
 
 const soft = { shouldRetryOnError: false }
@@ -186,7 +187,7 @@ export default function OutlinePage() {
       const file = await fetchTruthFile(bookId, VOLUME_MAP_FILE)
       setRawOutline(file.content ?? "")
     } catch (e) {
-      toast.error(`读取卷纲失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("读取卷纲失败", { description: describeFailure(e) || undefined })
       setEditing(false)
     } finally {
       setLoadingRaw(false)
@@ -201,7 +202,7 @@ export default function OutlinePage() {
       setEditing(false)
       await mutateOutline()
     } catch (e) {
-      toast.error(`保存卷纲失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("保存卷纲失败", { description: describeFailure(e) || undefined })
     } finally {
       setSavingRaw(false)
     }

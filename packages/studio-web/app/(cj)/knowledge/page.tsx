@@ -30,6 +30,7 @@ import { useWorkspace } from "@/lib/workspace-context"
 import { CjPlaceholder, EmptyArt } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { KpiChip, Meter } from "@/components/design/kit"
+import { describeFailure } from "@/lib/describe-error"
 import "./knowledge.css"
 
 const soft = { shouldRetryOnError: false }
@@ -76,7 +77,7 @@ export default function KnowledgePage() {
       const e = fresh?.edges?.length ?? 0
       toast.success(`关系图谱已刷新 · ${n} 节点 / ${e} 关系`)
     } catch (e) {
-      toast.error(`刷新失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("刷新失败", { description: describeFailure(e) || undefined })
     } finally {
       setExtracting(false)
     }

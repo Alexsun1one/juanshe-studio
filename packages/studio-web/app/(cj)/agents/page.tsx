@@ -60,6 +60,7 @@ import { PixelBadge } from "@/components/design/pixel-badge"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { KpiChip, StatLine } from "@/components/design/kit"
 import { cn } from "@/lib/utils"
+import { describeFailure } from "@/lib/describe-error"
 import "./agents.css"
 
 type EditorConfirmAction =
@@ -98,7 +99,7 @@ export default function AgentLabPage() {
       const passed = res.filter((r) => r.ok).length
       toast.success(lang === "en" ? `Connectivity: ${passed}/${res.length} agents OK` : `连通性测试:${passed}/${res.length} 通过`)
     } catch (e) {
-      toast.error(`连通性测试失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("连通性测试失败", { description: describeFailure(e) || undefined })
     } finally {
       setTestingAll(false)
     }
@@ -442,7 +443,7 @@ function AgentEditor({
       if (res.ok) toast.success(lang === "en" ? `OK (${res.latencyMs}ms)` : `连通正常 (${res.latencyMs}ms)`, { description: res.sample })
       else toast.error(lang === "en" ? "Failed" : "连通失败", { description: res.error ?? res.sample })
     } catch (e) {
-      toast.error(`测试失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("测试失败", { description: describeFailure(e) || undefined })
     } finally {
       setTesting(false)
     }
@@ -461,7 +462,7 @@ function AgentEditor({
       onChange()
       toast.success(lang === "en" ? "Prompt saved" : "提示词已保存")
     } catch (e) {
-      toast.error(`保存失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("保存失败", { description: describeFailure(e) || undefined })
     } finally {
       setSaving(false)
     }
@@ -474,7 +475,7 @@ function AgentEditor({
       onChange()
       toast.success(lang === "en" ? "Version restored" : "已回滚到该版本")
     } catch (e) {
-      toast.error(`回滚失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("回滚失败", { description: describeFailure(e) || undefined })
     } finally {
       setRestoring(false)
     }

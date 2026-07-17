@@ -9,7 +9,7 @@ import {
   RefreshCw,
   Send,
   Sparkles,
-  Wand2,
+  Trash2,
 } from "lucide-react"
 
 import { fetchBooks } from "@/lib/api/client"
@@ -239,6 +239,32 @@ export function AssistantConsole({
     }
   }
 
+  async function deleteSessionById(id: string, ev: React.MouseEvent) {
+    ev.stopPropagation()
+    if (!id) return
+    if (!window.confirm("删除这个会话?对话记录将一并清除,不可恢复。")) return
+    setBusy(`sessions:delete:${id}`)
+    try {
+      await requestJSON(ENDPOINTS.session(id), { method: "DELETE" })
+      setSessions((prev) => prev.filter((s) => sessionIdFrom(s) !== id))
+      // 删的是正在看的会话 → 清空对话视图,别留一屏"死会话"残影
+      if (sessionId === id) {
+        setSessionId("")
+        setMessages([])
+        setLastResult(null)
+      }
+      toast({ title: "会话已删除" })
+    } catch (error) {
+      toast({
+        title: "删除会话失败",
+        description: errorMessage(error),
+        variant: "destructive",
+      })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   async function sendInstruction(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const text = instruction.trim()
@@ -452,25 +478,36 @@ export function AssistantConsole({
                 const id = sessionIdFrom(session)
                 const active = id === sessionId
                 return (
-                  <button
-                    key={id || index}
-                    type="button"
-                    className={[
-                      "border-border/40 hover:bg-secondary/60 w-full rounded-lg border px-3 py-2 text-left transition-colors",
-                      active ? "bg-secondary/70" : "bg-background/70",
-                    ].join(" ")}
-                    onClick={() => void openSession(id)}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-foreground min-w-0 truncate text-sm font-medium">
-                        {sessionTitle(session)}
-                      </span>
-                      {active && <Badge variant="secondary">当前</Badge>}
-                    </div>
-                    <div className="text-muted-foreground mt-1 truncate text-[11px]">
-                      {sessionMeta(session)}
-                    </div>
-                  </button>
+                  <div key={id || index} className="group relative">
+                    <button
+                      type="button"
+                      className={[
+                        "border-border/40 hover:bg-secondary/60 w-full rounded-lg border px-3 py-2 text-left transition-colors",
+                        active ? "bg-secondary/70" : "bg-background/70",
+                      ].join(" ")}
+                      onClick={() => void openSession(id)}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-foreground min-w-0 truncate text-sm font-medium">
+                          {sessionTitle(session)}
+                        </span>
+                        {active && <Badge variant="secondary">当前</Badge>}
+                      </div>
+                      <div className="text-muted-foreground mt-1 truncate text-[11px]">
+                        {sessionMeta(session)}
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive absolute right-2 bottom-2 grid size-6 place-items-center rounded-md opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                      title="删除会话"
+                      aria-label="删除会话"
+                      disabled={busy === `sessions:delete:${id}`}
+                      onClick={(e) => void deleteSessionById(id, e)}
+                    >
+                      {busy === `sessions:delete:${id}` ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                    </button>
+                  </div>
                 )
               })
             )}

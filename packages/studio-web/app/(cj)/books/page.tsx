@@ -56,6 +56,7 @@ import { AgentPixel } from "@/components/design/agent-pixel"
 import { EmptyArt } from "@/components/design/cj-placeholder"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
+import { describeFailure } from "@/lib/describe-error"
 import "./books.css"
 
 // ── 经 BFF 调后端(沿用 client.ts「全部走 Next route handler」约定) ──────────
@@ -210,7 +211,7 @@ export default function BooksPage() {
       await fn()
     } catch (e) {
       if (onError) onError(e)
-      else toast.error(`操作失败:${e instanceof Error ? e.message : String(e)}`)
+      else toast.error("操作失败", { description: describeFailure(e) || undefined })
     } finally {
       setBusy(null)
     }
