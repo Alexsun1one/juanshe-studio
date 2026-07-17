@@ -1,5 +1,7 @@
 "use client"
 
+import { getDeviceId } from "@/lib/device-id"
+import { authErrorMessage } from "@/lib/describe-error"
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { ArrowRight, KeyRound, PenLine, Sparkles, AlertCircle, Mail, Lock, CheckCircle2 } from "lucide-react"
@@ -9,23 +11,6 @@ import { setTierCache } from "@/lib/use-tier"
 import "./login.css"
 
 // 每台浏览器/安装一个稳定设备标识(用于发卡方做软性防共享统计,不含任何隐私)
-function getDeviceId(): string {
-  try {
-    let id = localStorage.getItem("cj.deviceId")
-    if (!id) {
-      const rnd =
-        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-          ? crypto.randomUUID()
-          : `dev-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`
-      id = rnd
-      localStorage.setItem("cj.deviceId", id)
-    }
-    return id
-  } catch {
-    return "unknown-device"
-  }
-}
-
 // 公众号领码引导(部署时可用 NEXT_PUBLIC_* 覆盖;横条素材默认读 public/wechat-qr.png)
 const WECHAT_NAME = process.env.NEXT_PUBLIC_WECHAT_NAME || "正在逐渐AI化"
 const WECHAT_KEYWORD = process.env.NEXT_PUBLIC_WECHAT_KEYWORD || "领码"
@@ -46,17 +31,6 @@ const EDITORIAL_STORY_PARTS = [
 ] as const
 const EDITORIAL_STORY = EDITORIAL_STORY_PARTS.map((part) => part.text).join("")
 
-// 后端错误 message 是英文技术语时按状态码翻人话;已是中文的原文放行。fallback 各场景自带。
-function authErrorMessage(res: Response, data: unknown, fallback: string): string {
-  const err = (data as { error?: { message?: string } } | null)?.error
-  const msg = typeof err?.message === "string" ? err.message : ""
-  if (/[\u4e00-\u9fff]/.test(msg)) return msg
-  if (res.status === 401 || res.status === 403) return fallback
-  if (res.status === 409) return "这个激活码已绑定其他设备或账号,如需换绑请联系支持。"
-  if (res.status === 429) return "尝试太频繁了,稍等一会再试。"
-  if (res.status >= 500) return "服务暂时不可用,请稍后重试。"
-  return msg || fallback
-}
 
 type SaasUser = {
   id?: string

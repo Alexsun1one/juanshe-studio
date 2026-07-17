@@ -532,3 +532,15 @@
 .ppa-body blockquote { margin: 0 0 15px; padding: 10px 16px; border-left: 3px solid var(--brand-300); background: var(--brand-50); color: var(--ink-700); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
 .ppa-body ul { padding-left: 20px; margin: 0 0 15px; }
 .ppa-body li { margin: 0 0 8px; }
+
+/* 排序小按钮:拖拽之外的触屏/键盘替代(移动端拖不了,桌面键盘也受益) */
+.cmp-move { display: inline-flex; gap: 3px; margin-left: 2px; vertical-align: -2px; }
+.cmp-move-btn {
+  display: inline-grid; place-items: center;
+  width: 18px; height: 18px; padding: 0;
+  border: 1px solid var(--line-2); border-radius: var(--r-sm, 6px);
+  background: var(--bg-card); color: var(--ink-500); cursor: pointer;
+  transition: all var(--motion-fast) var(--ease-soft);
+}
+.cmp-move-btn:hover { border-color: var(--brand-500); color: var(--brand-600); background: var(--brand-50, var(--bg-hover)); }
+.cmp-move-btn:focus-visible { outline: none; box-shadow: var(--ring); }

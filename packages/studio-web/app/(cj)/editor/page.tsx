@@ -87,6 +87,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { describeFailure } from "@/lib/describe-error"
 import "./editor.css"
 
 const soft = { shouldRetryOnError: false }
@@ -280,7 +281,7 @@ export default function EditorPage() {
       setReview(d.review)
       toast.success(`总编已${d.review.verdict === "pass" ? "签发本章" : "判定返工"}`)
     } catch (e) {
-      toast.error(`总编复审失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("总编复审失败", { description: describeFailure(e) || undefined })
     } finally {
       setReviewBusy(false)
     }
@@ -442,7 +443,7 @@ export default function EditorPage() {
       fetchEditorialReview(bookId, cur).then((d) => setReview(d.review)).catch(() => {})
       toast.success("已按建议修复本章", { description: "正文、质量和审议信息已重新刷新。" })
     } catch (e) {
-      toast.error(`按建议修复失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("按建议修复失败", { description: describeFailure(e) || undefined })
     } finally {
       setBusy(false)
       setSuggestionInstruction("")
@@ -460,7 +461,7 @@ export default function EditorPage() {
       mutate(["chapters", bookId])
       toast.success(`第 ${cur} 章已签发`, { description: "已标记为通过 —— 续写会把它当定稿继续往下写。" })
     } catch (e) {
-      toast.error(`签发失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("签发失败", { description: describeFailure(e) || undefined })
     } finally {
       setApproving(false)
     }
@@ -487,7 +488,7 @@ export default function EditorPage() {
       else { await triggerRewrite(bookId, cur, { style: kind === "polish" ? "润色" : "扩写" }); toast.success(kind === "polish" ? "已触发润色" : "已触发扩写") }
       run.refresh()
     } catch (e) {
-      if (!showWriteBlockToast(e, recovery)) toast.error(`操作失败:${e instanceof Error ? e.message : String(e)}`)
+      if (!showWriteBlockToast(e, recovery)) toast.error("操作失败", { description: describeFailure(e) || undefined })
     } finally {
       setBusy(false)
     }
@@ -506,7 +507,7 @@ export default function EditorPage() {
       toast.success(`已开始原地修复第 ${cur} 章到 90 分`, { description: "只修这一章,不影响后面的章节。修完会自动刷新。" })
       run.refresh()
     } catch (e) {
-      if (!showWriteBlockToast(e, recovery)) toast.error(`修复失败:${e instanceof Error ? e.message : String(e)}`)
+      if (!showWriteBlockToast(e, recovery)) toast.error("修复失败", { description: describeFailure(e) || undefined })
     } finally {
       setBusy(false)
     }

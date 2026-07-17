@@ -39,6 +39,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { describeFailure } from "@/lib/describe-error"
 import "./materials.css"
 
 type AssetItem = { id: string; name: { zh: string; en: string }; type: "doc" | "image" | "audio" | "video"; size?: number; updatedAt?: string }
@@ -151,7 +152,7 @@ export default function MaterialsPage() {
       const file = await fetchMaterial(bookId, asset.name.zh)
       setDraftContent(file.content)
     } catch (e) {
-      toast.error(`读取素材失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("读取素材失败", { description: describeFailure(e) || undefined })
       setEditor(null)
     } finally {
       setLoadingDraft(false)
@@ -179,7 +180,7 @@ export default function MaterialsPage() {
       setEditor(null)
       await mutate()
     } catch (e) {
-      toast.error(`保存素材失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("保存素材失败", { description: describeFailure(e) || undefined })
     } finally {
       setSavingDraft(false)
     }
@@ -194,7 +195,7 @@ export default function MaterialsPage() {
       setDeleteTarget(null)
       await mutate()
     } catch (e) {
-      toast.error(`删除素材失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("删除素材失败", { description: describeFailure(e) || undefined })
     } finally {
       setDeleting(false)
     }

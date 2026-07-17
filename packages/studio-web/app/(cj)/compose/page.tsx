@@ -4,6 +4,8 @@ import * as React from "react"
 import { toast } from "sonner"
 import {
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Check,
   Copy,
   FileText,
@@ -32,6 +34,7 @@ import { PlatformPreview } from "@/components/studio/platform-preview"
 import { PixelBadge } from "@/components/design/pixel-badge"
 import { AgentPixel } from "@/components/design/agent-pixel"
 import { KpiChip, Meter, StatLine, FoldCard } from "@/components/design/kit"
+import { describeFailure } from "@/lib/describe-error"
 
 import "./compose.css"
 
@@ -107,6 +110,21 @@ export default function ComposePage() {
     })
   }
 
+  // 触屏/键盘排序:拖拽在移动端不可用,给选中平台一对「前移/后移」按钮(全端通用)
+  const movePlatform = (dir: -1 | 1) => {
+    setOrder((prev) => {
+      const idx = prev.indexOf(sel.id)
+      if (idx < 0) return prev
+      const to = idx + dir
+      if (to < 0 || to >= prev.length) return prev
+      const next = [...prev]
+      next.splice(idx, 1)
+      next.splice(to, 0, sel.id)
+      try { localStorage.setItem("autow:compose-order", JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
+
   const loadDrafts = React.useCallback(async () => {
     try {
       const r = await fetch("/api/v1/content-drafts")
@@ -145,7 +163,13 @@ export default function ComposePage() {
         body: JSON.stringify({ brief: brief.trim(), accountVoice: voice.trim() || undefined, revise }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data?.error?.message || `生成失败 (${res.status})`)
+      if (!res.ok) {
+        // 带 status 抛给翻译层(describeFailure):500→"服务暂时不可用"、401→"登录已过期",
+        // 不再把"生成失败 (500)"这种状态码串上屏
+        const err = new Error(typeof data?.error?.message === "string" ? data.error.message : "") as Error & { status?: number }
+        err.status = res.status
+        throw err
+      }
       const content = String(data.content ?? data.markdown ?? data.article ?? data.text ?? data.draft ?? "")
       const score = data.critique?.score ?? data.score ?? data.quality?.score
       if (!content) throw new Error("后端未返回正文")
@@ -153,7 +177,7 @@ export default function ComposePage() {
       toast.success(`已生成${data.revised ? " · 经评审修订" : ""}·已入库`)
       void loadDrafts()
     } catch (e) {
-      toast.error(`生成失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("生成失败", { description: describeFailure(e) || undefined })
     } finally {
       setBusy(false)
     }
@@ -264,7 +288,13 @@ export default function ComposePage() {
             <h3 className="cmp-sec">
               <Layers size={13} className="cmp-sec-ico" aria-hidden />
               选平台体裁
-              <span className="hint"><GripVertical size={11} aria-hidden /> 拖动排序 · 把常用平台放前面</span>
+              <span className="hint">
+                <GripVertical size={11} aria-hidden /> 拖动排序 · 或选中后
+                <span className="cmp-move">
+                  <button type="button" className="cmp-move-btn" onClick={() => movePlatform(-1)} title={`「${sel.name}」前移一位`} aria-label={`「${sel.name}」前移一位`}><ChevronLeft size={12} aria-hidden /></button>
+                  <button type="button" className="cmp-move-btn" onClick={() => movePlatform(1)} title={`「${sel.name}」后移一位`} aria-label={`「${sel.name}」后移一位`}><ChevronRight size={12} aria-hidden /></button>
+                </span>
+              </span>
             </h3>
             <div className="plat-grid">
               {orderedPlatforms.map((p) => (

@@ -21,6 +21,7 @@ import { StreamingProse, createIncrementalSplitState, splitStreamParagraphsIncre
 import { StreamFollowChip } from "./stream-follow-chip"
 import { useStickToBottom } from "@/hooks/use-stick-to-bottom"
 import { renderAgentOutputInline, sanitizeAgentOutput } from "@/lib/sanitize-agent-output"
+import { describeFailure } from "@/lib/describe-error"
 import "./workflow-theater.css"
 
 /**
@@ -181,7 +182,7 @@ export function WorkflowTheater({ bookId, bookTitle }: { bookId: string | undefi
       run.refresh()
       toast.success("已停止写作", { description: "已落库的章节都保留在本地。" })
     } catch (e) {
-      toast.error(`停止失败:${e instanceof Error ? e.message : String(e)}`)
+      toast.error("停止失败", { description: describeFailure(e) || undefined })
     } finally {
       setStopping(false)
     }
